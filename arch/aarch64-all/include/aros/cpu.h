@@ -2,7 +2,7 @@
 #define AROS_AARCH64_CPU_H
 
 /*
-    Copyright © 2016, The AROS Development Team. All rights reserved.
+    Copyright ï¿½ 2016, The AROS Development Team. All rights reserved.
     $Id$
 
     NOTE: This file must compile *without* any other header !
@@ -81,15 +81,19 @@ register unsigned char* AROS_GET_SP __asm__("%sp");
 */
 struct FullJumpVec
 {
-    unsigned long jmp;
-    unsigned long vec;
+    unsigned long jmp;	/* two AArch64 instrs: ldr x16,#8 ; br x16 */
+    unsigned long vec;	/* 64-bit absolute target address           */
 };
+/* AArch64 has no "load PC" instruction, so the trampoline loads the 64-bit
+   target (stored in 'vec', at offset 8) into x16 via an LDR-literal and
+   branches to it. Encodings: ldr x16,#8 = 0x58000050, br x16 = 0xd61f0200;
+   packed little-endian (first instruction in the low word). */
 #define __AROS_SET_FULLJMP(v,a) \
 do \
 {  \
     struct FullJumpVec *_v = (v); \
-    _v->jmp = 0xe51ff004; 		/* ldr pc, [pc, #-4] */ 	\
-    _v->vec = (a); 		/* target_address */ 	\
+    _v->jmp = 0xd61f020058000050UL;	/* ldr x16,#8 ; br x16 */	\
+    _v->vec = (unsigned long)(a);	/* 64-bit target_address */	\
 } while (0)
 
 struct JumpVec

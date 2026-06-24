@@ -2,7 +2,7 @@
 #define _EXEC_UTIL_H
 
 /*
-    Copyright © 1995-2017, The AROS Development Team. All rights reserved.
+    Copyright ï¿½ 1995-2017, The AROS Development Team. All rights reserved.
     $Id$
 
     Desc: Utility functions for exec.
@@ -55,6 +55,12 @@
 #ifdef __riscv
 #define PC pc
 #define FP x[4]
+#define CALLER_FRAME NULL
+#endif
+
+#ifdef __aarch64__
+#define PC pc
+#define FP fp
 #define CALLER_FRAME NULL
 #endif
 

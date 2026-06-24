@@ -31,7 +31,10 @@ ACPICA_INCLUDES     := $(ACPICASRCDIR)/source/include
     destination=$(PORTSDIR)/acpica
 
 #MM kernel-acpica-sharedlib : acpica-fetch
-#MM includes-copy :  acpica-fetch
+# aarch64-darwin graft: ACPICA is native-x86 ACPI, not used by a hosted aarch64
+# build, and its upstream download URL is dead. Don't make the global includes
+# step depend on fetching it. (Re-enable for native PC targets.)
+# disabled: includes-copy : acpica-fetch
 
 ACPICA_BASESOURCES = \
        $(call WILDCARD, $(ACPICASRCDIR)/source/components/executer/*.c) \

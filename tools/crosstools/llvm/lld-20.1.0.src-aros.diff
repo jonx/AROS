@@ -1,0 +1,16 @@
+--- lld-20.1.0.src/ELF/Driver.cpp	2026-06-24 11:23:59
++++ lld-20.1.0.src.aros/ELF/Driver.cpp	2026-06-24 11:23:59
+@@ -158,10 +158,10 @@
+ 
+   std::pair<ELFKind, uint16_t> ret =
+       StringSwitch<std::pair<ELFKind, uint16_t>>(s)
+-          .Cases("aarch64elf", "aarch64linux", {ELF64LEKind, EM_AARCH64})
++          .Cases("aarch64elf", "aarch64linux", "aarch64elf_aros", {ELF64LEKind, EM_AARCH64})
+           .Cases("aarch64elfb", "aarch64linuxb", {ELF64BEKind, EM_AARCH64})
+-          .Cases("armelf", "armelf_linux_eabi", {ELF32LEKind, EM_ARM})
+-          .Cases("armelfb", "armelfb_linux_eabi", {ELF32BEKind, EM_ARM})
++          .Cases("armelf", "armelf_linux_eabi", "armelf_aros", {ELF32LEKind, EM_ARM})
++          .Cases("armelfb", "armelfb_linux_eabi", "armelfb_aros", {ELF32BEKind, EM_ARM})
+           .Case("elf32_x86_64", {ELF32LEKind, EM_X86_64})
+           .Cases("elf32btsmip", "elf32btsmipn32", {ELF32BEKind, EM_MIPS})
+           .Cases("elf32ltsmip", "elf32ltsmipn32", {ELF32LEKind, EM_MIPS})

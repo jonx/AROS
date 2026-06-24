@@ -10,7 +10,15 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <sys/stat.h>
+#ifndef HOST_OS_darwin
+/*
+ * <sys/ioctl.h> drags in the BSD networking headers (via <sys/sockio.h> ->
+ * <net/if.h>), which don't compile cleanly under macOS's strict POSIX mode.
+ * This class never uses an ioctl macro directly - it calls the host ioctl()
+ * through SysIFace->ioctl - so the header is simply unnecessary on darwin.
+ */
 #include <sys/ioctl.h>
+#endif
 #include <signal.h>
 #include <string.h>
 #include <errno.h>

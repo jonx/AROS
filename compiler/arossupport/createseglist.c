@@ -68,7 +68,7 @@ struct phony_segment
     struct KernelBase *KernelBase = OpenResource("kernel.resource");
 
     if (KernelBase)
-        segtmp = KrnAllocPages(segsize, 0, MAP_Readable | MAP_Writable);
+        segtmp = KrnAllocPages(NULL, segsize, MEMF_ANY);
     else
         segtmp = AllocMem(segsize, MEMF_ANY);
     if (!segtmp)
@@ -82,8 +82,18 @@ struct phony_segment
     if (SysBase->LibNode.lib_Version >= 36)
         CacheClearE(Code, sizeof(*Code), CACRF_ClearI | CACRF_ClearD);
 
+    /* Flip the populated page from R/W to R/X (host mprotect). Mandatory on
+     * W^X hosts where the page could not have been writable and executable
+     * simultaneously. State is logged before and after so the transition is
+     * visible in the boot trace. */
     if (KernelBase)
+    {
+        D(bug("[CreateSegList] before flip: seg %p code %p firstword 0x%08x target %p\n",
+              segtmp, Code, *(volatile ULONG *)Code, function));
         KrnSetProtection(segtmp, segsize, MAP_Readable | MAP_Executable);
+        D(bug("[CreateSegList] after  flip: seg %p now R/X, firstword 0x%08x\n",
+              segtmp, *(volatile ULONG *)Code));
+    }
 
     D(bug("[CreateSegList] Created jump segment 0x%p, code 0x%p, target 0x%p\n", MKBADDR(&segtmp->Next), Code, function));
 

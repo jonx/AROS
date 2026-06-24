@@ -301,6 +301,13 @@ LDFLAGS                       += -Wl,--allow-multiple-definition
 # ADR_GOT_PAGE/LD64_GOT_LO12_NC; the simple kickstart bootstrap loader has no GOT,
 # so build with the large code model (absolute movz/movk addressing instead).
 CFLAGS                        += -mcmodel=large
+# The macOS host system headers (cc_include/machine/_types.h, sys/cdefs.h, ...)
+# guard their arch dispatch on __arm64__, not the __aarch64__ the AROS-targeted
+# clang defines; AROS files that pull a host header (e.g. the BSD math sources)
+# otherwise fail "#error architecture not supported". Darwin host only.
+ifeq ($(AROS_TARGET_ARCH),darwin)
+CFLAGS                        += -D__arm64__
+endif
 endif
 
 # Target arch/CPU-specific options that we can't set in 'configure'

@@ -64,8 +64,18 @@ do {                                            \
  * exactly what graft/cpucontext-aarch64.h establishes. The H4 spike does the same
  * copy via *uc->uc_mcontext.
  */
+/*
+ * Copy only the integer register state (x0-x28, fp, lr, sp, pc, cpsr), i.e. up to
+ * -- but NOT including -- the AROS-private Flags word. _STRUCT_ARM_THREAD_STATE64
+ * ends with __cpsr(u32)+__pad(u32); struct ExceptionContext has cpsr(u32) at the
+ * same offset but then Flags(u32). Copying the full sizeof(_STRUCT_ARM_THREAD_
+ * STATE64) would overwrite Flags with the host __pad -- and a stray ECF_FPU bit
+ * there makes RESTOREREGS deref a NULL fpuContext. So bound the copy at Flags.
+ */
+#define AARCH64_GPREGS_SIZE __builtin_offsetof(struct ExceptionContext, Flags)
+
 #define SAVEREGS(cc, sc)                                                          \
-    CopyMemQuick(&GPSTATE(sc), (cc)->regs.x, sizeof(_STRUCT_ARM_THREAD_STATE64));  \
+    CopyMemQuick(&GPSTATE(sc), (cc)->regs.x, AARCH64_GPREGS_SIZE);                 \
     if ((cc)->regs.fpuContext)                                                    \
     {                                                                            \
         (cc)->regs.Flags |= ECF_FPU;                                             \
@@ -73,7 +83,7 @@ do {                                            \
     }
 
 #define RESTOREREGS(cc, sc)                                                       \
-    CopyMemQuick((cc)->regs.x, &GPSTATE(sc), sizeof(_STRUCT_ARM_THREAD_STATE64));  \
+    CopyMemQuick((cc)->regs.x, &GPSTATE(sc), AARCH64_GPREGS_SIZE);                 \
     if ((cc)->regs.Flags & ECF_FPU)                                              \
         CopyMemQuick((cc)->regs.fpuContext, &FPSTATE(sc), sizeof(_STRUCT_ARM_NEON_STATE64));
 

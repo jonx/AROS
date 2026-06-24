@@ -112,6 +112,24 @@ static void *copy_data(void *src, void *addr, uintptr_t len)
 }
 
 /* Perform relocations of given section */
+#ifdef __aarch64__
+/* AArch64 ELF static relocations (not in AROS dos/elf.h). S=symbol, A=addend,
+   P=place. NONE(0) is handled by the shared R_X86_64_NONE case (same value). */
+#define R_AARCH64_ABS64                 257
+#define R_AARCH64_ABS32                 258
+#define R_AARCH64_PREL64                260
+#define R_AARCH64_PREL32                261
+#define R_AARCH64_ADR_PREL_PG_HI21      275
+#define R_AARCH64_ADD_ABS_LO12_NC       277
+#define R_AARCH64_LDST8_ABS_LO12_NC     278
+#define R_AARCH64_JUMP26                282
+#define R_AARCH64_CALL26                283
+#define R_AARCH64_LDST16_ABS_LO12_NC    284
+#define R_AARCH64_LDST32_ABS_LO12_NC    285
+#define R_AARCH64_LDST64_ABS_LO12_NC    286
+#define R_AARCH64_LDST128_ABS_LO12_NC   299
+#endif
+
 static int relocate(struct elfheader *eh, struct sheader *sh, long shrel_idx, elf_uintptr_t DefSysBase)
 {
     struct sheader *shrel    = &sh[shrel_idx];
@@ -245,6 +263,70 @@ static int relocate(struct elfheader *eh, struct sheader *sh, long shrel_idx, el
 
         case R_X86_64_NONE: /* No reloc */
             break;
+
+#ifdef __aarch64__
+        case R_AARCH64_ABS64:   /* S + A */
+            *(uint64_t *)p = s + rel->addend;
+            break;
+        case R_AARCH64_ABS32:
+            *(uint32_t *)p = (uint32_t)(s + rel->addend);
+            break;
+        case R_AARCH64_PREL64:  /* S + A - P */
+            *(uint64_t *)p = s + rel->addend - (uintptr_t)p;
+            break;
+        case R_AARCH64_PREL32:
+            *(uint32_t *)p = (uint32_t)(s + rel->addend - (uintptr_t)p);
+            break;
+
+        case R_AARCH64_CALL26:  /* BL  : ((S+A-P) >> 2) in imm26 */
+        case R_AARCH64_JUMP26:  /* B   : ((S+A-P) >> 2) in imm26 */
+        {
+            int64_t x = (int64_t)(s + rel->addend - (uintptr_t)p) >> 2;
+            uint32_t *insn = (uint32_t *)p;
+            *insn = (*insn & 0xfc000000u) | ((uint32_t)x & 0x03ffffffu);
+            break;
+        }
+
+        case R_AARCH64_ADR_PREL_PG_HI21: /* ADRP: page(S+A) - page(P) */
+        {
+            int64_t x = ((int64_t)(s + rel->addend) & ~0xfffLL)
+                      - ((int64_t)(uintptr_t)p & ~0xfffLL);
+            x >>= 12;
+            uint32_t *insn = (uint32_t *)p;
+            *insn = (*insn & 0x9f00001fu)
+                  | (((uint32_t)x & 0x3u) << 29)
+                  | ((((uint32_t)x >> 2) & 0x7ffffu) << 5);
+            break;
+        }
+
+        case R_AARCH64_ADD_ABS_LO12_NC: /* ADD: (S+A) & 0xfff in imm12 */
+        {
+            uint32_t x = (uint32_t)(s + rel->addend) & 0xfffu;
+            uint32_t *insn = (uint32_t *)p;
+            *insn = (*insn & 0xffc003ffu) | (x << 10);
+            break;
+        }
+
+        case R_AARCH64_LDST8_ABS_LO12_NC:   /* LDR/STR: ((S+A)&0xfff)>>scale */
+        case R_AARCH64_LDST16_ABS_LO12_NC:
+        case R_AARCH64_LDST32_ABS_LO12_NC:
+        case R_AARCH64_LDST64_ABS_LO12_NC:
+        case R_AARCH64_LDST128_ABS_LO12_NC:
+        {
+            uint32_t val = (uint32_t)(s + rel->addend) & 0xfffu;
+            uint32_t shift = 0;
+            switch (ELF_R_TYPE(rel->info)) {
+            case R_AARCH64_LDST16_ABS_LO12_NC:  shift = 1; break;
+            case R_AARCH64_LDST32_ABS_LO12_NC:  shift = 2; break;
+            case R_AARCH64_LDST64_ABS_LO12_NC:  shift = 3; break;
+            case R_AARCH64_LDST128_ABS_LO12_NC: shift = 4; break;
+            default:                            shift = 0; break;
+            }
+            uint32_t *insn = (uint32_t *)p;
+            *insn = (*insn & 0xffc003ffu) | (((val >> shift) & 0xfffu) << 10);
+            break;
+        }
+#endif /* __aarch64__ */
 #else
 #ifdef __i386__
         case R_386_32: /* 32bit absolute */

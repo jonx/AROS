@@ -74,12 +74,6 @@ ifeq ($(USE_MMU),1)
     FILES += $(MMU_FILES) $(ALLOCATOR)
 endif
 
-# The kernel is freestanding (runs before any library is up), but compiler-emitted
-# memset/memcpy/... resolve to AROS's weak StdC library-call stubs (which deref a
-# still-NULL StdCBase). Link the strong static C runtime *early* so its freestanding
-# versions satisfy the references before the spec's weak -lstdc is reached.
-USER_LDFLAGS += -lstdc.static
-
 %build_module mmake=kernel-kernel \
   modname=kernel modtype=resource version=$(AROS_TARGET_PLATFORM) \
   files="$(FILES) $(FUNCS)" nostartup=no archspecific=yes

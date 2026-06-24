@@ -234,6 +234,22 @@ BASE_CFLAGS                   = $(CONFIG_BASE_CFLAGS)
 BASE_CXXFLAGS                 = $(CONFIG_BASE_CXXFLAGS)
 BASE_CPPFLAGS                 = $(CONFIG_BASE_CPPFLAGS)
 
+# Kickstart/ROM modules run before stdc.library is loaded, so they cannot use the
+# weak StdC library-call stubs (-lstdc) that compiler-emitted memset/memcpy/memmove/
+# memcmp/strlen/... resolve to -- those deref a still-NULL StdCBase and crash at
+# early boot. Link the strong, freestanding static C runtime *early* (before the
+# spec's weak -lstdc) so those references bind to base-free implementations.
+# libstdc.static.a is the freestanding subset (mem/str/ctype/math/formatting -- no
+# printf/malloc/I/O), so archive semantics pull only the referenced members; modules
+# that emit no such libcalls (most) pay nothing, and disk programs that pull e.g.
+# memset just get the same leaf function statically (printf/malloc stay shared).
+#
+# NOTE: in a *hosted* build every module compiles as compiler=target and links via
+# LDFLAGS/TARGET_LDFLAGS (see below); the kernel compiler type -- and KERNEL_LDFLAGS
+# -- is only used by *native* bare-metal kickstart builds. So the fix must be in
+# both places to cover hosted and native.
+KERNEL_LDFLAGS                += -lstdc.static
+
 # Was debugging enabled? Better set up the options.
 ifeq ($(DEBUG),yes)
     BASE_CFLAGS               += $(DEBUG_CFLAGS)
@@ -266,7 +282,26 @@ CFLAGS                        = $(strip $(TARGET_ISA_CFLAGS) $(TARGET_CFLAGS) $(
 CXXFLAGS                      = $(strip $(TARGET_ISA_CXXFLAGS) $(TARGET_CXXFLAGS))
 CPPFLAGS                      = $(strip $(TARGET_CPPFLAGS))
 AFLAGS                        = $(strip $(TARGET_ISA_AFLAGS) $(USER_AFLAGS) $(CONFIG_AFLAGS))
-LDFLAGS                       = $(strip $(USER_LDFLAGS) $(TARGET_LDFLAGS))
+# -lstdc.static: strong freestanding C runtime for the (hosted) target link type --
+# see the KERNEL_LDFLAGS note above. Placed before the spec's weak -lstdc so the
+# compiler-emitted mem/str libcalls bind to the base-free static versions.
+LDFLAGS                       = $(strip $(USER_LDFLAGS) $(TARGET_LDFLAGS) -lstdc.static)
+
+# darwin-aarch64 (hosted) target specifics. These previously lived only in the
+# build dir's make.cfg and were lost whenever make.cfg was regenerated from this
+# template -- hence "we keep fixing it every build". Gated on the CPU so other
+# targets are unaffected. See graft/UPSTREAM-NOTES.md for the full rationale.
+ifeq ($(AROS_TARGET_CPU),aarch64)
+# The weak __aros_libreq_<base> version marker is emitted by clang as a non-weak
+# block-scope static, so it collides across a module's objects; all copies are
+# identical (the required version), so allow the merge. (Cleaner upstream fix:
+# emit the marker at file scope where 'weak' sticks.)
+LDFLAGS                       += -Wl,--allow-multiple-definition
+# clang routes weak-symbol accesses through the GOT even with -fno-pic, emitting
+# ADR_GOT_PAGE/LD64_GOT_LO12_NC; the simple kickstart bootstrap loader has no GOT,
+# so build with the large code model (absolute movz/movk addressing instead).
+CFLAGS                        += -mcmodel=large
+endif
 
 # Target arch/CPU-specific options that we can't set in 'configure'
 # (these could be added to CFLAGS instead of using a new variable, except

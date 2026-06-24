@@ -63,6 +63,31 @@ static void core_TrapHandler(int sig, regs_t *regs)
     bug("[KRN] Trap signal %d, SysBase %p, KernelBase %p\n", sig, SysBase, KernelBase);
     PRINT_SC(regs);
 
+    /*
+     * Stack backtrace (frame-pointer chain). Inlined and self-contained -- no
+     * library calls -- so it is safe in a post-crash trap context (calling the
+     * kernel's own KrnPrintBacktrace LVO here can re-fault and hang). Modules are
+     * built -fno-omit-frame-pointer, so the AAPCS64 frame record at x29 is
+     * [saved_fp, return_addr]. Map the printed addresses against the module bases
+     * shown by sysdebug=InitResident ("InitResident begin <romtag> (<module>)").
+     */
+    {
+        IPTR *fp = (IPTR *)(IPTR)FP(regs);
+        ULONG i;
+        bug("[KRN] Backtrace (innermost first): pc=%p\n", (APTR)(IPTR)PC(regs));
+        for (i = 0; i < 24 && fp; i++)
+        {
+            IPTR saved_fp = fp[0];
+            IPTR ret      = fp[1];
+            if (!ret)
+                break;
+            bug("[KRN]   <- %p\n", (APTR)ret);
+            if (saved_fp <= (IPTR)fp || (saved_fp & 0xF))
+                break;
+            fp = (IPTR *)saved_fp;
+        }
+    }
+
     /* Translate UNIX trap number to CPU and exec trap numbers */
     for (s = sigs; s->sig != -1; s++)
     {

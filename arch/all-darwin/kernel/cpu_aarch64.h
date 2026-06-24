@@ -77,16 +77,37 @@ do {                                            \
     if ((cc)->regs.Flags & ECF_FPU)                                              \
         CopyMemQuick((cc)->regs.fpuContext, &FPSTATE(sc), sizeof(_STRUCT_ARM_NEON_STATE64));
 
-/* Print signal context. Used in the crash handler. */
+/* Print signal context (all general-purpose registers). Used in the crash
+ * handler -- the faulting value often lives in a callee-saved register, so dump
+ * the full x0-x28 set plus fp(x29)/lr(x30)/sp/pc/cpsr. */
 #define PRINT_SC(sc) \
-    bug ("    X0 =%016llX  X1 =%016llX  X2 =%016llX  X3 =%016llX\n" \
-         "    FP =%016llX  LR =%016llX  SP =%016llX  PC =%016llX\n" \
-         "    CPSR=%08X\n"                                          \
-            , (unsigned long long)Xn(sc,0), (unsigned long long)Xn(sc,1) \
-            , (unsigned long long)Xn(sc,2), (unsigned long long)Xn(sc,3) \
-            , (unsigned long long)FP(sc),  (unsigned long long)LR(sc)    \
-            , (unsigned long long)SP(sc),  (unsigned long long)PC(sc)    \
-            , (unsigned int)CPSR(sc)                                     \
+    bug ("    X0 =%016llX X1 =%016llX X2 =%016llX X3 =%016llX\n" \
+         "    X4 =%016llX X5 =%016llX X6 =%016llX X7 =%016llX\n" \
+         "    X8 =%016llX X9 =%016llX X10=%016llX X11=%016llX\n" \
+         "    X12=%016llX X13=%016llX X14=%016llX X15=%016llX\n" \
+         "    X16=%016llX X17=%016llX X18=%016llX X19=%016llX\n" \
+         "    X20=%016llX X21=%016llX X22=%016llX X23=%016llX\n" \
+         "    X24=%016llX X25=%016llX X26=%016llX X27=%016llX\n" \
+         "    X28=%016llX FP =%016llX LR =%016llX SP =%016llX\n" \
+         "    PC =%016llX CPSR=%08X\n"                           \
+            , (unsigned long long)Xn(sc,0),  (unsigned long long)Xn(sc,1)  \
+            , (unsigned long long)Xn(sc,2),  (unsigned long long)Xn(sc,3)  \
+            , (unsigned long long)Xn(sc,4),  (unsigned long long)Xn(sc,5)  \
+            , (unsigned long long)Xn(sc,6),  (unsigned long long)Xn(sc,7)  \
+            , (unsigned long long)Xn(sc,8),  (unsigned long long)Xn(sc,9)  \
+            , (unsigned long long)Xn(sc,10), (unsigned long long)Xn(sc,11) \
+            , (unsigned long long)Xn(sc,12), (unsigned long long)Xn(sc,13) \
+            , (unsigned long long)Xn(sc,14), (unsigned long long)Xn(sc,15) \
+            , (unsigned long long)Xn(sc,16), (unsigned long long)Xn(sc,17) \
+            , (unsigned long long)Xn(sc,18), (unsigned long long)Xn(sc,19) \
+            , (unsigned long long)Xn(sc,20), (unsigned long long)Xn(sc,21) \
+            , (unsigned long long)Xn(sc,22), (unsigned long long)Xn(sc,23) \
+            , (unsigned long long)Xn(sc,24), (unsigned long long)Xn(sc,25) \
+            , (unsigned long long)Xn(sc,26), (unsigned long long)Xn(sc,27) \
+            , (unsigned long long)Xn(sc,28)                               \
+            , (unsigned long long)FP(sc),  (unsigned long long)LR(sc)     \
+            , (unsigned long long)SP(sc),  (unsigned long long)PC(sc)     \
+            , (unsigned int)CPSR(sc)                                      \
         )
 
 #endif /* __AROS_EXEC_LIBRARY__ */

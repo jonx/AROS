@@ -8,6 +8,10 @@ endif
 
 FUNCS := open close getpointer freeerrorstr getinterface dropinterface lock unlock
 
+# Freestanding (runs before libraries are up): force-load the strong static C
+# runtime so compiler-emitted memset/strcmp/... don't use the weak StdC stubs.
+USER_LDFLAGS += -Wl,--whole-archive -lkrnmem -Wl,--no-whole-archive
+
 %build_module mmake=kernel-hostlib \
     modname=hostlib modtype=resource version=$(AROS_TARGET_PLATFORM) \
     files="hostlib_init $(FUNCS)" archspecific=yes

@@ -161,14 +161,14 @@ curl_http() {
 
     protocol=$(echo "$tryurl$curlext" | cut -d':' -f1)
 
-    urlsrc=$(curl -fsIL -o /dev/null -w "%{url_effective}" "$tryurl$curlext")
+    urlsrc=$(curl -fsIL --connect-timeout 30 --max-time 120 -o /dev/null -w "%{url_effective}" "$tryurl$curlext")
     if [ $? -ne 0 ]; then
         # In case an old confused server is encountered we assume TLS 1.0.
         # The system this script runs on might not support TLS 1.0,
         # and then we are out of luck, but we tried.
         # Servers of this kind should be super rare, but the fallback was
         # carried over from the original code using wget.
-        urlsrc=$(curl --tlsv1 --tls-max 1.0 -fsIL -o /dev/null -w "%{url_effective}" "$tryurl$curlext")
+        urlsrc=$(curl --tlsv1 --tls-max 1.0 -fsIL --connect-timeout 30 --max-time 120 -o /dev/null -w "%{url_effective}" "$tryurl$curlext")
     fi
     if [ $? -ne 0 ]; then
         curlsrc="$tryurl"
@@ -177,7 +177,7 @@ curl_http() {
     fi
 
     while :; do
-        eval "curl -fL --retry 3 --retry-connrefused $curlextraflags --speed-limit 1 --speed-time 15 -C - \"$curlsrc\" -o \"$curloutput\""
+        eval "curl -fL --retry 3 --retry-connrefused --connect-timeout 30 $curlextraflags --speed-limit 1 --speed-time 15 -C - \"$curlsrc\" -o \"$curloutput\""
         ret=$?
 
         if [ $ret -eq 0 ]; then

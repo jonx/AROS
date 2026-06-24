@@ -69,8 +69,11 @@ typedef	unsigned int	cpumask_t;
 #define AROS_SIG_ATOMIC_MIN     (-0x7fffffff-1)
 #define AROS_SIG_ATOMIC_MAX     0x7fffffff
 
-#if defined(__GNUC__) && !defined(__clang__)
-register unsigned char* AROS_GET_SP __asm__("%sp");
+#if defined(__clang__)
+/* clang has no global "sp" register variable on AArch64; read it inline. */
+#define AROS_GET_SP ({ unsigned char *__sp; __asm__ __volatile__("mov %0, sp" : "=r"(__sp)); __sp; })
+#elif defined(__GNUC__)
+register unsigned char* AROS_GET_SP __asm__("sp");
 #endif
 
 /*

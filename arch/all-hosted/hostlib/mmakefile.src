@@ -8,9 +8,9 @@ endif
 
 FUNCS := open close getpointer freeerrorstr getinterface dropinterface lock unlock
 
-# Freestanding (runs before libraries are up): force-load the strong static C
-# runtime so compiler-emitted memset/strcmp/... don't use the weak StdC stubs.
-USER_LDFLAGS += -Wl,--whole-archive -lkrnmem -Wl,--no-whole-archive
+# Freestanding (runs before libraries are up): link the strong static C runtime
+# early so compiler-emitted memset/strcmp/... don't use the weak StdC stubs.
+USER_LDFLAGS += -lstdc.static
 
 %build_module mmake=kernel-hostlib \
     modname=hostlib modtype=resource version=$(AROS_TARGET_PLATFORM) \

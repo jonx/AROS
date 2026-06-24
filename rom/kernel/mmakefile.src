@@ -76,9 +76,9 @@ endif
 
 # The kernel is freestanding (runs before any library is up), but compiler-emitted
 # memset/memcpy/... resolve to AROS's weak StdC library-call stubs (which deref a
-# still-NULL StdCBase). Force-load the strong static C runtime so those override the
-# stubs.
-USER_LDFLAGS += -Wl,--whole-archive -lkrnmem -Wl,--no-whole-archive
+# still-NULL StdCBase). Link the strong static C runtime *early* so its freestanding
+# versions satisfy the references before the spec's weak -lstdc is reached.
+USER_LDFLAGS += -lstdc.static
 
 %build_module mmake=kernel-kernel \
   modname=kernel modtype=resource version=$(AROS_TARGET_PLATFORM) \

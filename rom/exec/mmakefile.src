@@ -58,8 +58,10 @@ USER_INCLUDES += $(PRIV_EXEC_INCLUDES) -I$(SRCDIR)/rom/debug
 USER_CPPFLAGS := -DAROS_ARCH_$(ARCH)
 # exec.library, like kernel.resource, runs before any library is up but its
 # compiler-emitted memset/strcmp/... resolve to weak StdC library-call stubs
-# (deref a still-NULL StdCBase). Force-load the strong static C runtime.
-USER_LDFLAGS += -Wl,--whole-archive -lkrnmem -Wl,--no-whole-archive
+# (deref a still-NULL StdCBase). Link the strong static C runtime *early* so its
+# freestanding memset/strcmp/... satisfy the references before the spec's weak
+# -lstdc is reached (archive semantics: first to define wins).
+USER_LDFLAGS += -lstdc.static
 ifeq ($(AROS_TARGET_CPU),x86_64)
 USER_CFLAGS += $(CFLAGS_GENERAL_REGS_ONLY)
 endif

@@ -297,6 +297,31 @@ static int __attribute__ ((noinline)) load_hunk
     return 0;
 }
 
+#ifdef __aarch64__
+/* AArch64 ELF relocation types (not in AROS dos/elf.h). */
+#define R_AARCH64_NONE              0
+#define R_AARCH64_ABS64             257
+#define R_AARCH64_ABS32             258
+#define R_AARCH64_PREL64            260
+#define R_AARCH64_PREL32            261
+#define R_AARCH64_MOVW_UABS_G0      263
+#define R_AARCH64_MOVW_UABS_G0_NC   264
+#define R_AARCH64_MOVW_UABS_G1      265
+#define R_AARCH64_MOVW_UABS_G1_NC   266
+#define R_AARCH64_MOVW_UABS_G2      267
+#define R_AARCH64_MOVW_UABS_G2_NC   268
+#define R_AARCH64_MOVW_UABS_G3      269
+#define R_AARCH64_ADR_PREL_PG_HI21  275
+#define R_AARCH64_ADD_ABS_LO12_NC   277
+#define R_AARCH64_LDST8_ABS_LO12_NC 278
+#define R_AARCH64_JUMP26            282
+#define R_AARCH64_CALL26            283
+#define R_AARCH64_LDST16_ABS_LO12_NC 284
+#define R_AARCH64_LDST32_ABS_LO12_NC 285
+#define R_AARCH64_LDST64_ABS_LO12_NC 286
+#define R_AARCH64_LDST128_ABS_LO12_NC 299
+#endif
+
 static int relocate
 (
     struct elfheader  *eh,
@@ -722,6 +747,76 @@ static int relocate
 
             case R_ARM_NONE:
                 break;
+            #elif defined(__aarch64__)
+
+            case R_AARCH64_ABS64:
+                *(UQUAD *)p = s + rel->addend;
+                break;
+            case R_AARCH64_ABS32:
+                *(ULONG *)p = (ULONG)(s + rel->addend);
+                break;
+            case R_AARCH64_PREL64:
+                *(UQUAD *)p = s + rel->addend - (IPTR)p;
+                break;
+            case R_AARCH64_PREL32:
+                *(ULONG *)p = (ULONG)(s + rel->addend - (IPTR)p);
+                break;
+
+            /* movz/movk: replace the 16-bit imm (instruction bits 5-20). */
+            case R_AARCH64_MOVW_UABS_G0:
+            case R_AARCH64_MOVW_UABS_G0_NC:
+                *p = (*p & 0xffe0001fu) | ((((s + rel->addend) >> 0)  & 0xffff) << 5);
+                break;
+            case R_AARCH64_MOVW_UABS_G1:
+            case R_AARCH64_MOVW_UABS_G1_NC:
+                *p = (*p & 0xffe0001fu) | ((((s + rel->addend) >> 16) & 0xffff) << 5);
+                break;
+            case R_AARCH64_MOVW_UABS_G2:
+            case R_AARCH64_MOVW_UABS_G2_NC:
+                *p = (*p & 0xffe0001fu) | ((((s + rel->addend) >> 32) & 0xffff) << 5);
+                break;
+            case R_AARCH64_MOVW_UABS_G3:
+                *p = (*p & 0xffe0001fu) | ((((s + rel->addend) >> 48) & 0xffff) << 5);
+                break;
+
+            /* ADRP: 21-bit page offset, split immlo (bits 29-30) / immhi (5-23). */
+            case R_AARCH64_ADR_PREL_PG_HI21:
+            {
+                IPTR x = (((s + rel->addend) & ~(IPTR)0xfff) - ((IPTR)p & ~(IPTR)0xfff)) >> 12;
+                *p = (*p & 0x9f00001fu) | ((x & 0x3) << 29) | (((x >> 2) & 0x7ffff) << 5);
+                break;
+            }
+
+            /* ADD/LDST imm12 (instruction bits 10-21), LDST scaled by size. */
+            case R_AARCH64_ADD_ABS_LO12_NC:
+            case R_AARCH64_LDST8_ABS_LO12_NC:
+                *p = (*p & 0xffc003ffu) | ((((s + rel->addend) & 0xfff) >> 0) << 10);
+                break;
+            case R_AARCH64_LDST16_ABS_LO12_NC:
+                *p = (*p & 0xffc003ffu) | ((((s + rel->addend) & 0xfff) >> 1) << 10);
+                break;
+            case R_AARCH64_LDST32_ABS_LO12_NC:
+                *p = (*p & 0xffc003ffu) | ((((s + rel->addend) & 0xfff) >> 2) << 10);
+                break;
+            case R_AARCH64_LDST64_ABS_LO12_NC:
+                *p = (*p & 0xffc003ffu) | ((((s + rel->addend) & 0xfff) >> 3) << 10);
+                break;
+            case R_AARCH64_LDST128_ABS_LO12_NC:
+                *p = (*p & 0xffc003ffu) | ((((s + rel->addend) & 0xfff) >> 4) << 10);
+                break;
+
+            /* b/bl: 26-bit signed branch offset >> 2 (instruction bits 0-25). */
+            case R_AARCH64_JUMP26:
+            case R_AARCH64_CALL26:
+            {
+                IPTR x = (s + rel->addend - (IPTR)p) >> 2;
+                *p = (*p & 0xfc000000u) | (x & 0x03ffffffu);
+                break;
+            }
+
+            case R_AARCH64_NONE:
+                break;
+
             #elif defined(__riscv)
 
             #else

@@ -119,6 +119,13 @@ static void *copy_data(void *src, void *addr, uintptr_t len)
 #define R_AARCH64_ABS32                 258
 #define R_AARCH64_PREL64                260
 #define R_AARCH64_PREL32                261
+#define R_AARCH64_MOVW_UABS_G0          263
+#define R_AARCH64_MOVW_UABS_G0_NC       264
+#define R_AARCH64_MOVW_UABS_G1          265
+#define R_AARCH64_MOVW_UABS_G1_NC       266
+#define R_AARCH64_MOVW_UABS_G2          267
+#define R_AARCH64_MOVW_UABS_G2_NC       268
+#define R_AARCH64_MOVW_UABS_G3          269
 #define R_AARCH64_ADR_PREL_PG_HI21      275
 #define R_AARCH64_ADD_ABS_LO12_NC       277
 #define R_AARCH64_LDST8_ABS_LO12_NC     278
@@ -277,6 +284,30 @@ static int relocate(struct elfheader *eh, struct sheader *sh, long shrel_idx, el
         case R_AARCH64_PREL32:
             *(uint32_t *)p = (uint32_t)(s + rel->addend - (uintptr_t)p);
             break;
+
+        case R_AARCH64_MOVW_UABS_G0:    /* movz/movk: 16-bit chunk of (S+A) */
+        case R_AARCH64_MOVW_UABS_G0_NC:
+        case R_AARCH64_MOVW_UABS_G1:
+        case R_AARCH64_MOVW_UABS_G1_NC:
+        case R_AARCH64_MOVW_UABS_G2:
+        case R_AARCH64_MOVW_UABS_G2_NC:
+        case R_AARCH64_MOVW_UABS_G3:
+        {
+            uint64_t val = s + rel->addend;
+            uint32_t g;
+            switch (ELF_R_TYPE(rel->info)) {
+            case R_AARCH64_MOVW_UABS_G0:
+            case R_AARCH64_MOVW_UABS_G0_NC: g = (uint32_t)( val        & 0xffffu); break;
+            case R_AARCH64_MOVW_UABS_G1:
+            case R_AARCH64_MOVW_UABS_G1_NC: g = (uint32_t)((val >> 16) & 0xffffu); break;
+            case R_AARCH64_MOVW_UABS_G2:
+            case R_AARCH64_MOVW_UABS_G2_NC: g = (uint32_t)((val >> 32) & 0xffffu); break;
+            default:                        g = (uint32_t)((val >> 48) & 0xffffu); break; /* G3 */
+            }
+            uint32_t *insn = (uint32_t *)p;
+            *insn = (*insn & 0xffe0001fu) | (g << 5);
+            break;
+        }
 
         case R_AARCH64_CALL26:  /* BL  : ((S+A-P) >> 2) in imm26 */
         case R_AARCH64_JUMP26:  /* B   : ((S+A-P) >> 2) in imm26 */

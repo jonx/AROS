@@ -66,6 +66,15 @@
     int     prot     = PROT_READ | PROT_WRITE;
     void   *map;
 
+    /*
+     * Always map R/W. Apple Silicon refuses a writable+executable mapping even
+     * with the disable-executable-page-protection entitlement, so executable
+     * callers populate the region R/W and then flip it to R/X with
+     * KrnSetProtection() once the code is in place (see CreateSegList(),
+     * internalloadseg_elf.c). (void)flags keeps the signature contract.
+     */
+    (void)flags;
+
     /* Darwin does not define MAP_ANONYMOUS, only MAP_ANON. */
     map = iface->mmap(addr, len, prot, MAP_PRIVATE | MAP_ANON, -1, 0);
     AROS_HOST_BARRIER

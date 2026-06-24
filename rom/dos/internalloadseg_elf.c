@@ -10,8 +10,10 @@
 #include <proto/arossupport.h>
 #include <proto/debug.h>
 #include <proto/exec.h>
+#include <proto/kernel.h>
 
 #include <aros/asmcall.h>
+#include <aros/kernel.h>
 #include <aros/macros.h>
 #include <exec/memory.h>
 #include <dos/elf.h>
@@ -250,6 +252,10 @@ static int __attribute__ ((noinline)) load_hunk
             }
         }
     }
+
+    /* Executable code must come from executable memory (matters on W^X hosts). */
+    if (sh->flags & SHF_EXECINSTR)
+        memflags |= MEMF_EXECUTABLE;
 
     hunk = ilsAllocMem(hunk_size, memflags | MEMF_PUBLIC | (sh->type == SHT_NOBITS ? MEMF_CLEAR : 0));
     if (hunk)
@@ -1218,6 +1224,32 @@ end:
         curr = hunk->next;
     }
 #endif
+
+    /*
+     * W^X hosts: executable hunks were allocated R/W as dedicated host pages
+     * (KrnAllocPages, outside any MemHeader) so the loader could write and
+     * relocate the code in place. Now that the code is final, flip those pages
+     * to R/X. Data/bss hunks come from the AllocMem() pool (TypeOfMem() != 0)
+     * and must stay writable, so they are left untouched.
+     */
+    {
+        struct KernelBase *KernelBase = OpenResource("kernel.resource");
+
+        if (KernelBase)
+        {
+            curr = hunks;
+            while (curr)
+            {
+                struct hunk *hunk = BPTR2HUNK(BADDR(curr));
+                BPTR next = hunk->next;
+
+                if (!TypeOfMem(hunk))
+                    KrnSetProtection(hunk, hunk->size, MAP_Readable | MAP_Executable);
+
+                curr = next;
+            }
+        }
+    }
 
     /* deallocate the symbol tables */
     for (i = 0; i < int_shnum; i++)

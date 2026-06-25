@@ -173,6 +173,42 @@ static LONG open_(struct emulbase *emulbase, struct filehandle *fhv, struct file
     {
         fh->dl = (*handle)->dl;
 
+        /* "*" and "CONSOLE:" are AmigaDOS aliases for the current console. On a
+         * display-less hosted boot there is no console.device, so the emul-handler
+         * is the process console task (pr_ConsoleTask). Resolve these aliases to our
+         * own standard I/O handle instead of trying to open a host file literally
+         * named "*"/"CONSOLE:". Without this the boot/emergency Shell's Open("*")
+         * for its interactive console fails (ENOENT on "<root>/*") and the Shell
+         * exits immediately without ever reading the console. */
+        {
+            static const char con[] = "console:";
+            BOOL isConsole = (name[0] == '*' && name[1] == '\0');
+            if (!isConsole)
+            {
+                LONG i;
+                isConsole = TRUE;
+                for (i = 0; con[i]; i++)
+                {
+                    char c = name[i];
+                    if (c >= 'A' && c <= 'Z') c += ('a' - 'A');
+                    if (c != con[i]) { isConsole = FALSE; break; }
+                }
+                if (isConsole && name[i] != '\0') isConsole = FALSE;
+            }
+            if (isConsole)
+            {
+                struct filehandle *std = (mode == ACTION_FINDINPUT)
+                                       ? emulbase->eb_stdin : emulbase->eb_stdout;
+                fh->type       = FHD_FILE | FHD_STDIO;
+                fh->fd         = std->fd;
+                fh->name       = NULL;
+                fh->hostname   = NULL;
+                fh->volumename = NULL;
+                *handle = fh;
+                return 0;
+            }
+        }
+
         /* If no filename is given and the file-descriptor is one of the
          standard filehandles (stdin, stdout, stderr) ... */
         if((!name[0]) && ((*handle)->type & FHD_STDIO))
@@ -716,6 +752,12 @@ static void handlePacket(struct emulbase *emulbase, struct filehandle *fhv, stru
             f->fh_Arg1 = (SIPTR)fh2;
             if (fh2 != fhv)
                 fh2->locks++;
+            /* A console (stdin/stdout/stderr, or an Open("*")/"CONSOLE:" alias)
+             * is interactive. Mark the FileHandle so IsInteractive() is true and
+             * the Shell runs interactively (prints its prompt, loops) instead of
+             * treating the console as a background/batch stream. */
+            if (fh2->type & FHD_STDIO)
+                f->fh_Interactive = DOSTRUE;
             Res1 = DOSTRUE;
         }
         else

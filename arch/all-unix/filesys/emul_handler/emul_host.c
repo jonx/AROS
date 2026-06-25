@@ -587,6 +587,13 @@ LONG DoRead(struct emulbase *emulbase, struct filehandle *fh, APTR buff, ULONG l
             if (res2 == -1)
                 break;
 
+            /* read() == 0 means end-of-file (e.g. the interactive console was
+             * closed, or Ctrl-D). Stop here and return the bytes gathered so far
+             * rather than counting an unwritten (garbage/NUL) byte - otherwise an
+             * interactive Shell spins forever reading NULs instead of seeing EOF. */
+            if (res2 == 0)
+                break;
+
             if (res++ == len)
                 break;
 

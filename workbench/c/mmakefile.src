@@ -152,6 +152,14 @@ USER_LDFLAGS     := -static
     files="$(FILES)" targetdir=$(AROS_C) \
     uselibs="uuid debug" coverageinstr=no
 
+# Same core C: command programs, but as a standalone batch that does NOT pull in
+# the Decoration subdir / GUI library chain (which fails to link on
+# darwin-aarch64 over a single missing __ieee754_sin). Lets the whole CLI command
+# set be built on the hosted target with: make workbench-c-tools
+%build_progs mmake=workbench-c-tools \
+    files="$(FILES)" targetdir=$(AROS_C) \
+    uselibs="uuid debug" coverageinstr=no
+
 %build_progs mmake=workbench-c-sh \
     files=$(SH_FILES) targetdir=$(AROS_C) \
     usestartup=no

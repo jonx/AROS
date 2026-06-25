@@ -3,7 +3,8 @@ include $(SRCDIR)/config/aros.cfg
 
 #MM- workbench-darwin-$(CPU) : \
 #MM      workbench-hosted \
-#MM      workbench-unix
+#MM      workbench-unix \
+#MM      hidd-cocoagfx
 
 #MM- test-darwin: test-unix
 

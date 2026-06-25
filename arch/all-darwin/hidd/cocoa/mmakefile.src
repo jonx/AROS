@@ -1,0 +1,16 @@
+include $(SRCDIR)/config/aros.cfg
+
+#MM- hidd-cocoagfx : kernel-hidd-cocoa
+
+FILES := \
+    startup \
+    cocoa_hostlib \
+    cocoagfx_hiddclass \
+    cocoagfx_bitmapclass
+
+EXEDIR := $(AROSDIR)/Storage/Monitors
+
+%build_prog mmake=kernel-hidd-cocoa \
+  progname=Cocoa targetdir=$(EXEDIR) \
+  files=$(FILES) \
+  uselibs="hiddstubs"

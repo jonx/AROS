@@ -852,6 +852,20 @@ int UXIO__Hidd_UnixIO__AddInterrupt(OOP_Class *cl, OOP_Object *o, struct pHidd_U
 
     HostLib_Unlock();
 
+#ifdef HOST_OS_darwin
+    /*
+     * On darwin we do not rely on SIGIO/O_ASYNC at all: it is never delivered for
+     * pipes, and F_SETOWN / F_SETFL(O_ASYNC) fails outright (EPERM) on a
+     * controlling tty. Readiness is instead detected by polling the interrupt list
+     * from the periodic timer IRQ (see UXIO_Init). So keep the interrupt registered
+     * and report success regardless of whether enabling async I/O worked - else an
+     * interactive console read on a tty would fail immediately (the Wait returns the
+     * fcntl errno) instead of blocking until the user types.
+     */
+    (void)res;
+    (void)err;
+    return 0;
+#else
     if (res != -1)
         return 0;
 
@@ -859,6 +873,7 @@ int UXIO__Hidd_UnixIO__AddInterrupt(OOP_Class *cl, OOP_Object *o, struct pHidd_U
     Hidd_UnixIO_RemInterrupt(o, msg->Int);
 
     return err;
+#endif
 }
 
 /*****************************************************************************************

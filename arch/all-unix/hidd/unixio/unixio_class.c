@@ -1159,6 +1159,23 @@ static int UXIO_Init(LIBBASETYPEPTR LIBBASE)
     if (!LIBBASE->irqHandle)
         return FALSE;
 
+#ifdef HOST_OS_darwin
+    /*
+     * On darwin, signal-driven I/O (F_SETOWN + O_ASYNC -> SIGIO) is not
+     * delivered for pipes - only for sockets and ttys. A task parked in
+     * Hidd_UnixIO_Wait() on a pipe fd (e.g. the boot console when stdin is a
+     * pipe) would therefore never be woken: SIGIO never arrives, so
+     * SigIO_IntServer never runs. Drive the same fd-readiness de-multiplexer
+     * from the periodic timer interrupt as well (timer.device arms ITIMER_REAL,
+     * which delivers SIGALRM, on which core_IRQ is also installed). The fd list
+     * is then polled within one scheduler tick regardless of whether SIGIO is
+     * ever delivered, which makes Wait() work for pipes as well as ttys.
+     */
+    LIBBASE->irqHandle2 = KrnAddIRQHandler(SIGALRM, SigIO_IntServer, LIBBASE, NULL);
+    if (!LIBBASE->irqHandle2)
+        return FALSE;
+#endif
+
     NewList((struct List *)&LIBBASE->intList);
     InitSemaphore(&LIBBASE->lock);
 
@@ -1179,6 +1196,11 @@ static int UXIO_Cleanup(struct unixio_base *LIBBASE)
 
     if (LIBBASE->irqHandle)
         KrnRemIRQHandler(LIBBASE->irqHandle);
+
+#ifdef HOST_OS_darwin
+    if (LIBBASE->irqHandle2)
+        KrnRemIRQHandler(LIBBASE->irqHandle2);
+#endif
 
     if (LIBBASE->SysIFace)
         HostLib_DropInterface ((APTR *)LIBBASE->SysIFace);

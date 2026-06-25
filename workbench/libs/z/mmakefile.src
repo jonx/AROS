@@ -79,6 +79,13 @@ LIBZ_CPPFLAGS +=-DINFLATE_CHUNK_READ_64LE
 LIBZ_CPPFLAGS +=-DDEFLATE_CHUNK_WRITE_64LE
 LIBZ_CPPFLAGS +=-DCRC32_ARMV8_CRC32
 LIBZ_CPPFLAGS +=-DDEFLATE_SLIDE_HASH_NEON
+# Darwin/aarch64 (Apple Silicon) always has CRC32+PMULL; selecting the MACOS
+# feature path hardcodes them enabled at build time and provides a no-op
+# cpu_check_features() (no host syscalls). Without any OS macro the function is
+# left undefined, breaking every zlib consumer (e.g. icon.library).
+ifneq (,$(findstring darwin,$(AROS_TARGET_ARCH)))
+LIBZ_CPPFLAGS +=-DARMV8_OS_MACOS
+endif
 FILES += \
         adler32_simd \
         contrib/optimizations/inffast_chunk \

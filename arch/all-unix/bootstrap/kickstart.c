@@ -44,7 +44,24 @@
 int kick(kernel_entry_fun_t addr, struct TagItem *msg)
 {
     int i;
-    
+
+#if defined(__APPLE__) && defined(AROS_DARWIN_NOFORK)
+    /*
+     * Opt-in (build with -DAROS_DARWIN_NOFORK): run AROS in the bootstrap's own
+     * process rather than a fork()ed child. fork() without a following exec()
+     * leaves the Mach bootstrap/XPC ports unusable, so Metal's runtime shader
+     * compiler is unreachable ("Unable to reach MTLCompilerService ... No such
+     * process"). Running in the main process keeps Metal working -- BUT loading
+     * the Cocoa/Metal frameworks alongside the AROS-hosted kernel in one process
+     * currently faults (SIGBUS) once a display registers. Left here as a known,
+     * gated path; the preferred fix is a precompiled Metal shader host-side so
+     * the fork()ed child needs no MTLCompilerService.
+     * Trade-off: warm/cold reboot is also unavailable in this mode.
+     */
+    fprintf(stderr, "[Bootstrap] Entering kernel at %p (darwin: no-fork)...\n", addr);
+    Host_PreBoot();
+    return addr(msg, AROS_BOOT_MAGIC);
+#else
     do
     {
         pid_t child = fork();
@@ -88,4 +105,5 @@ int kick(kernel_entry_fun_t addr, struct TagItem *msg)
     }
 
     return WEXITSTATUS(i);
+#endif
 }

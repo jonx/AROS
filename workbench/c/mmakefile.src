@@ -130,6 +130,24 @@ USER_LDFLAGS     := -static
 %build_prog mmake=workbench-c-requeststring progname=RequestString \
     files=RequestString targetdir=$(AROS_C) coverageinstr=no
 
+# Standalone targets for OS-introspection commands, so they can be built
+# without the whole "workbench-c" batch (which is currently blocked by an
+# unrelated Decoration link failure on darwin-aarch64).
+%build_prog mmake=workbench-c-version progname=Version \
+    files=Version targetdir=$(AROS_C) coverageinstr=no
+
+%build_prog mmake=workbench-c-avail progname=Avail \
+    files=Avail targetdir=$(AROS_C) coverageinstr=no
+
+%build_prog mmake=workbench-c-info progname=Info \
+    files=Info targetdir=$(AROS_C) coverageinstr=no
+
+%build_prog mmake=workbench-c-which progname=Which \
+    files=Which targetdir=$(AROS_C) coverageinstr=no
+
+%build_prog mmake=workbench-c-date progname=Date \
+    files=Date targetdir=$(AROS_C) coverageinstr=no
+
 %build_progs mmake=workbench-c \
     files="$(FILES)" targetdir=$(AROS_C) \
     uselibs="uuid debug" coverageinstr=no

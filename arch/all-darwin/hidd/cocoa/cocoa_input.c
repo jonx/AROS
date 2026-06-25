@@ -21,6 +21,8 @@
 
 #include <exec/tasks.h>
 #include <exec/interrupts.h>
+#include <exec/io.h>
+#include <exec/ports.h>
 #include <hardware/intbits.h>
 #include <devices/inputevent.h>
 #include <devices/rawkeycodes.h>
@@ -159,16 +161,36 @@ struct OOP_InterfaceDescr CocoaMouse_ifdescr[] =
 /* ------------------------------------------------------------------------- */
 static void cocoa_dispatch(struct CMEvent *e)
 {
+    {
+        static ULONG ndbg = 0;
+        if (ndbg++ < 16)
+            D(bug("[Cocoa:Input] ev type=%d code=%d pressed=%d x=%d y=%d\n",
+                  e->type, e->code, e->pressed, e->x, e->y));
+    }
+
     switch (e->type)
     {
     case CM_EV_KEY:
         if (xsd.kbd_callback && cocoa_key_mapped(e->code))
         {
             struct pHidd_Kbd_Event kEvt;
-            kEvt.kbdevt = cocoa_keymap[e->code & 0x7F];
+            UWORD raw = cocoa_keymap[e->code & 0x7F];
             if (!e->pressed)
-                kEvt.kbdevt |= IECODE_UP_PREFIX;
+                raw |= IECODE_UP_PREFIX;
+            /* keyCallback reads flags, code AND kbdevt; zero the struct and set
+               all of them (code drives the key matrix -> must be valid). */
+            memset(&kEvt, 0, sizeof kEvt);
+            kEvt.flags  = 0;
+            kEvt.code   = raw;
+            kEvt.kbdevt = raw;
+            /* keyCallback dispatches queued events inline (ReplyMsg -> signals
+               input.device), which would task-switch us out deep inside this
+               call; under the threaded darwin scheduler that switch corrupts the
+               poll task's stack. Forbid defers the switch until we return here at
+               a shallow, clean point. (The mouse path needs no such guard.) */
+            Forbid();
             xsd.kbd_callback(xsd.kbd_callbackdata, &kEvt);
+            Permit();
         }
         break;
 
@@ -316,12 +338,41 @@ BOOL cocoa_input_init(struct cocoahidd *xsd_)
     if (!kbddrv && !msdrv)
         return FALSE;
 
+    /* keyboard.hidd forwards only the IrqHandler (not its Data) to hardware
+       drivers, so the kbd handler context arrives NULL and keyCallback faults on
+       the first key (it dereferences its KeyboardBase arg). That data IS just
+       keyboard.device's base, so open the device and take io_Device, keeping it
+       open so the base stays valid. (The mouse path already gets valid data via
+       the New tag list.) */
+    if (!xsd_->kbd_callbackdata)
+    {
+        struct MsgPort *kbport = CreateMsgPort();
+        if (kbport)
+        {
+            struct IORequest *kbio = CreateIORequest(kbport, sizeof(struct IOStdReq));
+            if (kbio)
+            {
+                LONG err = OpenDevice("keyboard.device", 0, kbio, 0);
+                D(bug("[Cocoa:Input] OpenDevice(keyboard.device) = %ld, io_Device 0x%p\n",
+                      (long)err, err ? NULL : kbio->io_Device));
+                if (err == 0)
+                    xsd_->kbd_callbackdata = kbio->io_Device;   /* == KeyboardBase */
+                /* keep it open so the base stays valid (resident driver) */
+            }
+        }
+    }
+    D(bug("[Cocoa:Input] resolved kbd data 0x%p, mouse data 0x%p\n",
+          xsd_->kbd_callbackdata, xsd_->mouse_callbackdata));
+
     /* Start the poll task. */
     SetSignal(0, sync);
     task = NewCreateTask(TASKTAG_PC,        (IPTR)cocoa_event_task,
                          TASKTAG_NAME,      (IPTR)"cocoa.hidd input",
                          TASKTAG_PRI,       50,
-                         TASKTAG_STACKSIZE, AROS_STACKSIZE,
+                         /* Dispatching a key runs part of the input chain inline
+                            (keyCallback -> kbdSendQueuedEvents -> input.device),
+                            so this task needs a generous stack. */
+                         TASKTAG_STACKSIZE, 128 * 1024,
                          TASKTAG_ARG1,      (IPTR)FindTask(NULL),
                          TASKTAG_ARG2,      (IPTR)sync,
                          TAG_DONE);

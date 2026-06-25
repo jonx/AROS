@@ -172,13 +172,46 @@ OOP_Object *CocoaGfx__Hidd_Gfx__Show(OOP_Class *cl, OOP_Object *o, struct pHidd_
             OOP_GetAttr(msg->bitMap, aHidd_BitMap_Width,  &w);
             OOP_GetAttr(msg->bitMap, aHidd_BitMap_Height, &h);
 
+            /* Forbid task-switching across the host call. On darwin this call
+             * blocks the AROS thread in a host syscall (the cm_* main-thread hop
+             * dispatch_syncs to the window thread); HostLib_Lock is only a
+             * semaphore, so without Forbid the preemptive scheduler can switch a
+             * task at the syscall boundary and save its SP on the host stack ->
+             * "out of stack limits" when restored. */
+            Forbid();
             HostLib_Lock();
             xsd.ctx = xsd.cm->cm_open((int)w, (int)h, &cocoa_fmt, "AROS");
             AROS_HOST_BARRIER
             HostLib_Unlock();
+            Permit();
             D(bug("[Cocoa] cm_open(%ld,%ld) -> 0x%p\n", w, h, xsd.ctx));
         }
         xsd.visible = msg->bitMap;
+
+        /* Present the current framebuffer once, now. The screen's initial
+         * content is drawn BEFORE this Show (those UpdateRects saw no visible
+         * bitmap yet), and a static screen may never draw again -- so without
+         * this the window would stay blank. */
+        if (xsd.ctx && xsd.cm)
+        {
+            APTR  buffer = NULL;
+            IPTR  bpr = 0, bw = COCOA_WIDTH, bh = COCOA_HEIGHT;
+            OOP_GetAttr(msg->bitMap, aHidd_ChunkyBM_Buffer,    (IPTR *)&buffer);
+            OOP_GetAttr(msg->bitMap, aHidd_BitMap_BytesPerRow, &bpr);
+            OOP_GetAttr(msg->bitMap, aHidd_BitMap_Width,       &bw);
+            OOP_GetAttr(msg->bitMap, aHidd_BitMap_Height,      &bh);
+            if (buffer)
+            {
+                Forbid();
+                HostLib_Lock();
+                xsd.cm->cm_upload_rect(xsd.ctx, buffer, (int)bpr, 0, 0, (int)bw, (int)bh);
+                xsd.cm->cm_present(xsd.ctx);
+                AROS_HOST_BARRIER
+                HostLib_Unlock();
+                Permit();
+                D(bug("[Cocoa] initial present %ldx%ld done\n", bw, bh));
+            }
+        }
     }
     else
         xsd.visible = NULL;

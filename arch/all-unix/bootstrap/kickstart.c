@@ -37,6 +37,16 @@ static host_sigset_t aros_signal_mask(void)
            (1u << (HOST_SIGIO     - 1)) | (1u << (HOST_SIGUSR1   - 1)) |
            (1u << (HOST_SIGUSR2   - 1));
 }
+
+/* CoreFoundation run loop, declared by hand (link -framework CoreFoundation).
+ * The windowed shell pumps this on the main thread so cocoametal's NSWindow --
+ * created on the main thread via the cm_* main-thread hop -- is serviced and the
+ * main dispatch queue (which those hops use) runs. cocoametal itself owns all
+ * NSApplication/window setup; the shell only has to keep the run loop turning. */
+typedef const void *host_CFStringRef;
+extern host_CFStringRef kCFRunLoopDefaultMode;
+extern int CFRunLoopRunInMode(host_CFStringRef mode, double seconds,
+                              unsigned char returnAfterSourceHandled);
 #endif
 
 /* These macros are defined in both UNIX and AROS headers. Get rid of warnings. */
@@ -82,7 +92,7 @@ static host_sigset_t aros_signal_mask(void)
  * ITIMER_REAL's SIGALRM) can only land on AROS's thread, never a
  * libdispatch/Metal worker.
  */
-struct aros_engine_ctx { kernel_entry_fun_t addr; struct TagItem *msg; int ret; };
+struct aros_engine_ctx { kernel_entry_fun_t addr; struct TagItem *msg; int ret; volatile int done; };
 
 static void *aros_engine_thread(void *p)
 {
@@ -94,6 +104,7 @@ static void *aros_engine_thread(void *p)
     fprintf(stderr, "[Bootstrap] AROS running on dedicated thread...\n");
     Host_PreBoot();
     c->ret = c->addr(c->msg, AROS_BOOT_MAGIC);
+    c->done = 1;
     return NULL;
 }
 #endif
@@ -131,8 +142,17 @@ int kick(kernel_entry_fun_t addr, struct TagItem *msg)
         }
         pthread_attr_destroy(attr);
 
-        /* De-risk stub: the real Cocoa shell will run its run loop here. For
-         * now just wait for AROS to finish so a headless boot is unchanged. */
+        /*
+         * Host shell: this (main) thread now drives the host run loop instead of
+         * blocking in a join. cocoametal opens its NSWindow on THIS thread (the
+         * cm_* main-thread hop dispatches onto the main run loop), so we must
+         * keep pumping it for the window to appear, draw and stay responsive --
+         * and to service the main dispatch queue the hops use. Pumping is also
+         * harmless headless (no window => nothing to service). Loop until AROS
+         * exits; if AROS runs forever (a live desktop), so do we.
+         */
+        while (!ctx.done)
+            CFRunLoopRunInMode(kCFRunLoopDefaultMode, 0.05, 1);
         pthread_join(t, NULL);
         return ctx.ret;
     }

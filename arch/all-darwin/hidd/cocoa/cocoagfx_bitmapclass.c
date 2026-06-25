@@ -29,6 +29,13 @@ VOID CocoaBM__Hidd_BitMap__UpdateRect(OOP_Class *cl, OOP_Object *o, struct pHidd
     /* Let the chunky-BM base finish any pending composition first. */
     OOP_DoSuperMethod(cl, o, (OOP_Msg)msg);
 
+    {
+        static ULONG nupd = 0;
+        if (nupd++ < 4)
+            D(bug("[Cocoa] UpdateRect #%lu o=0x%p visible=0x%p ctx=0x%p\n",
+                  (unsigned long)nupd, o, xsd.visible, xsd.ctx));
+    }
+
     /* Present only the front bitmap, and only once the window is open. */
     if (o == xsd.visible && xsd.ctx && xsd.cm)
     {
@@ -40,12 +47,20 @@ VOID CocoaBM__Hidd_BitMap__UpdateRect(OOP_Class *cl, OOP_Object *o, struct pHidd
 
         if (buffer)
         {
+            static ULONG npresent = 0;
+            /* Forbid across the host call (see Show/cm_open) -- these cm_* hop to
+             * the window thread and block the AROS thread in a host syscall. */
+            Forbid();
             HostLib_Lock();
             xsd.cm->cm_upload_rect(xsd.ctx, buffer, (int)bpr,
                                    msg->x, msg->y, msg->width, msg->height);
             xsd.cm->cm_present(xsd.ctx);
             AROS_HOST_BARRIER
             HostLib_Unlock();
+            Permit();
+            if (npresent++ == 0)
+                D(bug("[Cocoa] first cm_present ok (%dx%d) -- AROS rendering to the window\n",
+                      msg->width, msg->height));
         }
     }
 }

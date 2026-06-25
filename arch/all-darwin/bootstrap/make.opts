@@ -1,4 +1,8 @@
 USER_LDFLAGS+=-static-libstdc++
+# The windowed shell pumps the CoreFoundation run loop on the main thread (see
+# kick() in arch/all-unix/bootstrap/kickstart.c) so cocoametal's NSWindow is
+# serviced. Bootstrap itself pulls no AppKit -- cocoametal (the dylib) does.
+USER_LDFLAGS+=-framework CoreFoundation
 ifeq ("$(HOST_TOOLCHAIN)","gnu")
 KERNEL_GCC_VERSION=`$(KERNEL_CC) --version 2>/dev/null`
 KERNEL_GCC_IS_CLANG=`echo $KERNEL_GCC_VERSION | grep -i -c -E 'LLVM|clang'`

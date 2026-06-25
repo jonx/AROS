@@ -36,6 +36,20 @@ struct CMEvent                           /* INTERFACE.md §5 */
     unsigned mods;                       /* CM_MOD_* */
 };
 
+/* CMEventType values (mirror cocoametal.h's enum order). */
+#define CM_EV_NONE       0
+#define CM_EV_MOUSEMOVE  1
+#define CM_EV_MOUSEBTN   2
+#define CM_EV_KEY        3
+#define CM_EV_CLOSE      4
+#define CM_EV_RESIZE     5
+#define CM_EV_SETTING    6
+/* CMEvent.mods bits */
+#define CM_MOD_SHIFT     (1u << 0)
+#define CM_MOD_CONTROL   (1u << 1)
+#define CM_MOD_ALT       (1u << 2)
+#define CM_MOD_CMD       (1u << 3)
+
 typedef struct CMContext CMContext;      /* opaque host window handle */
 
 /* The 13 cm_* host functions, in cocoametal.dylib symbol order (ABI v2,
@@ -76,6 +90,17 @@ struct cocoahidd
     struct CMInterface *cm;              /* resolved cm_* interface             */
     CMContext          *ctx;             /* host window (lazy, opened on Show)  */
     OOP_Object         *visible;         /* currently shown bitmap              */
+
+    /* ---- input (cocoa_input.c): kbd+mouse HIDDs + the cm_pump_events task --- */
+    OOP_Class          *kbdclass;        /* CocoaKbd (CLID_Hidd_Kbd subclass)   */
+    OOP_Class          *mouseclass;      /* CocoaMouse (CLID_Hidd_Mouse subcls) */
+    OOP_Object         *kbdhidd;         /* the cocoa kbd driver instance       */
+    OOP_Object         *mousehidd;       /* the cocoa mouse driver instance     */
+    VOID              (*kbd_callback)(APTR, APTR);    /* keyboard.hidd IrqHandler */
+    APTR                kbd_callbackdata;
+    VOID              (*mouse_callback)(APTR, APTR);  /* mouse.hidd IrqHandler    */
+    APTR                mouse_callbackdata;
+    struct Task        *eventtask;       /* polls cm_pump_events every VBlank   */
 };
 
 /* gfx class instance data */
@@ -105,6 +130,8 @@ extern struct cocoahidd xsd;
 /* Class interface descriptors (defined in the class .c files). */
 extern struct OOP_InterfaceDescr CocoaGfx_ifdescr[];
 extern struct OOP_InterfaceDescr CocoaBM_ifdescr[];
+extern struct OOP_InterfaceDescr CocoaKbd_ifdescr[];
+extern struct OOP_InterfaceDescr CocoaMouse_ifdescr[];
 
 /* Standard HIDD attribute bases, defined+obtained in startup.c. The aHidd_*
    attribute macros used by the class methods resolve against these. */
@@ -119,5 +146,9 @@ extern OOP_AttrBase HiddColorMapAttrBase;
 
 BOOL cocoa_hostlib_init(struct cocoahidd *xsd);
 void cocoa_hostlib_expunge(struct cocoahidd *xsd);
+
+/* input.c: create the kbd+mouse HIDDs, register them, start the poll task. */
+BOOL cocoa_input_init(struct cocoahidd *xsd);
+void cocoa_input_expunge(struct cocoahidd *xsd);
 
 #endif /* COCOA_INTERN_H */

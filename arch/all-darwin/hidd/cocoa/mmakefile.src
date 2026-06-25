@@ -6,7 +6,8 @@ FILES := \
     startup \
     cocoa_hostlib \
     cocoagfx_hiddclass \
-    cocoagfx_bitmapclass
+    cocoagfx_bitmapclass \
+    cocoa_input
 
 EXEDIR := $(AROSDIR)/Storage/Monitors
 

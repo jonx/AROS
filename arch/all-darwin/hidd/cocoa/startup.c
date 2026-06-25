@@ -64,8 +64,13 @@ static int cocoa_Startup(struct cocoahidd *xsd)
 
     /* One Cocoa display, registered as a normal (non-boot) display driver so it
        supersedes the headless fallback when present. */
+#ifdef COCOA_SKIP_ADDDISPLAY
+    err = 0;   /* BISECT: skip registration to isolate crash (dylib vs register) */
+    D(bug("[Cocoa] AddDisplayDriverA SKIPPED (bisect) -> %u\n", err));
+#else
     err = AddDisplayDriverA(xsd->gfxclass, NULL, NULL);
     D(bug("[Cocoa] AddDisplayDriverA() = %u\n", err));
+#endif
 
     CloseLibrary(&GfxBase->LibNode);
     return err ? FALSE : TRUE;
@@ -131,6 +136,13 @@ int main(void)
 
                         /* Register the gfx class publicly (double-start guard). */
                         OOP_AddClass(xsd.gfxclass);
+
+                        /* Add keyboard + mouse input. Non-fatal: a display with
+                           no input still beats no display. */
+                        if (cocoa_input_init(&xsd))
+                            D(bug("[Cocoa] input (kbd+mouse) registered\n"));
+                        else
+                            D(bug("[Cocoa] input registration skipped\n"));
 
                         /* Stay resident: detach our seglist so exiting this
                            process doesn't unload the driver. */

@@ -25,6 +25,7 @@
 #include <exec/ports.h>
 #include <hardware/intbits.h>
 #include <devices/inputevent.h>
+#include <devices/input.h>
 #include <devices/rawkeycodes.h>
 
 #include <proto/exec.h>
@@ -158,6 +159,9 @@ struct OOP_InterfaceDescr CocoaMouse_ifdescr[] =
     { NULL, NULL, 0 }
 };
 
+/* input.device IORequest used by the poll task for deferred keyboard delivery. */
+static struct IOStdReq *g_inputio;
+
 /* ------------------------------------------------------------------------- */
 static void cocoa_dispatch(struct CMEvent *e)
 {
@@ -171,26 +175,27 @@ static void cocoa_dispatch(struct CMEvent *e)
     switch (e->type)
     {
     case CM_EV_KEY:
-        if (xsd.kbd_callback && cocoa_key_mapped(e->code))
+        if (g_inputio && cocoa_key_mapped(e->code))
         {
-            struct pHidd_Kbd_Event kEvt;
+            struct InputEvent ie;
             UWORD raw = cocoa_keymap[e->code & 0x7F];
             if (!e->pressed)
                 raw |= IECODE_UP_PREFIX;
-            /* pHidd_Kbd_Event is a UNION (code/kbdevt alias the same storage):
-               set flags + code ONLY, exactly like the X11/Linux drivers. Also
-               writing kbdevt clobbers code via the union -> code reads 0 -> the
-               key matrix is corrupted -> SIGILL a few keys later. */
-            kEvt.flags = 0;
-            kEvt.code  = raw;
-            /* keyCallback dispatches queued events inline (ReplyMsg -> signals
-               input.device), which would task-switch us out deep inside this
-               call; under the threaded darwin scheduler that switch corrupts the
-               poll task's stack. Forbid defers the switch until we return here at
-               a shallow, clean point. (The mouse path needs no such guard.) */
-            Forbid();
-            xsd.kbd_callback(xsd.kbd_callbackdata, &kEvt);
-            Permit();
+            /* Deliver through input.device (IND_WRITEEVENT) rather than calling
+               the keyboard.hidd IrqHandler inline. The IrqHandler's synchronous
+               kbdSendQueuedEvents reaches intuition rendering ON THIS poll task,
+               which corrupts the gfx OOP dispatch under the threaded scheduler
+               (proven: the fault happens between keyCallback START and DONE on
+               'cocoa.hidd input'). DoIO blocks us and lets input.device's own
+               task do the rendering. */
+            memset(&ie, 0, sizeof ie);
+            ie.ie_Class     = IECLASS_RAWKEY;
+            ie.ie_Code      = raw;
+            ie.ie_Qualifier = 0;
+            g_inputio->io_Command = IND_WRITEEVENT;
+            g_inputio->io_Data    = &ie;
+            g_inputio->io_Length  = sizeof(ie);
+            DoIO((struct IORequest *)g_inputio);
         }
         break;
 
@@ -235,6 +240,20 @@ static void cocoa_event_task(struct Task *creator, ULONG sync)
     int              n, i;
 
     D(bug("[Cocoa:Input] event task starting\n"));
+
+    /* Open input.device for deferred keyboard delivery. The port + request
+       belong to this (poll) task so DoIO()'s WaitIO() waits on us, while
+       input.device's own task does the actual event processing + rendering. */
+    {
+        struct MsgPort *port = CreateMsgPort();
+        if (port)
+        {
+            g_inputio = (struct IOStdReq *)CreateIORequest(port, sizeof(struct IOStdReq));
+            if (g_inputio && OpenDevice("input.device", 0, (struct IORequest *)g_inputio, 0) != 0)
+                g_inputio = NULL;
+        }
+        D(bug("[Cocoa:Input] input.device for delivery: 0x%p\n", g_inputio));
+    }
 
     Signal(creator, sync);
 

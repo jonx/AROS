@@ -45,6 +45,28 @@ void core_ExitInterrupt(regs_t *regs)
          */
         if (SysBase->AttnResched & ARF_AttnSwitch)
         {
+            /*
+             * Do not preempt a task whose stack pointer is outside its own
+             * stack. Under the threaded host model (AROS_DARWIN_THREADED: AROS
+             * on a dedicated pthread, the GUI on the main thread) a task that is
+             * blocked inside a host call runs, for the duration of that call, on
+             * the host pthread stack -- not its AROS stack. Saving that SP here
+             * and restoring it later corrupts the task ("xxx went out of stack
+             * limits", SIGBUS). Leave the switch pending and retry on the next
+             * tick, once the host call has returned and the task is back on its
+             * own stack.
+             *
+             * In the classic forked model the SP never leaves the task's stack,
+             * so this guard never triggers and behaviour is unchanged.
+             */
+            struct Task *task = GET_THIS_TASK;
+            if (task && task->tc_SPLower && task->tc_SPUpper)
+            {
+                IPTR sp = (IPTR)SP(regs);
+                if (sp < (IPTR)task->tc_SPLower || sp > (IPTR)task->tc_SPUpper)
+                    return;
+            }
+
             /* Run task scheduling sequence */
             if (core_Schedule())
             {

@@ -43,7 +43,18 @@ BOOL cocoa_hostlib_init(struct cocoahidd *xsd)
     if (!xsd->hostlib)
         return FALSE;
 
+    /* Disable() across dlopen so that any Metal / libdispatch / Foundation
+     * threads the dylib's initialisers spawn inherit a BLOCKED scheduler-signal
+     * mask. Disable() does sigprocmask(SIG_BLOCK, <interrupt signals incl.
+     * SIGALRM>) on the AROS thread; new threads inherit that mask. Otherwise a
+     * host thread can catch SIGALRM and run the AROS scheduler on a non-AROS
+     * thread -- cpu_Dispatch jumps to a saved AROS task context on the wrong
+     * thread => intermittent wedge or SIGILL. (pthread_sigmask isn't linkable
+     * from an AROS module; Disable() reaches the same host call via the kernel.) */
+    Disable();
     xsd->cmHandle = HostLib_Open(CM_DYLIB_NAME, NULL);
+    Enable();
+
     if (!xsd->cmHandle)
     {
         D(bug("[Cocoa] HostLib_Open(%s) failed\n", CM_DYLIB_NAME));

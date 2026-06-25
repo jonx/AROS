@@ -177,12 +177,12 @@ static void cocoa_dispatch(struct CMEvent *e)
             UWORD raw = cocoa_keymap[e->code & 0x7F];
             if (!e->pressed)
                 raw |= IECODE_UP_PREFIX;
-            /* keyCallback reads flags, code AND kbdevt; zero the struct and set
-               all of them (code drives the key matrix -> must be valid). */
-            memset(&kEvt, 0, sizeof kEvt);
-            kEvt.flags  = 0;
-            kEvt.code   = raw;
-            kEvt.kbdevt = raw;
+            /* pHidd_Kbd_Event is a UNION (code/kbdevt alias the same storage):
+               set flags + code ONLY, exactly like the X11/Linux drivers. Also
+               writing kbdevt clobbers code via the union -> code reads 0 -> the
+               key matrix is corrupted -> SIGILL a few keys later. */
+            kEvt.flags = 0;
+            kEvt.code  = raw;
             /* keyCallback dispatches queued events inline (ReplyMsg -> signals
                input.device), which would task-switch us out deep inside this
                call; under the threaded darwin scheduler that switch corrupts the

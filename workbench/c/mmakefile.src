@@ -148,6 +148,11 @@ USER_LDFLAGS     := -static
 %build_prog mmake=workbench-c-date progname=Date \
     files=Date targetdir=$(AROS_C) coverageinstr=no
 
+# Headless screenshot tool: dump the front screen to a PPM (for inspection/
+# recording/testing of the AROS display, headless or in a window).
+%build_prog mmake=workbench-c-grabscreen progname=GrabScreen \
+    files=GrabScreen targetdir=$(AROS_C) coverageinstr=no
+
 %build_progs mmake=workbench-c \
     files="$(FILES)" targetdir=$(AROS_C) \
     uselibs="uuid debug" coverageinstr=no

@@ -8,6 +8,37 @@
 #include <stdlib.h>
 #include <unistd.h>
 
+#if defined(__APPLE__)
+/*
+ * Host pthread/signal API declared by hand. <pthread.h>/<signal.h> in the
+ * bootstrap's include path resolve to AROS's own (pthread.library etc.), not
+ * the host's, so we cannot include them here. These prototypes/constants match
+ * the macOS/arm64 ABI: pthread_t is a pointer, pthread_attr_t is a 64-byte
+ * opaque blob, sigset_t is a 32-bit mask with bit (signo-1) set per signal.
+ */
+typedef void          *host_pthread_t;
+typedef unsigned int   host_sigset_t;
+extern int pthread_create(host_pthread_t *, const void *, void *(*)(void *), void *);
+extern int pthread_join(host_pthread_t, void **);
+extern int pthread_attr_init(void *);
+extern int pthread_attr_setstacksize(void *, unsigned long);
+extern int pthread_attr_destroy(void *);
+extern int pthread_sigmask(int, const host_sigset_t *, host_sigset_t *);
+#define HOST_SIG_BLOCK    1
+#define HOST_SIG_UNBLOCK  2
+#define HOST_SIGALRM     14
+#define HOST_SIGIO       23
+#define HOST_SIGVTALRM   26
+#define HOST_SIGUSR1     30
+#define HOST_SIGUSR2     31
+static host_sigset_t aros_signal_mask(void)
+{
+    return (1u << (HOST_SIGALRM   - 1)) | (1u << (HOST_SIGVTALRM - 1)) |
+           (1u << (HOST_SIGIO     - 1)) | (1u << (HOST_SIGUSR1   - 1)) |
+           (1u << (HOST_SIGUSR2   - 1));
+}
+#endif
+
 /* These macros are defined in both UNIX and AROS headers. Get rid of warnings. */
 #undef __pure
 #undef __const
@@ -41,9 +72,71 @@
  * Cold reboot is the same as before, re-running everything from scratch.
  * Shutdown is just plain exit.
  */
+#if defined(__APPLE__)
+/*
+ * The "engine" entry: run AROS's kernel. Which thread it runs ON is the host
+ * shell's choice -- the main thread (default no-fork) or a dedicated thread
+ * (AROS_DARWIN_THREADED, the model the Cocoa-app shell + a future libAROS use,
+ * so the host keeps the main thread for AppKit/Metal). AROS's scheduler/IO
+ * signals are masked on the host's threads so process-directed delivery (e.g.
+ * ITIMER_REAL's SIGALRM) can only land on AROS's thread, never a
+ * libdispatch/Metal worker.
+ */
+struct aros_engine_ctx { kernel_entry_fun_t addr; struct TagItem *msg; int ret; };
+
+static void *aros_engine_thread(void *p)
+{
+    struct aros_engine_ctx *c = p;
+    host_sigset_t mask = aros_signal_mask();
+    /* This is AROS's thread: accept AROS's signals here (the host blocked them
+     * on its threads, so process-directed delivery converges on us). */
+    pthread_sigmask(HOST_SIG_UNBLOCK, &mask, NULL);
+    fprintf(stderr, "[Bootstrap] AROS running on dedicated thread...\n");
+    Host_PreBoot();
+    c->ret = c->addr(c->msg, AROS_BOOT_MAGIC);
+    return NULL;
+}
+#endif
+
 int kick(kernel_entry_fun_t addr, struct TagItem *msg)
 {
     int i;
+
+#if defined(__APPLE__)
+    /*
+     * Opt-in via the AROS_DARWIN_THREADED env var (set by the windowed host
+     * shell): run AROS on a dedicated thread while THIS (main) thread stays free
+     * for the shell to own (AppKit/Metal need the main thread). The main thread
+     * blocks AROS's scheduler signals so they are delivered only to AROS's
+     * thread -- the containment that lets AROS and Cocoa/Metal coexist in one
+     * process. No fork() => Metal's XPC services work; warm/cold reboot is
+     * unavailable. Default (env var unset) stays the known-good fork boot below.
+     */
+    if (getenv("AROS_DARWIN_THREADED"))
+    {
+        static struct aros_engine_ctx ctx;
+        host_pthread_t t;
+        unsigned char attr[64];                 /* opaque pthread_attr_t storage */
+        host_sigset_t mask = aros_signal_mask();
+
+        pthread_sigmask(HOST_SIG_BLOCK, &mask, NULL);  /* host thread: hands AROS's signals to AROS */
+
+        ctx.addr = addr; ctx.msg = msg; ctx.ret = -1;
+        pthread_attr_init(attr);
+        pthread_attr_setstacksize(attr, 32UL * 1024 * 1024);
+        if (pthread_create(&t, attr, aros_engine_thread, &ctx) != 0)
+        {
+            DisplayError("Failed to start AROS thread!");
+            return -1;
+        }
+        pthread_attr_destroy(attr);
+
+        /* De-risk stub: the real Cocoa shell will run its run loop here. For
+         * now just wait for AROS to finish so a headless boot is unchanged. */
+        pthread_join(t, NULL);
+        return ctx.ret;
+    }
+#endif
 
 #if defined(__APPLE__) && defined(AROS_DARWIN_NOFORK)
     /*

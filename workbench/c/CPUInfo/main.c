@@ -40,6 +40,7 @@ BOOL    VERBOSE=FALSE;
                        C Functions
  ********************************************/
 
+#if defined(__i386__) || defined(__x86_64__)
 BOOL    isLastNode ( struct MinNode *CurrNode )
 {
     struct      MinNode             *NextNode;
@@ -62,6 +63,7 @@ int     AddBufferLine ( int buffpos, char *buffer, char *line )
     return  ( buffpos += size );
 
 }
+#endif /* x86 */
 
 /********************************************
                 Actual Code... Main Entry
@@ -69,14 +71,16 @@ int     AddBufferLine ( int buffpos, char *buffer, char *line )
 
 int     main ( void )
 {
+    struct      RDArgs              *rda;
+    int                             error = RETURN_OK;
+    IPTR                            args[NOOFARGS] = { (IPTR)FALSE, };
+#if defined(__i386__) || defined(__x86_64__)
     struct      CPUBase             *CPUResBase;
     struct      CPU_Definition      *CPUList, *FoundCPUs;
     struct      CPUFam_Definition   *FamilyList, *FoundFamilies;
-    struct      RDArgs              *rda;
     struct      MinNode             *CPUNode, *FamilyNode;
     int                             cpu_count, family_count, currentFamily;
-    int                             error = RETURN_OK;
-    IPTR                            args[NOOFARGS] = { (IPTR)FALSE, };
+#endif
 
     rda = ReadArgs(ARG_TEMPLATE, args, NULL);
 
@@ -86,8 +90,9 @@ int     main ( void )
         FreeArgs(rda);
     }
 
+#if defined(__i386__) || defined(__x86_64__)
     printf( APPNAME " - CPU Information tool v" VERSSTRING ".\n" );
-    printf( "© Copyright the AROS Dev Team.\n");
+    printf( "(C) Copyright the AROS Dev Team.\n");
     printf( "-------------------------------------\n\n" );
 
     if (VERBOSE) printf( " Performing VERBOSE Probe...\n\n" );
@@ -194,6 +199,9 @@ int     main ( void )
         error = RETURN_FAIL;
         printf("ERROR: Couldnt open cpu.resource.\n");
     }
+#else
+    error = cpuinfo_print(VERBOSE);
+#endif
 
     return error;
 }

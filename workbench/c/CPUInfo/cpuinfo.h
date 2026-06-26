@@ -29,7 +29,6 @@
 
 #include    <proto/exec.h>
 #include    <proto/dos.h>
-#include    <proto/timer.h>
 
 #include    <exec/types.h>
 #include    <exec/lists.h>
@@ -38,8 +37,13 @@
 
 #include    <dos/dos.h>
 
+/* The legacy probe walks an x86-only cpu.resource, uses port-I/O and C stdio for
+   timing/formatting; those headers (and the i386 family parser) only exist / make
+   sense on x86. Other architectures use the portable processor.resource backend
+   (cpuinfo_arch.c), which talks to dos.library directly and needs none of these. */
+#if defined(__i386__) || defined(__x86_64__)
+#include    <proto/timer.h>
 #include    <devices/timer.h>
-
 #include    <sys/time.h>
 
 #include    <stdio.h>
@@ -51,6 +55,7 @@
 
 #include    <hardware/cpu/cpu.h>
 #include    <hardware/cpu/cpu_i386.h>
+#endif
 
 /********************************************
 		    Version Information
@@ -83,6 +88,11 @@ enum
 
 BOOL    isLastNode ( struct MinNode *CurrNode );
 int     AddBufferLine ( int buffpos, char *buffer, char *line );
+#if defined(__i386__) || defined(__x86_64__)
 void    parse_i386 ( struct i386_compat_intern * CPUi386, ULONG CPU_ID  );
+#else
+/* Portable per-architecture probe (processor.resource), see cpuinfo_arch.c. */
+int     cpuinfo_print ( BOOL verbose );
+#endif
 
 #endif /* _CPUINFO_INTERN_H */

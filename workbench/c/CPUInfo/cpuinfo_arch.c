@@ -52,6 +52,115 @@ static CONST_STRPTR endian_name(ULONG e)
     }
 }
 
+#if defined(__aarch64__)
+/*
+ * Ask the host OS for the real CPU identity (e.g. "Apple M1 Pro") and core
+ * counts. On Apple Silicon AROS runs at EL0, where MIDR_EL1 / the ID_AA64*
+ * registers are not readable, so querying the host is the only way to learn the
+ * part. This path is inert on every other platform: it goes through
+ * hostlib.resource (absent on native AROS), dlopens libSystem.dylib (absent on
+ * non-darwin hosts) and calls sysctlbyname (absent in e.g. glibc) -- any link in
+ * that chain that is missing makes it return without printing anything.
+ *
+ * Why this lives in CPUInfo and not in processor.resource:
+ *   The architecturally "proper" home would be a darwin processor.resource
+ *   backend (cf. arch/all-linux/processor/, which reads /proc/cpuinfo via the
+ *   host libc), so that GetCPUInfo() -- and hence ShowConfig and every other
+ *   caller -- would see the real model too. But the generic rom/processor only
+ *   serves GCIT_ModelString as the constant "Unknown"; surfacing a host-derived
+ *   model through it means adding a model-override hook to rom/processor
+ *   (getcpuinfo.c + processor_intern.h) AND a new arch-specific module wired into
+ *   the kernel-processor build -- a cross-cutting change to a core resource.
+ *   Doing the host query here keeps it self-contained, fully gated, and
+ *   verifiable in isolation, and puts the answer exactly where a user looks for
+ *   it. The processor.resource block above still prints what the portable API
+ *   actually reports ("Model: Unknown"), so the two layers stay honest; if a
+ *   darwin processor.resource backend is added later, that line fills in and this
+ *   block can move into it unchanged.
+ *
+ * darwin/AArch64 size_t is 64-bit, matching IPTR. The hw.* integer sysctls are
+ * 32-bit ints, matching AROS LONG; a width mismatch just makes the call fail and
+ * the value is skipped.
+ */
+#include <proto/hostlib.h>
+
+typedef int (*sysctlbyname_t)(const char *, void *, IPTR *, const void *, IPTR);
+
+static void print_host_cpu_info(void)
+{
+    APTR           HostLibBase;
+    void          *libc;
+    sysctlbyname_t sc;
+    char           brand[128];
+    LONG           phys = 0, logical = 0, pcore = 0, ecore = 0;
+    BOOL           haveBrand = FALSE, havePhys = FALSE, haveLog = FALSE, havePE = FALSE;
+    IPTR           len;
+
+    HostLibBase = OpenResource("hostlib.resource");
+    if (!HostLibBase)                       /* not a hosted AROS */
+        return;
+
+    libc = HostLib_Open("libSystem.dylib", NULL);
+    if (!libc)                              /* not a darwin host */
+        return;
+
+    sc = (sysctlbyname_t)HostLib_GetPointer(libc, "sysctlbyname", NULL);
+    if (sc)
+    {
+        LONG p = 0, e = 0;
+
+        brand[0] = '\0';
+
+        /* Gather everything under one host lock, then print (no AROS I/O while
+           the host lock is held). */
+        HostLib_Lock();
+
+        len = sizeof(brand);
+        if (sc("machdep.cpu.brand_string", brand, &len, NULL, 0) == 0 && brand[0])
+            haveBrand = TRUE;
+
+        len = sizeof(LONG);
+        if (sc("hw.physicalcpu", &phys, &len, NULL, 0) == 0)
+            havePhys = TRUE;
+
+        len = sizeof(LONG);
+        if (sc("hw.logicalcpu", &logical, &len, NULL, 0) == 0)
+            haveLog = TRUE;
+
+        len = sizeof(LONG);
+        if (sc("hw.perflevel0.physicalcpu", &p, &len, NULL, 0) == 0)
+        {
+            pcore = p;
+            len = sizeof(LONG);
+            if (sc("hw.perflevel1.physicalcpu", &e, &len, NULL, 0) == 0)
+                ecore = e;
+            havePE = TRUE;
+        }
+
+        HostLib_Unlock();
+    }
+
+    HostLib_Close(libc, NULL);
+
+    if (haveBrand || havePhys)
+    {
+        PutStr("  Host (macOS, via sysctl) reports:\n");
+        if (haveBrand)
+            Printf("    CPU model    : %s\n", (IPTR)brand);
+        if (havePhys)
+        {
+            if (havePE && pcore && ecore)
+                Printf("    Physical CPUs: %ld (%ld performance + %ld efficiency)\n",
+                       (LONG)phys, (LONG)pcore, (LONG)ecore);
+            else
+                Printf("    Physical CPUs: %ld\n", (LONG)phys);
+        }
+        if (haveLog)
+            Printf("    Logical CPUs : %ld\n", (LONG)logical);
+    }
+}
+#endif /* __aarch64__ */
+
 int cpuinfo_print(BOOL verbose)
 {
     ULONG count = 1, i;
@@ -115,6 +224,12 @@ int cpuinfo_print(BOOL verbose)
         PutStr("    Integer regs    : 31 x 64-bit (X0-X30) + SP, PC\n");
         PutStr("    SIMD/FP regs    : 32 x 128-bit (V0-V31)\n");
         PutStr("    Advanced SIMD/FP: present (NEON; required by the AROS AArch64 ABI)\n");
+
+        /* The real silicon identity comes from the host (EL0 can't read the CPU
+           ID registers); inert on non-darwin / native AROS. Host info is
+           system-wide, so emit it once. */
+        if (i == 0)
+            print_host_cpu_info();
 
         if (verbose)
         {

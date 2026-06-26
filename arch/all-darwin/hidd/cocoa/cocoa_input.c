@@ -77,9 +77,10 @@ static const UWORD cocoa_keymap[128] =
     [0x2B] = RAWKEY_COMMA,    [0x2C] = RAWKEY_SLASH,    [0x2D] = RAWKEY_N,
     [0x2E] = RAWKEY_M,        [0x2F] = RAWKEY_PERIOD,   [0x30] = RAWKEY_TAB,
     [0x31] = RAWKEY_SPACE,    [0x32] = RAWKEY_TILDE,    [0x33] = RAWKEY_BACKSPACE,
-    [0x35] = RAWKEY_ESCAPE,   [0x37] = RAWKEY_LAMIGA,   [0x38] = RAWKEY_LSHIFT,
+    [0x35] = RAWKEY_ESCAPE,   [0x36] = RAWKEY_RAMIGA,   [0x37] = RAWKEY_RAMIGA,
+    [0x38] = RAWKEY_LSHIFT,
     [0x39] = RAWKEY_CAPSLOCK, [0x3A] = RAWKEY_LALT,     [0x3B] = RAWKEY_CONTROL,
-    [0x3C] = RAWKEY_RSHIFT,   [0x3D] = RAWKEY_RALT,     [0x3E] = RAWKEY_RAMIGA,
+    [0x3C] = RAWKEY_RSHIFT,   [0x3D] = RAWKEY_RALT,     [0x3E] = RAWKEY_CONTROL,
     [0x7B] = RAWKEY_LEFT,     [0x7C] = RAWKEY_RIGHT,    [0x7D] = RAWKEY_DOWN,
     [0x7E] = RAWKEY_UP,
 };
@@ -161,6 +162,65 @@ struct OOP_InterfaceDescr CocoaMouse_ifdescr[] =
 
 /* input.device IORequest used by the poll task for deferred keyboard delivery. */
 static struct IOStdReq *g_inputio;
+static UWORD g_keyqual;
+
+#define COCOA_SHIFT_QUALIFIERS   (IEQUALIFIER_LSHIFT | IEQUALIFIER_RSHIFT)
+#define COCOA_ALT_QUALIFIERS     (IEQUALIFIER_LALT | IEQUALIFIER_RALT)
+#define COCOA_COMMAND_QUALIFIERS (IEQUALIFIER_LCOMMAND | IEQUALIFIER_RCOMMAND)
+
+static UWORD cocoa_modifier_qualifier(UWORD raw)
+{
+    switch (raw)
+    {
+    case RAWKEY_LSHIFT:   return IEQUALIFIER_LSHIFT;
+    case RAWKEY_RSHIFT:   return IEQUALIFIER_RSHIFT;
+    case RAWKEY_CONTROL:  return IEQUALIFIER_CONTROL;
+    case RAWKEY_LALT:     return IEQUALIFIER_LALT;
+    case RAWKEY_RALT:     return IEQUALIFIER_RALT;
+    case RAWKEY_LAMIGA:   return IEQUALIFIER_LCOMMAND;
+    case RAWKEY_RAMIGA:   return IEQUALIFIER_RCOMMAND;
+    case RAWKEY_CAPSLOCK: return IEQUALIFIER_CAPSLOCK;
+    default:              return 0;
+    }
+}
+
+static void cocoa_sync_modifier_group(unsigned mods, unsigned cm_mod,
+                                      UWORD mask, UWORD fallback)
+{
+    if (mods & cm_mod)
+    {
+        if (!(g_keyqual & mask))
+            g_keyqual |= fallback;
+    }
+    else
+    {
+        g_keyqual &= ~mask;
+    }
+}
+
+static UWORD cocoa_update_qualifiers(UWORD raw, BOOL pressed, unsigned mods)
+{
+    UWORD q = cocoa_modifier_qualifier(raw);
+
+    if (q)
+    {
+        if (pressed)
+            g_keyqual |= q;
+        else
+            g_keyqual &= ~q;
+    }
+
+    cocoa_sync_modifier_group(mods, CM_MOD_SHIFT,
+                              COCOA_SHIFT_QUALIFIERS, IEQUALIFIER_LSHIFT);
+    cocoa_sync_modifier_group(mods, CM_MOD_CONTROL,
+                              IEQUALIFIER_CONTROL, IEQUALIFIER_CONTROL);
+    cocoa_sync_modifier_group(mods, CM_MOD_ALT,
+                              COCOA_ALT_QUALIFIERS, IEQUALIFIER_LALT);
+    cocoa_sync_modifier_group(mods, CM_MOD_CMD,
+                              COCOA_COMMAND_QUALIFIERS, IEQUALIFIER_RCOMMAND);
+
+    return g_keyqual;
+}
 
 /* ------------------------------------------------------------------------- */
 static void cocoa_dispatch(struct CMEvent *e)
@@ -179,9 +239,10 @@ static void cocoa_dispatch(struct CMEvent *e)
         {
             struct InputEvent ie;
             UWORD raw = cocoa_keymap[e->code & 0x7F];
+            UWORD qual = cocoa_update_qualifiers(raw, e->pressed, e->mods);
             if (!e->pressed)
                 raw |= IECODE_UP_PREFIX;
-            /* Deliver through input.device (IND_WRITEEVENT) rather than calling
+            /* Deliver through input.device (IND_ADDEVENT) rather than calling
                the keyboard.hidd IrqHandler inline. The IrqHandler's synchronous
                kbdSendQueuedEvents reaches intuition rendering ON THIS poll task,
                which corrupts the gfx OOP dispatch under the threaded scheduler
@@ -191,8 +252,8 @@ static void cocoa_dispatch(struct CMEvent *e)
             memset(&ie, 0, sizeof ie);
             ie.ie_Class     = IECLASS_RAWKEY;
             ie.ie_Code      = raw;
-            ie.ie_Qualifier = 0;
-            g_inputio->io_Command = IND_WRITEEVENT;
+            ie.ie_Qualifier = qual;
+            g_inputio->io_Command = IND_ADDEVENT;
             g_inputio->io_Data    = &ie;
             g_inputio->io_Length  = sizeof(ie);
             DoIO((struct IORequest *)g_inputio);
@@ -227,6 +288,10 @@ static void cocoa_dispatch(struct CMEvent *e)
             }
             xsd.mouse_callback(xsd.mouse_callbackdata, &hev);
         }
+        break;
+
+    case CM_EV_RESIZE:
+        cocoa_present_visible(TRUE);
         break;
 
     default:
@@ -284,11 +349,10 @@ static void cocoa_event_task(struct Task *creator, ULONG sync)
                 D(bug("[Cocoa:Input] poll loop live (first cm_pump_events -> %d)\n", n));
             }
         }
-        if (n > 0)
-            D(bug("[Cocoa:Input] %d host event(s) this tick\n", n));
-
         for (i = 0; i < n; i++)
             cocoa_dispatch(&evbuf[i]);
+
+        cocoa_present_visible(FALSE);
     }
 }
 

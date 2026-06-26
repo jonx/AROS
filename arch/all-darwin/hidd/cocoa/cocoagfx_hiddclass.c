@@ -192,28 +192,8 @@ OOP_Object *CocoaGfx__Hidd_Gfx__Show(OOP_Class *cl, OOP_Object *o, struct pHidd_
 
     shown = (OOP_Object *)OOP_DoSuperMethod(cl, o, (OOP_Msg)&mymsg);
     xsd.visible = shown;
-
-    if (shown && xsd.ctx && xsd.cm)
-    {
-        APTR  buffer = NULL;
-        IPTR  bpr = 0, bw = COCOA_WIDTH, bh = COCOA_HEIGHT;
-
-        OOP_GetAttr(shown, aHidd_ChunkyBM_Buffer,    (IPTR *)&buffer);
-        OOP_GetAttr(shown, aHidd_BitMap_BytesPerRow, &bpr);
-        OOP_GetAttr(shown, aHidd_BitMap_Width,       &bw);
-        OOP_GetAttr(shown, aHidd_BitMap_Height,      &bh);
-        if (buffer)
-        {
-            Forbid();
-            HostLib_Lock();
-            xsd.cm->cm_upload_rect(xsd.ctx, buffer, (int)bpr, 0, 0, (int)bw, (int)bh);
-            xsd.cm->cm_present(xsd.ctx);
-            AROS_HOST_BARRIER
-            HostLib_Unlock();
-            Permit();
-            D(bug("[Cocoa] present shown 0x%p %ldx%ld done\n", shown, bw, bh));
-        }
-    }
+    xsd.dirty = FALSE;
+    cocoa_present_visible(TRUE);
 
     return shown;
 }

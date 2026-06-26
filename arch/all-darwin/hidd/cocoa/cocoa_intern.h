@@ -90,6 +90,8 @@ struct cocoahidd
     struct CMInterface *cm;              /* resolved cm_* interface             */
     CMContext          *ctx;             /* host window (lazy, opened on Show)  */
     OOP_Object         *visible;         /* currently shown bitmap              */
+    BOOL                dirty;           /* visible bitmap has pending damage    */
+    WORD                dirty_x1, dirty_y1, dirty_x2, dirty_y2; /* x2/y2 exclusive */
 
     /* ---- input (cocoa_input.c): kbd+mouse HIDDs + the cm_pump_events task --- */
     OOP_Class          *kbdclass;        /* CocoaKbd (CLID_Hidd_Kbd subclass)   */
@@ -146,6 +148,9 @@ extern OOP_AttrBase HiddColorMapAttrBase;
 
 BOOL cocoa_hostlib_init(struct cocoahidd *xsd);
 void cocoa_hostlib_expunge(struct cocoahidd *xsd);
+
+void cocoa_mark_dirty(OOP_Object *bm, WORD x, WORD y, WORD width, WORD height);
+void cocoa_present_visible(BOOL force);
 
 /* input.c: create the kbd+mouse HIDDs, register them, start the poll task. */
 BOOL cocoa_input_init(struct cocoahidd *xsd);

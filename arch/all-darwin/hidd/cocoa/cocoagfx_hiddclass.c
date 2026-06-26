@@ -118,8 +118,10 @@ VOID CocoaGfx__Root__Get(OOP_Class *cl, OOP_Object *o, struct pRoot_Get *msg)
     OOP_DoSuperMethod(cl, o, (OOP_Msg)msg);
 }
 
-/* Hand the base class our bitmap class for displayable bitmaps (those with a
-   valid ModeID); everything else falls through to the chunky-BM base. */
+/* Hand the base class our bitmap class for every bitmap tied to a display mode.
+   The graphics core creates the real front framebuffer with FrameBuffer=TRUE,
+   which implies Displayable only later inside the base class, so checking only
+   Displayable here misses exactly the bitmap that receives UpdateRect(). */
 OOP_Object *CocoaGfx__Hidd_Gfx__CreateObject(OOP_Class *cl, OOP_Object *o, struct pHidd_Gfx_CreateObject *msg)
 {
     OOP_Object *object;
@@ -133,11 +135,11 @@ OOP_Object *CocoaGfx__Hidd_Gfx__CreateObject(OOP_Class *cl, OOP_Object *o, struc
         };
         struct pHidd_Gfx_CreateObject p;
 
-        if (GetTagData(aHidd_BitMap_Displayable, FALSE, msg->attrList))
+        if (GetTagData(aHidd_BitMap_ModeID, vHidd_ModeID_Invalid, msg->attrList) != vHidd_ModeID_Invalid)
         {
             tags[0].ti_Tag  = aHidd_BitMap_ClassPtr;
             tags[0].ti_Data = (IPTR)xsd.bmclass;
-            D(bug("[Cocoa] CreateObject: displayable -> CocoaBM\n"));
+            D(bug("[Cocoa] CreateObject: mode bitmap -> CocoaBM\n"));
         }
         else
         {
@@ -157,66 +159,63 @@ OOP_Object *CocoaGfx__Hidd_Gfx__CreateObject(OOP_Class *cl, OOP_Object *o, struc
     return object;
 }
 
-/* Lazy window open on first Show; record the front bitmap for the present hook. */
+/* Lazy window open on first Show; record the actual front framebuffer returned
+   by the gfx base class for the present hook. In direct-FB mode this is not the
+   source screen bitmap passed in msg->bitMap. */
 OOP_Object *CocoaGfx__Hidd_Gfx__Show(OOP_Class *cl, OOP_Object *o, struct pHidd_Gfx_Show *msg)
 {
     struct pHidd_Gfx_Show mymsg = { msg->mID, msg->bitMap, msg->flags };
+    OOP_Object *shown;
 
     D(bug("[Cocoa] CocoaGfx::Show(0x%p)\n", msg->bitMap));
 
-    if (msg->bitMap)
+    if (msg->bitMap && !xsd.ctx && xsd.cm)
     {
-        if (!xsd.ctx && xsd.cm)
-        {
-            IPTR w = COCOA_WIDTH, h = COCOA_HEIGHT;
-            OOP_GetAttr(msg->bitMap, aHidd_BitMap_Width,  &w);
-            OOP_GetAttr(msg->bitMap, aHidd_BitMap_Height, &h);
+        IPTR w = COCOA_WIDTH, h = COCOA_HEIGHT;
+        OOP_GetAttr(msg->bitMap, aHidd_BitMap_Width,  &w);
+        OOP_GetAttr(msg->bitMap, aHidd_BitMap_Height, &h);
 
-            /* Forbid task-switching across the host call. On darwin this call
-             * blocks the AROS thread in a host syscall (the cm_* main-thread hop
-             * dispatch_syncs to the window thread); HostLib_Lock is only a
-             * semaphore, so without Forbid the preemptive scheduler can switch a
-             * task at the syscall boundary and save its SP on the host stack ->
-             * "out of stack limits" when restored. */
+        /* Forbid task-switching across the host call. On darwin this call
+         * blocks the AROS thread in a host syscall (the cm_* main-thread hop
+         * dispatch_syncs to the window thread); HostLib_Lock is only a
+         * semaphore, so without Forbid the preemptive scheduler can switch a
+         * task at the syscall boundary and save its SP on the host stack ->
+         * "out of stack limits" when restored. */
+        Forbid();
+        HostLib_Lock();
+        xsd.ctx = xsd.cm->cm_open((int)w, (int)h, &cocoa_fmt, "AROS");
+        AROS_HOST_BARRIER
+        HostLib_Unlock();
+        Permit();
+        D(bug("[Cocoa] cm_open(%ld,%ld) -> 0x%p\n", w, h, xsd.ctx));
+    }
+
+    shown = (OOP_Object *)OOP_DoSuperMethod(cl, o, (OOP_Msg)&mymsg);
+    xsd.visible = shown;
+
+    if (shown && xsd.ctx && xsd.cm)
+    {
+        APTR  buffer = NULL;
+        IPTR  bpr = 0, bw = COCOA_WIDTH, bh = COCOA_HEIGHT;
+
+        OOP_GetAttr(shown, aHidd_ChunkyBM_Buffer,    (IPTR *)&buffer);
+        OOP_GetAttr(shown, aHidd_BitMap_BytesPerRow, &bpr);
+        OOP_GetAttr(shown, aHidd_BitMap_Width,       &bw);
+        OOP_GetAttr(shown, aHidd_BitMap_Height,      &bh);
+        if (buffer)
+        {
             Forbid();
             HostLib_Lock();
-            xsd.ctx = xsd.cm->cm_open((int)w, (int)h, &cocoa_fmt, "AROS");
+            xsd.cm->cm_upload_rect(xsd.ctx, buffer, (int)bpr, 0, 0, (int)bw, (int)bh);
+            xsd.cm->cm_present(xsd.ctx);
             AROS_HOST_BARRIER
             HostLib_Unlock();
             Permit();
-            D(bug("[Cocoa] cm_open(%ld,%ld) -> 0x%p\n", w, h, xsd.ctx));
-        }
-        xsd.visible = msg->bitMap;
-
-        /* Present the current framebuffer once, now. The screen's initial
-         * content is drawn BEFORE this Show (those UpdateRects saw no visible
-         * bitmap yet), and a static screen may never draw again -- so without
-         * this the window would stay blank. */
-        if (xsd.ctx && xsd.cm)
-        {
-            APTR  buffer = NULL;
-            IPTR  bpr = 0, bw = COCOA_WIDTH, bh = COCOA_HEIGHT;
-            OOP_GetAttr(msg->bitMap, aHidd_ChunkyBM_Buffer,    (IPTR *)&buffer);
-            OOP_GetAttr(msg->bitMap, aHidd_BitMap_BytesPerRow, &bpr);
-            OOP_GetAttr(msg->bitMap, aHidd_BitMap_Width,       &bw);
-            OOP_GetAttr(msg->bitMap, aHidd_BitMap_Height,      &bh);
-            if (buffer)
-            {
-                Forbid();
-                HostLib_Lock();
-                xsd.cm->cm_upload_rect(xsd.ctx, buffer, (int)bpr, 0, 0, (int)bw, (int)bh);
-                xsd.cm->cm_present(xsd.ctx);
-                AROS_HOST_BARRIER
-                HostLib_Unlock();
-                Permit();
-                D(bug("[Cocoa] initial present %ldx%ld done\n", bw, bh));
-            }
+            D(bug("[Cocoa] present shown 0x%p %ldx%ld done\n", shown, bw, bh));
         }
     }
-    else
-        xsd.visible = NULL;
 
-    return (OOP_Object *)OOP_DoSuperMethod(cl, o, (OOP_Msg)&mymsg);
+    return shown;
 }
 
 static struct OOP_MethodDescr CocoaGfx_Root_descr[] =

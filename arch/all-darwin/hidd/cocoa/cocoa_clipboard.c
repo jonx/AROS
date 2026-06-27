@@ -232,6 +232,22 @@ static BOOL clip_read_ftxt(UBYTE **out, ULONG *outlen)
     return FALSE;
 }
 
+/* Short printable preview of a byte buffer for the debug log: up to 32 bytes,
+   non-printables shown as '.', NUL-terminated. Static buffer — this task is the
+   only caller and it logs one line at a time. */
+static const char *clip_preview(const UBYTE *b, ULONG len)
+{
+    static char pv[40];
+    ULONG i, n = (len < 32) ? len : 32;
+    for (i = 0; i < n; i++)
+    {
+        UBYTE c = b[i];
+        pv[i] = (c >= 32 && c < 127) ? (char)c : '.';
+    }
+    pv[n] = '\0';
+    return pv;
+}
+
 /* ---- the sync task ------------------------------------------------------- */
 
 static void cocoa_clipboard_task(void)
@@ -282,31 +298,57 @@ static void cocoa_clipboard_task(void)
 
     lastHostCC  = pb_change_count();     /* baselines: only changes AFTER now sync */
     lastArosWid = clip_write_id();
+    D(bug("[Cocoa] clip: baseline macOS cc=%ld, AROS wid=%ld -- polling at ~5Hz\n",
+          lastHostCC, (long)lastArosWid));
 
+    ULONG beat = 0;
     for (;;)
     {
         long cc;
         Delay(10);                       /* ~5 Hz; clipboard latency is not critical */
 
+        /* liveness heartbeat (~every 30s) so the poll loop is visibly alive even
+           when nothing is being copied. */
+        if (++beat >= 150)
+        {
+            beat = 0;
+            D(bug("[Cocoa] clip: heartbeat (macOS cc=%ld, AROS wid=%ld)\n",
+                  lastHostCC, (long)lastArosWid));
+        }
+
         cc = pb_change_count();
         if (cc != lastHostCC)
         {
             /* ---- macOS clipboard changed -> push to AROS (unless it's our echo) ---- */
-            if (cc != ourHostWrite)
+            D(bug("[Cocoa] clip: macOS pasteboard changed (cc %ld->%ld)\n", lastHostCC, cc));
+            if (cc == ourHostWrite)
+            {
+                D(bug("[Cocoa] clip:   ...it's our own AROS->host write, ignored\n"));
+            }
+            else
             {
                 unsigned long ul = 0;
                 char *utf8 = pb_get_text(&ul);
-                if (utf8)
+                if (!utf8)
+                {
+                    D(bug("[Cocoa] clip:   no text flavour on the pasteboard (image/file?) -- skipped\n"));
+                }
+                else
                 {
                     unsigned long ll = 0;
                     UBYTE *lat = pb_u2l(utf8, ul, &ll);
-                    if (lat)
+                    if (!lat)
+                        D(bug("[Cocoa] clip:   UTF-8 (%lu B) -> Latin-1 transcode FAILED\n", ul));
+                    else
                     {
                         if (clip_write_ftxt(lat, (ULONG)ll))
                         {
                             ourArosWrite = clip_write_id();   /* token: suppress our echo */
-                            D(bug("[Cocoa] clip host->AROS: %lu bytes (cc=%ld)\n", ll, cc));
+                            D(bug("[Cocoa] clip: host->AROS  %lu bytes \"%s\" -> PRIMARY_CLIP (new AROS wid=%ld)\n",
+                                  ll, clip_preview(lat, ll), (long)ourArosWrite));
                         }
+                        else
+                            D(bug("[Cocoa] clip:   clip_write_ftxt to PRIMARY_CLIP FAILED\n"));
                         pb_free_host(lat);
                     }
                     pb_free_host(utf8);
@@ -320,18 +362,31 @@ static void cocoa_clipboard_task(void)
             LONG wid = clip_write_id();
             if (wid != lastArosWid)
             {
-                if (wid != ourArosWrite)
+                D(bug("[Cocoa] clip: AROS clipboard changed (wid %ld->%ld)\n",
+                      (long)lastArosWid, (long)wid));
+                if (wid == ourArosWrite)
+                {
+                    D(bug("[Cocoa] clip:   ...it's our own host->AROS write, ignored\n"));
+                }
+                else
                 {
                     UBYTE *lat = NULL; ULONG ll = 0;
-                    if (clip_read_ftxt(&lat, &ll))
+                    if (!clip_read_ftxt(&lat, &ll))
+                    {
+                        D(bug("[Cocoa] clip:   PRIMARY_CLIP holds no FTXT text -- skipped\n"));
+                    }
+                    else
                     {
                         unsigned long ul = 0;
                         char *utf8 = pb_l2u(lat, ll, &ul);
-                        if (utf8)
+                        if (!utf8)
+                            D(bug("[Cocoa] clip:   Latin-1 (%lu B) -> UTF-8 transcode FAILED\n", (unsigned long)ll));
+                        else
                         {
                             ourHostWrite = pb_set_text(utf8, ul); /* token + advance host baseline */
                             lastHostCC   = ourHostWrite;
-                            D(bug("[Cocoa] clip AROS->host: %lu bytes (wid=%ld)\n", ul, (long)wid));
+                            D(bug("[Cocoa] clip: AROS->host  %lu bytes \"%s\" -> NSPasteboard (new macOS cc=%ld)\n",
+                                  ul, clip_preview(lat, ll), ourHostWrite));
                             pb_free_host(utf8);
                         }
                         FreeVec(lat);

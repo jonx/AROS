@@ -171,6 +171,20 @@ static void core_TrapHandler(int sig, regs_t *regs)
     PRINT_SC(regs);
 
     /*
+     * Call/jump through a NULL (or near-NULL) function pointer: the CPU is
+     * executing at (near) address 0, so there is no code at the faulting PC and a
+     * bare "pc=0" is opaque. Say so explicitly, and point at the caller -- LR
+     * holds the return address of the bad call, i.e. the code that made it.
+     */
+    if (PC(regs) < 0x1000)
+    {
+        bug("[KRN] *** Call through a NULL pointer: PC=%p has no code; caller LR=%p",
+            (APTR)(IPTR)PC(regs), (APTR)(IPTR)LR(regs));
+        krnSymbolize(LR(regs));
+        bug("\n");
+    }
+
+    /*
      * Stack backtrace (frame-pointer chain). Inlined and self-contained -- no
      * library calls -- so it is safe in a post-crash trap context (calling the
      * kernel's own KrnPrintBacktrace LVO here can re-fault and hang). Modules are

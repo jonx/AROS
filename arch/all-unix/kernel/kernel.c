@@ -12,6 +12,9 @@
 #include <hardware/intbits.h>
 #include <proto/exec.h>
 #include <proto/hostlib.h>
+#include <utility/tagitem.h>
+#include <libraries/debug.h>
+#include <proto/debug.h>
 
 #define timeval sys_timeval
 
@@ -47,20 +50,124 @@
     sa.sa_handler = h ## _gate;
 #endif
 
+/*
+ * Resolve a code address to "module symbol + offset" via debug.library and
+ * append it to the current bug() line. The bootstrap hands the kernel a
+ * KRN_DebugInfo module list, so debug.library has every kickstart module with
+ * its ELF symbol tables registered. DecodeLocationA() is explicitly safe in
+ * supervisor/crash context: when KrnIsSuper() it skips its semaphore and only
+ * walks the (read-only) module list. debug is a LIBRARY (not a resource), so we
+ * find its base by name in SysBase->LibList -- a read-only list walk, avoiding
+ * OpenLibrary() (which may Wait/alloc and is unsafe in a trap handler). If the
+ * library or address is unknown we print nothing extra and the raw address
+ * still stands on its own.
+ */
+static void krnSymbolize(IPTR addr)
+{
+    static struct Library *DebugBase = NULL;
+    char *modname = NULL, *segname = NULL, *symname = NULL;
+    void *segaddr = NULL, *symaddr = NULL;
+    unsigned int segnum = 0;
+    struct TagItem tags[] =
+    {
+        { DL_ModuleName,    (IPTR)&modname },
+        { DL_SegmentNumber, (IPTR)&segnum  },
+        { DL_SegmentName,   (IPTR)&segname },
+        { DL_SegmentStart,  (IPTR)&segaddr },
+        { DL_SymbolName,    (IPTR)&symname },
+        { DL_SymbolStart,   (IPTR)&symaddr },
+        { TAG_DONE }
+    };
+
+    if (!DebugBase)
+        DebugBase = (struct Library *)FindName(&SysBase->LibList, "debug.library");
+    if (!DebugBase)
+        return;
+
+    if (!DecodeLocationA((APTR)addr, tags) || !modname)
+        return;
+
+    if (symaddr)
+        bug("  %s %s + 0x%x", modname, symname ? symname : "(no symbol)",
+            (unsigned int)((IPTR)addr - (IPTR)symaddr));
+    else
+        bug("  %s seg %d (%s) + 0x%x", modname, (int)segnum,
+            segname ? segname : "(unnamed)",
+            (unsigned int)((IPTR)addr - (IPTR)segaddr));
+}
+
+/*
+ * Stop the host process. Used when a CPU fault is unrecoverable: returning
+ * from the signal handler would just re-execute the faulting instruction and
+ * trap again -- the endless identical-dump loop. _exit() ends the macOS
+ * process cleanly so the window closes after a single guru.
+ */
+static void krnHaltHost(struct PlatformData *pd, int code)
+{
+    if (pd && pd->iface && pd->iface->_exit)
+        pd->iface->_exit(code);
+}
+
 static void core_TrapHandler(int sig, regs_t *regs)
 {
+    static volatile int in_trap  = 0;
+    static int          loop_sig = 0;
+    static IPTR         loop_pc  = 0;
     struct KernelBase *KernelBase = getKernelBase();
+    struct PlatformData *pd = KernelBase->kb_PlatformData;
     const struct SignalTranslation *s;
     short amigaTrap;
     struct AROSCPUContext ctx;
     IPTR pc;
+    int fatal;
 
     SUPERVISOR_ENTER;
+
+    pc = PC(regs);      /* faulting instruction, captured at entry */
+    fatal = (sig == SIGSEGV || sig == SIGBUS || sig == SIGILL || sig == SIGFPE);
+#ifdef SIGSTKFLT
+    fatal = fatal || (sig == SIGSTKFLT);
+#endif
+
+    /*
+     * Loop breaker. The exec trap path (core_Trap -> tc_TrapCode, an inline in
+     * kernel_intr.h) hands the fault to a guru/alert routine that ultimately
+     * re-executes the SAME faulting instruction -- so the identical fault
+     * re-enters this handler forever. Each pass the PC is redirected into the
+     * alert routine (pc != PC(regs) below), yet the *faulting* PC never changes.
+     * Keyed on that faulting PC, detect the re-entry and stop the host after the
+     * first dump instead of spamming. A real recovery would not re-fault at the
+     * same PC, so this never fires on forward progress.
+     */
+    if (fatal && sig == loop_sig && pc == loop_pc)
+    {
+        bug("[KRN] Trap re-faulting at pc=%p (signal %d) -- unrecoverable; halting host.\n",
+            (APTR)(IPTR)pc, sig);
+        krnHaltHost(pd, 20);    /* _exit(): does not return */
+        SUPERVISOR_LEAVE;       /* only reached if the host _exit was unavailable */
+        return;
+    }
+    loop_sig = sig;
+    loop_pc  = pc;
+
+    /*
+     * Re-entered while already printing a crash: a second fault hit inside the
+     * handler itself (e.g. the backtrace or symbolizer walked into bad memory).
+     * Don't recurse -- stop the host process now.
+     */
+    if (in_trap)
+    {
+        bug("[KRN] Nested trap (signal %d) during crash handling -- halting host.\n", sig);
+        krnHaltHost(pd, 20);
+        SUPERVISOR_LEAVE;
+        return;
+    }
+    in_trap = 1;
 
     /* Just for completeness */
     krnRunIRQHandlers(KernelBase, sig);
 
-    bug("[KRN] Trap signal %d, SysBase %p, KernelBase %p\n", sig, SysBase, KernelBase);
+    bug("[KRN] Trap signal %d [h2], SysBase %p, KernelBase %p\n", sig, SysBase, KernelBase);
     PRINT_SC(regs);
 
     /*
@@ -74,14 +181,18 @@ static void core_TrapHandler(int sig, regs_t *regs)
     {
         IPTR *fp = (IPTR *)(IPTR)FP(regs);
         ULONG i;
-        bug("[KRN] Backtrace (innermost first): pc=%p\n", (APTR)(IPTR)PC(regs));
+        bug("[KRN] Backtrace (innermost first): pc=%p", (APTR)(IPTR)PC(regs));
+        krnSymbolize(PC(regs));
+        bug("\n");
         for (i = 0; i < 24 && fp; i++)
         {
             IPTR saved_fp = fp[0];
             IPTR ret      = fp[1];
             if (!ret)
                 break;
-            bug("[KRN]   <- %p\n", (APTR)ret);
+            bug("[KRN]   <- %p", (APTR)ret);
+            krnSymbolize(ret);
+            bug("\n");
             if (saved_fp <= (IPTR)fp || (saved_fp & 0xF))
                 break;
             fp = (IPTR *)saved_fp;
@@ -104,7 +215,7 @@ static void core_TrapHandler(int sig, regs_t *regs)
      */
     memset(&ctx, 0, sizeof(ctx));
     SAVEREGS(&ctx, regs);
-    pc = PC(regs);
+    /* pc (the faulting PC) was captured at handler entry, above. */
 
     amigaTrap = s->AmigaTrap;
     if (s->CPUTrap != -1)
@@ -126,13 +237,17 @@ static void core_TrapHandler(int sig, regs_t *regs)
        we convert it back before returning */
     RESTOREREGS(&ctx, regs);
 
-    /* If the program counter has been modified, assume continuing in crash handling subroutine
-       after completing signal handler. Align stack as if return address was passed, so that
-       stack continues being aligned at 16 bytes. This is necessary for x86_64 and should not
-       cause issues for other architectures */
+    /*
+     * The program counter may have been redirected by the exec trap path (into a
+     * guru/alert subroutine). Align the stack as if a return address was passed,
+     * so it stays 16-byte aligned -- necessary for x86_64, harmless elsewhere.
+     * If this fault is really a non-progressing loop, the loop breaker at the top
+     * of this handler stops the host on the next (identical) re-entry.
+     */
     if (pc != PC(regs))
         if ((SP(regs) & 0xf) == 0x0) SP(regs) -= 8;
 
+    in_trap = 0;
     SUPERVISOR_LEAVE;
 }
 
@@ -182,6 +297,7 @@ static const char *kernel_functions[] =
     "__error",
 #endif
 #endif
+    "_exit",
 #ifdef HOST_OS_android
     "sigwait",
 #else

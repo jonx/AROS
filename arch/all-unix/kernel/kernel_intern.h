@@ -35,6 +35,7 @@ struct KernelInterface
     void *  (*mmap)(void *addr, size_t length, int prot, int flags, int fd, off_t offset);
     int     (*munmap)(void *addr, size_t length);
     int    *(*__error)(void);
+    void    (*_exit)(int status);
 #ifdef HOST_OS_android
     int     (*sigwait)(const sigset_t *restrict set, int *restrict sig);
 #else

@@ -29,6 +29,7 @@
 #include <exec/io.h>
 #include <exec/ports.h>
 #include <exec/memory.h>
+#include <dos/dostags.h>              /* CreateNewProc / NP_* */
 #include <devices/clipboard.h>
 #include <libraries/iffparse.h>
 #include <datatypes/textclass.h>      /* ID_FTXT, ID_CHRS */
@@ -238,6 +239,11 @@ static void cocoa_clipboard_task(void)
     long  lastHostCC, ourHostWrite = -1;
     LONG  lastArosWid, ourArosWrite = -1;
 
+    /* Let the boot settle before we touch devices/host calls: bringing up the
+       display + input + ConClip churns the threaded host scheduler (SIGALRM), and
+       a new process doing OpenDevice/host work in that window is what faults. */
+    Delay(250);
+
     IFFParseBase = OpenLibrary("iffparse.library", 36);
     if (!IFFParseBase) { D(bug("[Cocoa] clipboard: no iffparse.library\n")); return; }
 
@@ -353,10 +359,15 @@ cleanup:
 BOOL cocoa_clipboard_init(struct cocoahidd *xsd_)
 {
     (void)xsd_;                          /* the task uses the global xsd */
-    xsd.cliptask = NewCreateTask(TASKTAG_PC,        (IPTR)cocoa_clipboard_task,
-                                 TASKTAG_NAME,      (IPTR)"cocoa.hidd clipboard",
-                                 TASKTAG_PRI,       5,
-                                 TASKTAG_STACKSIZE, 64 * 1024,
-                                 TAG_DONE);
+
+    /* A PROCESS, not a bare Task: clipboard.device file-backs PRIMARY_CLIP to
+       CLIPS: (a DOS path), so the sync code needs a Process context (pr_*) for
+       the file I/O — a NewCreateTask() task has none and faults in OpenDevice. */
+    xsd.cliptask = (struct Task *)CreateNewProcTags(
+        NP_Entry,     (IPTR)cocoa_clipboard_task,
+        NP_Name,      (IPTR)"cocoa.hidd clipboard",
+        NP_Priority,  5,
+        NP_StackSize, 64 * 1024,
+        TAG_DONE);
     return xsd.cliptask ? TRUE : FALSE;
 }

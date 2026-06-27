@@ -276,7 +276,7 @@ struct Interrupt *initCDIH(struct ConsoleBase *ConsoleDevice)
                             (VOID_FUNC) AROS_SLIB_ENTRY(CDInputHandler,
                             Console, 7);
                         cdihandler->is_Data = ConsoleDevice;
-                        cdihandler->is_Node.ln_Pri = 50;
+                        cdihandler->is_Node.ln_Pri = 51;
                         cdihandler->is_Node.ln_Name =
                             "console.device InputHandler";
 

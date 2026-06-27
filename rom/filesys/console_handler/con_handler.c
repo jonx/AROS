@@ -31,6 +31,7 @@
 #include <intuition/intuition.h>
 #include <workbench/startup.h>
 #include <devices/conunit.h>
+#include <devices/rawkeycodes.h>
 
 #include <stddef.h>
 #include <string.h>
@@ -665,7 +666,7 @@ LONG CONMain(struct ExecBase *SysBase)
                                                 struct InputEvent ie;
                                                 ie.ie_NextEvent = NULL;
                                                 ie.ie_Class     = IECLASS_RAWKEY;
-                                                ie.ie_Code      = 0x33;
+                                                ie.ie_Code      = RAWKEY_C;
                                                 ie.ie_Qualifier = IEQUALIFIER_RCOMMAND;
                                                 CDInputHandler(&ie, ConsoleDevice);
                                                 D(bug("[con:handler] %s: Menu: Copy sent\n", __func__));

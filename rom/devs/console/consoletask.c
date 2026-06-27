@@ -271,17 +271,24 @@ VOID consoleTaskEntry(struct ConsoleBase *ConsoleDevice)
                                         RawKeyConvert(&cdihmsg->ie,
                                         inputBuf, MAPRAWKEY_BUFSIZE, NULL);
 
-                                    if (cdihmsg->ie.ie_Qualifier ==
-                                        IEQUALIFIER_RCOMMAND && actual == 1)
+                                    /* RawKeyConvert yields 0 chars when a
+                                     * Command (Amiga) qualifier is held, so
+                                     * RAmiga+C/V can't be matched via the
+                                     * translated char (inputBuf is empty).
+                                     * Match the rawkey code directly; ie_Code
+                                     * == RAWKEY_C/V is the key-down (key-up
+                                     * carries IECODE_UP_PREFIX, so it differs). */
+                                    if (cdihmsg->ie.ie_Qualifier &
+                                        IEQUALIFIER_RCOMMAND)
                                     {
-                                        switch (inputBuf[0])
+                                        switch (cdihmsg->ie.ie_Code)
                                         {
-                                        case 'c':
+                                        case RAWKEY_C:
                                             D(bug("Console_Copy\n"));
                                             Console_Copy(cdihmsg->unit);
                                             actual = 0;
                                             break;
-                                        case 'v':
+                                        case RAWKEY_V:
                                             D(bug("Console_Paste\n"));
                                             Console_Paste(cdihmsg->unit);
                                             /* We have likely put something

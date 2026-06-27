@@ -74,6 +74,21 @@ struct CMInterface
 #define CM_ABI_VERSION 2                 /* INTERFACE.md §7 (host reports 2) */
 #define CM_DYLIB_NAME  "cocoametal.dylib"
 
+/* ---- libpasteboard.dylib ABI (the clipboard bridge, cocoa_clipboard.c). The 6
+   host_pb_* symbols the bridge uses, in symbol order = the HostLib_GetInterface
+   contract. Mirror of hosted/clipboard/pasteboard.h; the AROS side pulls no Cocoa
+   headers. size_t is 8 bytes on arm64 (== unsigned long). ---- */
+struct PBInterface
+{
+    int  (*host_pb_get_text)(char **out, unsigned long *len);
+    long (*host_pb_set_text)(const char *utf8, unsigned long len);
+    long (*host_pb_change_count)(void);
+    void (*host_pb_free)(void *p);
+    int  (*host_latin1_to_utf8)(const unsigned char *latin1, unsigned long len, char **out, unsigned long *out_len);
+    int  (*host_utf8_to_latin1)(const char *utf8, unsigned long len, int translit, unsigned char **out, unsigned long *out_len);
+};
+#define PB_DYLIB_NAME  "libpasteboard.dylib"
+
 /* Default logical display mode (one mode keeps the sync/mode taglists trivial). */
 #define COCOA_WIDTH    800
 #define COCOA_HEIGHT   600
@@ -103,6 +118,11 @@ struct cocoahidd
     VOID              (*mouse_callback)(APTR, APTR);  /* mouse.hidd IrqHandler    */
     APTR                mouse_callbackdata;
     struct Task        *eventtask;       /* polls cm_pump_events every VBlank   */
+
+    /* ---- clipboard bridge (cocoa_clipboard.c): NSPasteboard <-> PRIMARY_CLIP --- */
+    APTR                pbHandle;        /* dlopen handle for libpasteboard.dylib */
+    struct PBInterface *pb;              /* resolved host_pb_* interface          */
+    struct Task        *cliptask;        /* the clipboard-sync poll task          */
 };
 
 /* gfx class instance data */
@@ -155,5 +175,8 @@ void cocoa_present_visible(BOOL force);
 /* input.c: create the kbd+mouse HIDDs, register them, start the poll task. */
 BOOL cocoa_input_init(struct cocoahidd *xsd);
 void cocoa_input_expunge(struct cocoahidd *xsd);
+
+/* clipboard.c: start the NSPasteboard <-> clipboard.device sync task (non-fatal). */
+BOOL cocoa_clipboard_init(struct cocoahidd *xsd);
 
 #endif /* COCOA_INTERN_H */

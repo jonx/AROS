@@ -144,6 +144,13 @@ int main(void)
                         else
                             D(bug("[Cocoa] input registration skipped\n"));
 
+                        /* Start the clipboard bridge (NSPasteboard <-> PRIMARY_CLIP).
+                           Non-fatal: no libpasteboard.dylib -> just no clipboard sync. */
+                        if (cocoa_clipboard_init(&xsd))
+                            D(bug("[Cocoa] clipboard bridge task started\n"));
+                        else
+                            D(bug("[Cocoa] clipboard bridge not started\n"));
+
                         /* Stay resident: detach our seglist so exiting this
                            process doesn't unload the driver. */
                         if (me->pr_CLI)

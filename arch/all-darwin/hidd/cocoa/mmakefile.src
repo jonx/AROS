@@ -7,7 +7,8 @@ FILES := \
     cocoa_hostlib \
     cocoagfx_hiddclass \
     cocoagfx_bitmapclass \
-    cocoa_input
+    cocoa_input \
+    cocoa_clipboard
 
 EXEDIR := $(AROSDIR)/Storage/Monitors
 

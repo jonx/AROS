@@ -184,40 +184,31 @@ static UWORD cocoa_modifier_qualifier(UWORD raw)
     }
 }
 
-static void cocoa_sync_modifier_group(unsigned mods, unsigned cm_mod,
-                                      UWORD mask, UWORD fallback)
-{
-    if (mods & cm_mod)
-    {
-        if (!(g_keyqual & mask))
-            g_keyqual |= fallback;
-    }
-    else
-    {
-        g_keyqual &= ~mask;
-    }
-}
-
 static UWORD cocoa_update_qualifiers(UWORD raw, BOOL pressed, unsigned mods)
 {
     UWORD q = cocoa_modifier_qualifier(raw);
 
     if (q)
     {
+        /* A modifier KEY transition is authoritative for that key's qualifier:
+           set it on key-down, clear it on key-up. */
         if (pressed)
             g_keyqual |= q;
         else
             g_keyqual &= ~q;
     }
 
-    cocoa_sync_modifier_group(mods, CM_MOD_SHIFT,
-                              COCOA_SHIFT_QUALIFIERS, IEQUALIFIER_LSHIFT);
-    cocoa_sync_modifier_group(mods, CM_MOD_CONTROL,
-                              IEQUALIFIER_CONTROL, IEQUALIFIER_CONTROL);
-    cocoa_sync_modifier_group(mods, CM_MOD_ALT,
-                              COCOA_ALT_QUALIFIERS, IEQUALIFIER_LALT);
-    cocoa_sync_modifier_group(mods, CM_MOD_CMD,
-                              COCOA_COMMAND_QUALIFIERS, IEQUALIFIER_RCOMMAND);
+    /* The host modifierFlags (mods) may only ADD a qualifier that is logically
+       active but whose key-down we never saw (e.g. a modifier already held at
+       focus-in). It must NOT clear a held qualifier here: injected key events
+       (the control FIFO) legitimately carry mods=0 while a modifier key is still
+       down, and clearing would drop the held Shift/Amiga -- e.g. Shift+letter
+       would lose its shift and come out lower-case. Qualifiers are cleared only
+       by the matching modifier key-up above. */
+    if (mods & CM_MOD_SHIFT)   g_keyqual |= IEQUALIFIER_LSHIFT;
+    if (mods & CM_MOD_CONTROL) g_keyqual |= IEQUALIFIER_CONTROL;
+    if (mods & CM_MOD_ALT)     g_keyqual |= IEQUALIFIER_LALT;
+    if (mods & CM_MOD_CMD)     g_keyqual |= IEQUALIFIER_RCOMMAND;
 
     return g_keyqual;
 }

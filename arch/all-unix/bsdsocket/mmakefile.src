@@ -1,0 +1,26 @@
+include $(SRCDIR)/config/aros.cfg
+
+#MM- workbench-libs-bsdsocket : workbench-libs-bsdsocket-unix
+
+# The AmiTCP public contract (sys/socket.h, netdb.h, sys/net_types.h, sys/errno.h,
+# defines/bsdsocket.h ...) lives with the network sources, not the C library.
+USER_INCLUDES := -I$(SRCDIR)/workbench/network/common/include
+
+# Support files + the grouped LVO bodies. genmodule builds the dispatch/vector
+# table from bsdsocket.conf and links these by function name.
+FILES := \
+    bsdsocket_init \
+    bsdsocket_open \
+    bsdsocket_util \
+    errno_xlate \
+    bsdsocket_core \
+    bsdsocket_sockopt \
+    bsdsocket_misc \
+    waitselect \
+    bsdsocket_stubs
+
+%build_module_library mmake=workbench-libs-bsdsocket-unix \
+    modname=bsdsocket modtype=library \
+    files="$(FILES)"
+
+%common

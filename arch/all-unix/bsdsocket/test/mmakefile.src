@@ -1,0 +1,16 @@
+include $(SRCDIR)/config/aros.cfg
+
+EXEDIR := $(AROS_C)
+
+# The AmiTCP socket headers (sys/socket.h, netinet/in.h). Note: AmiTCP's
+# sys/socket.h pulls <sys/types.h>/<sys/select.h>, which live in the posixc include
+# tree — so this command links posixc (present in the boot) rather than -noposixc.
+USER_INCLUDES := -I$(SRCDIR)/workbench/network/common/include
+
+#MM workbench-libs-bsdsocket-test : includes linklibs
+
+%build_prog mmake=workbench-libs-bsdsocket-test \
+    progname=socktest targetdir=$(EXEDIR) \
+    files=socktest
+
+%common

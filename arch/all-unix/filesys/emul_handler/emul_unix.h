@@ -68,6 +68,7 @@ struct LibCInterface
     char	  *(*getcwd)(char *buf, size_t size);
     char	  *(*getenv)(const char *name);
     int     	   (*poll)(struct pollfd *fds, nfds_t nfds, int timeout);
+    long	   (*pathconf)(const char *path, int name);   /* R-CASE */
 #if defined(HOST_OS_linux) && defined(_STAT_VER)
     int		   (*__xstat)(int ver, char *path, struct stat *buf);
     int		   (*__lxstat)(int ver, const char *path, struct stat *buf);

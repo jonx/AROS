@@ -160,9 +160,10 @@ struct OOP_InterfaceDescr CocoaMouse_ifdescr[] =
     { NULL, NULL, 0 }
 };
 
-/* input.device IORequest used by the poll task for deferred keyboard delivery. */
+/* input.device IORequest used by the poll task for deferred input delivery. */
 static struct IOStdReq *g_inputio;
 static UWORD g_keyqual;
+static UWORD g_mousequal;
 
 #define COCOA_SHIFT_QUALIFIERS   (IEQUALIFIER_LSHIFT | IEQUALIFIER_RSHIFT)
 #define COCOA_ALT_QUALIFIERS     (IEQUALIFIER_LALT | IEQUALIFIER_RALT)
@@ -213,6 +214,52 @@ static UWORD cocoa_update_qualifiers(UWORD raw, BOOL pressed, unsigned mods)
     return g_keyqual;
 }
 
+static UWORD cocoa_mouse_button_code(int button)
+{
+    switch (button)            /* 0=left, 1=right, 2=middle (NSEvent order) */
+    {
+    case 0:  return IECODE_LBUTTON;
+    case 1:  return IECODE_RBUTTON;
+    case 2:  return IECODE_MBUTTON;
+    default: return IECODE_NOBUTTON;
+    }
+}
+
+static UWORD cocoa_mouse_button_qualifier(int button)
+{
+    switch (button)            /* 0=left, 1=right, 2=middle (NSEvent order) */
+    {
+    case 0:  return IEQUALIFIER_LEFTBUTTON;
+    case 1:  return IEQUALIFIER_RBUTTON;
+    case 2:  return IEQUALIFIER_MIDBUTTON;
+    default: return 0;
+    }
+}
+
+static void cocoa_send_input_event(struct InputEvent *ie)
+{
+    if (!g_inputio)
+        return;
+
+    g_inputio->io_Command = IND_ADDEVENT;
+    g_inputio->io_Data    = ie;
+    g_inputio->io_Length  = sizeof(*ie);
+    DoIO((struct IORequest *)g_inputio);
+}
+
+static void cocoa_send_mouse_motion(LONG x, LONG y)
+{
+    struct InputEvent ie;
+
+    memset(&ie, 0, sizeof ie);
+    ie.ie_Class     = IECLASS_RAWMOUSE;
+    ie.ie_Code      = IECODE_NOBUTTON;
+    ie.ie_Qualifier = g_keyqual | g_mousequal;
+    ie.ie_X         = x;
+    ie.ie_Y         = y;
+    cocoa_send_input_event(&ie);
+}
+
 /* ------------------------------------------------------------------------- */
 static void cocoa_dispatch(struct CMEvent *e)
 {
@@ -230,7 +277,7 @@ static void cocoa_dispatch(struct CMEvent *e)
         {
             struct InputEvent ie;
             UWORD raw = cocoa_keymap[e->code & 0x7F];
-            UWORD qual = cocoa_update_qualifiers(raw, e->pressed, e->mods);
+            UWORD qual = cocoa_update_qualifiers(raw, e->pressed, e->mods) | g_mousequal;
             if (!e->pressed)
                 raw |= IECODE_UP_PREFIX;
             /* Deliver through input.device (IND_ADDEVENT) rather than calling
@@ -244,40 +291,48 @@ static void cocoa_dispatch(struct CMEvent *e)
             ie.ie_Class     = IECLASS_RAWKEY;
             ie.ie_Code      = raw;
             ie.ie_Qualifier = qual;
-            g_inputio->io_Command = IND_ADDEVENT;
-            g_inputio->io_Data    = &ie;
-            g_inputio->io_Length  = sizeof(ie);
-            DoIO((struct IORequest *)g_inputio);
+            cocoa_send_input_event(&ie);
         }
         break;
 
     case CM_EV_MOUSEMOVE:
-        if (xsd.mouse_callback)
+        if (g_inputio)
         {
-            struct pHidd_Mouse_Event hev;
-            hev.type   = vHidd_Mouse_Motion;
-            hev.x      = e->x;
-            hev.y      = e->y;
-            hev.button = vHidd_Mouse_NoButton;
-            xsd.mouse_callback(xsd.mouse_callbackdata, &hev);
+            cocoa_send_mouse_motion(e->x, e->y);
         }
         break;
 
     case CM_EV_MOUSEBTN:
-        if (xsd.mouse_callback)
+        if (g_inputio)
         {
-            struct pHidd_Mouse_Event hev;
-            hev.type = e->pressed ? vHidd_Mouse_Press : vHidd_Mouse_Release;
-            hev.x    = e->x;
-            hev.y    = e->y;
-            switch (e->code)            /* 0=left, 1=right, 2=middle (NSEvent order) */
+            struct InputEvent ie;
+            UWORD code = cocoa_mouse_button_code(e->code);
+            UWORD qual = cocoa_mouse_button_qualifier(e->code);
+
+            if (code == IECODE_NOBUTTON || !qual)
+                break;
+
+            /* Some Intuition paths (notably screen/menu activation via the right
+               button) key off the pointer state that precedes the button
+               transition. The host event carries x/y on the button event, but the
+               raw mouse stack is more reliable if we publish the motion first. */
+            cocoa_send_mouse_motion(e->x, e->y);
+
+            if (e->pressed)
+                g_mousequal |= qual;
+            else
             {
-            case 0:  hev.button = vHidd_Mouse_Button1; break;
-            case 1:  hev.button = vHidd_Mouse_Button2; break;
-            case 2:  hev.button = vHidd_Mouse_Button3; break;
-            default: hev.button = vHidd_Mouse_NoButton; break;
+                code |= IECODE_UP_PREFIX;
+                g_mousequal &= ~qual;
             }
-            xsd.mouse_callback(xsd.mouse_callbackdata, &hev);
+
+            memset(&ie, 0, sizeof ie);
+            ie.ie_Class     = IECLASS_RAWMOUSE;
+            ie.ie_Code      = code;
+            ie.ie_Qualifier = g_keyqual | g_mousequal;
+            ie.ie_X         = e->x;
+            ie.ie_Y         = e->y;
+            cocoa_send_input_event(&ie);
         }
         break;
 
@@ -297,7 +352,7 @@ static void cocoa_event_task(struct Task *creator, ULONG sync)
 
     D(bug("[Cocoa:Input] event task starting\n"));
 
-    /* Open input.device for deferred keyboard delivery. The port + request
+    /* Open input.device for deferred keyboard/mouse delivery. The port + request
        belong to this (poll) task so DoIO()'s WaitIO() waits on us, while
        input.device's own task does the actual event processing + rendering. */
     {

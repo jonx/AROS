@@ -98,6 +98,12 @@ LONG DoSetDate(struct emulbase *emulbase, char *fullname, struct DateStamp *date
     return ERROR_NOT_IMPLEMENTED;
 }
 
+LONG DoSetComment(struct emulbase *emulbase, char *fullname, const char *comment)
+{
+    /* Set file comment (no sidecar in the dummy overlay) */
+    return ERROR_NOT_IMPLEMENTED;
+}
+
 SIPTR DoSetSize(struct emulbase *emulbase, struct filehandle *fh, SIPTR offset, ULONG mode, SIPTR *err)
 {
     /* Set file size */
@@ -141,6 +147,22 @@ char *GetHomeDir(struct emulbase *emulbase, char *user)
 {
     /* Get user's home directory */
     return NULL;
+}
+
+char *GetHostEnv(struct emulbase *emulbase, const char *name)
+{
+    /* Read a host environment variable (unsupported in the dummy overlay) */
+    return NULL;
+}
+
+void NameToHost(const char *aros, char *dst, ULONG dstcap)
+{
+    /* No charset translation in the dummy overlay: pass bytes through. */
+    ULONG i;
+    for (i = 0; aros[i] && i + 1 < dstcap; i++)
+        dst[i] = aros[i];
+    if (dstcap)
+        dst[i] = 0;
 }
 
 ULONG GetCurrentDir(struct emulbase *emulbase, char *path, ULONG len)

@@ -42,10 +42,133 @@
 
 #include "emul_intern.h"
 #include "emul_unix.h"
+#include "emul_hostvol.h"
 
 #define NO_CASE_SENSITIVITY
 
 struct dirent *ReadDir(struct emulbase *emulbase, struct filehandle *fh, IPTR *dirpos);
+
+/* --- Name bridge (R-CHARSET + R-NORM): AROS Latin-1 <-> host UTF-8 + NFC -----
+ * AmigaOS/AROS filenames are conventionally ISO-8859-1; macOS paths are UTF-8,
+ * and APFS is a bag-of-bytes that may store either NFC or NFD. We translate at
+ * the boundary so accented/Unicode names round-trip and cross-form lookups
+ * succeed. On non-Darwin unix hosts names pass through byte-for-byte (existing
+ * behaviour preserved). Pure CPU — no host call, inside or outside the lock. */
+
+#define HV_NAMEBUF 1024
+
+static int CopyASCIIName(const char *src, char *dst, ULONG dstcap)
+{
+    ULONG i;
+
+    if (!dstcap)
+        return TRUE;
+    if (!src)
+    {
+        dst[0] = 0;
+        return TRUE;
+    }
+
+    for (i = 0; src[i] && i + 1 < dstcap; i++)
+    {
+        if (((unsigned char)src[i]) >= 0x80)
+            return FALSE;
+        dst[i] = src[i];
+    }
+    if (src[i] && ((unsigned char)src[i]) >= 0x80)
+        return FALSE;
+    dst[i] = 0;
+    return TRUE;
+}
+
+/* AROS name -> host name (Latin-1 -> UTF-8, then NFC). Called by the portable
+ * core's makefilename() before a name reaches a host syscall. */
+void NameToHost(const char *aros, char *dst, ULONG dstcap)
+{
+#ifdef HOST_OS_darwin
+    char utf8[HV_NAMEBUF];
+    if (CopyASCIIName(aros, dst, dstcap))
+        return;
+    hv_latin1_to_utf8(aros, utf8, sizeof utf8);
+    hv_to_nfc(utf8, dst, dstcap);
+#else
+    ULONG i;
+    for (i = 0; aros[i] && i + 1 < dstcap; i++) dst[i] = aros[i];
+    if (dstcap) dst[i] = 0;
+#endif
+}
+
+/* host name -> AROS name (NFC, then UTF-8 -> Latin-1 with reversible escape).
+ * Returns the AROS byte length. Used when handing readdir results to AROS. */
+static ULONG NameToAros(const char *host, char *dst, ULONG dstcap)
+{
+#ifdef HOST_OS_darwin
+    char nfc[HV_NAMEBUF];
+    if (CopyASCIIName(host, dst, dstcap))
+        return (ULONG)strlen(dst);
+    hv_to_nfc(host, nfc, sizeof nfc);
+    return (ULONG)hv_utf8_to_latin1(nfc, dst, dstcap);
+#else
+    ULONG i;
+    for (i = 0; host[i] && i + 1 < dstcap; i++) dst[i] = host[i];
+    if (dstcap) dst[i] = 0;
+    return i;
+#endif
+}
+
+/* NFC-aware case-insensitive match for fixcase: normalize the host d_name to
+ * NFC, then ASCII case-fold against the (already host-form/NFC) target. */
+static int NameHostMatch(struct emulbase *emulbase, const char *dname, const char *target)
+{
+#ifdef HOST_OS_darwin
+    char nfc[HV_NAMEBUF];
+    char ascii[HV_NAMEBUF];
+    if (CopyASCIIName(dname, ascii, sizeof ascii))
+        return Stricmp(ascii, (char *)target) == 0;
+    hv_to_nfc(dname, nfc, sizeof nfc);
+    return Stricmp(nfc, (char *)target) == 0;
+#else
+    return Stricmp((char *)dname, (char *)target) == 0;
+#endif
+}
+
+/* --- Sidecar metadata helpers (R-SIDECAR) --------------------------------- *
+ * Build the full host path of a directory entry (the dir handle's host path +
+ * '/' + entry name); foundname==NULL means the handle's own path. */
+static void entry_hostpath(struct filehandle *fh, const char *foundname, char *dst, ULONG cap)
+{
+    ULONG i = 0, j;
+    const char *h = fh->hostname;
+
+    while (h[i] && i + 1 < cap) { dst[i] = h[i]; i++; }
+    if (foundname) {
+        if (i + 1 < cap) dst[i++] = '/';
+        for (j = 0; foundname[j] && i + 1 < cap; j++) dst[i++] = foundname[j];
+    }
+    if (cap) dst[i] = 0;
+}
+
+/* Read the entry's sidecar and apply it to an Examine result: OR the AmigaOS-
+ * only protection bits onto *prot (rwx stays from st_mode) and copy the comment
+ * (Latin-1). No-op (clean defaults) when there is no sidecar. */
+static void apply_meta(struct emulbase *emulbase, const char *path, ULONG *prot,
+                       char *comment, ULONG commentcap)
+{
+    HVMeta m;
+
+    if (comment && commentcap)
+        comment[0] = 0;
+    if (MetaRead(emulbase, path, &m) == 1) {
+        if (prot)
+            *prot |= (m.prot & HV_FIBF_AMIGA_ONLY);
+        if (comment && commentcap) {
+            ULONG k;
+            for (k = 0; m.comment[k] && k + 1 < commentcap; k++)
+                comment[k] = m.comment[k];
+            comment[k] = 0;
+        }
+    }
+}
 
 /*********************************************************************************************/
 
@@ -230,6 +353,7 @@ static void fixcase(struct emulbase *emulbase, char *pathname)
     char                *pathstart, *pathend;
     BOOL                dirfound;
     int                 res;
+    long                casesens;
 
     pathstart = pathname;
 
@@ -258,9 +382,18 @@ static void fixcase(struct emulbase *emulbase, char *pathname)
             pathstart[-1] = '\0';
             dir = emulbase->pdata.SysIFace->opendir(pathname);
             AROS_HOST_BARRIER
+            /* R-CASE: ask the just-opened (existing) parent whether the volume
+             * is case-SENSITIVE. If so, the exact name not existing is final and
+             * we must NOT fold to a different-case sibling. pathconf returns 1
+             * for case-sensitive, 0 for the macOS default (case-insensitive),
+             * <0 on error — so on the normal Mac this is 0 and behaviour is
+             * unchanged. UNVERIFIED across APFS variants; a CASE= mount option
+             * could override it later. */
+            casesens = emulbase->pdata.SysIFace->pathconf(pathname, _PC_CASE_SENSITIVE);
+            AROS_HOST_BARRIER
             pathstart[-1] = '/';
 
-            if (dir)
+            if (dir && casesens <= 0)
             {
                 while(1)
                 {
@@ -268,8 +401,8 @@ static void fixcase(struct emulbase *emulbase, char *pathname)
                     AROS_HOST_BARRIER
                     if (!de)
                         break;
-                    
-                    if (Stricmp(de->d_name, pathstart) == 0)
+
+                    if (NameHostMatch(emulbase, de->d_name, pathstart))
                     {
                         dirfound = TRUE;
                         strcpy(pathstart, de->d_name);
@@ -278,7 +411,12 @@ static void fixcase(struct emulbase *emulbase, char *pathname)
                 }
                 iface->closedir(dir);
                 AROS_HOST_BARRIER
-
+            }
+            else if (dir)
+            {
+                /* case-sensitive volume: do not case-fold */
+                iface->closedir(dir);
+                AROS_HOST_BARRIER
             }
         } /* if (stat((const char *)pathname, &st) != 0) */
             
@@ -755,6 +893,10 @@ LONG DoDelete(struct emulbase *emulbase, char *name)
 
     HostLib_Unlock();
 
+    /* R-SIDECAR: drop the metadata sidecar alongside the deleted object. */
+    if (!ret)
+        MetaDelete(emulbase, name);
+
     return ret;
 }
 
@@ -769,7 +911,18 @@ LONG DoChMod(struct emulbase *emulbase, char *filename, ULONG prot)
         ret = err_u2a(emulbase);
 
     HostLib_Unlock();
-    
+
+    /* R-SIDECAR: rwx went to st_mode; persist the AmigaOS-only protection bits
+     * (Archive/Pure/Script/Hold) to the sidecar (keeping any existing comment).
+     * MetaWrite removes the sidecar if nothing non-default remains. */
+    if (!ret)
+    {
+        HVMeta m;
+        MetaRead(emulbase, filename, &m);
+        m.prot = prot;
+        MetaWrite(emulbase, filename, &m);
+    }
+
     return ret;
 }
 
@@ -832,6 +985,10 @@ LONG DoRename(struct emulbase *emulbase, char *filename, char *newfilename)
         error = err_u2a(emulbase);
 
     HostLib_Unlock();
+
+    /* R-SIDECAR: keep the metadata sidecar paired with its renamed data file. */
+    if (!error)
+        MetaRename(emulbase, filename, newfilename);
 
     return error;
 }
@@ -988,6 +1145,9 @@ static LONG stat_entry(struct emulbase *emulbase, struct filehandle *fh, STRPTR 
 LONG DoExamineEntry(struct emulbase *emulbase, struct filehandle *fh, char *EntryName,
                    struct ExAllData *ead, ULONG size, ULONG type)
 {
+    char arosname[MAXFILENAMELENGTH];
+    HVMeta meta;
+    int hasmeta = 0;
     STRPTR next, end, last, name;
     struct stat st;
     LONG err;
@@ -1010,6 +1170,13 @@ LONG DoExamineEntry(struct emulbase *emulbase, struct filehandle *fh, char *Entr
     if (err)
         return err;
 
+    /* R-SIDECAR: read the entry's sidecar once for the comment + extra prot. */
+    {
+        char ep[1024];
+        entry_hostpath(fh, EntryName, ep, sizeof ep);
+        hasmeta = (MetaRead(emulbase, ep, &meta) == 1);
+    }
+
     DEXAM(KrnPrintf("[emul] File mode %o, size %u\n", st.st_mode, st.st_size));
     DEXAM(KrnPrintf("[emul] Filling in information\n"));
     DEXAM(KrnPrintf("[emul] ead 0x%p, next 0x%p, end 0x%p, size %u, type %u\n", ead, next, end, size, type));
@@ -1022,6 +1189,14 @@ LONG DoExamineEntry(struct emulbase *emulbase, struct filehandle *fh, char *Entr
             ead->ed_OwnerGID    = st.st_gid;
         case ED_COMMENT:
             ead->ed_Comment=next;
+            {
+                const char *cm = hasmeta ? meta.comment : "";
+                while (*cm) {
+                    if (next >= end)
+                        return ERROR_BUFFER_OVERFLOW;
+                    *next++ = *cm++;
+                }
+            }
             *next = '\0'; next++;
             if(next>=end)
                 return ERROR_BUFFER_OVERFLOW;
@@ -1036,6 +1211,8 @@ LONG DoExamineEntry(struct emulbase *emulbase, struct filehandle *fh, char *Entr
         }
         case ED_PROTECTION:
             ead->ed_Prot        = prot_u2a(st.st_mode);
+            if (hasmeta)
+                ead->ed_Prot |= (meta.prot & HV_FIBF_AMIGA_ONLY);
         case ED_SIZE:
             ead->ed_Size        = st.st_size;
         case ED_TYPE:
@@ -1062,6 +1239,14 @@ LONG DoExamineEntry(struct emulbase *emulbase, struct filehandle *fh, char *Entr
             } else
                 last = fh->volumename;
 
+            /* A dir entry or the handle's host path is host bytes (UTF-8) and
+             * needs charset+NFC translation to the AROS name; the volume name
+             * is already AROS text and passes through unchanged. */
+            if (last != (STRPTR)fh->volumename) {
+                NameToAros(last, arosname, sizeof arosname);
+                last = arosname;
+            }
+
             ead->ed_Name=next;
             for(;;)
             {
@@ -1081,10 +1266,9 @@ LONG DoExamineEntry(struct emulbase *emulbase, struct filehandle *fh, char *Entr
 LONG DoExamineNext(struct emulbase *emulbase, struct filehandle *fh,
                   struct FileInfoBlock *FIB)
 {
-    int i;
+    ULONG i;
     struct stat st;
     struct dirent *dir;
-    char *src, *dest;
     LONG err;
 
     /* This operation does not make any sense on a file */
@@ -1123,10 +1307,17 @@ LONG DoExamineNext(struct emulbase *emulbase, struct filehandle *fh,
 
     FIB->fib_OwnerUID   = st.st_uid;
     FIB->fib_OwnerGID   = st.st_gid;
-    FIB->fib_Comment[0] = '\0'; /* no comments available yet! */
     timestamp2datestamp(emulbase, &st.st_mtime, &FIB->fib_Date);
     FIB->fib_Protection = prot_u2a(st.st_mode);
     FIB->fib_Size       = st.st_size;
+
+    /* R-SIDECAR: comment + AmigaOS-only protection bits from ".<name>.amimeta" */
+    {
+        char ep[1024];
+        entry_hostpath(fh, dir->d_name, ep, sizeof ep);
+        apply_meta(emulbase, ep, &FIB->fib_Protection,
+                   FIB->fib_Comment, sizeof FIB->fib_Comment);
+    }
 
     if (S_ISDIR(st.st_mode))
     {
@@ -1143,17 +1334,10 @@ LONG DoExamineNext(struct emulbase *emulbase, struct filehandle *fh,
 
     DEXAM(bug("[emul] DirentryType %d\n", FIB->fib_DirEntryType));
 
-    /* fast copying of the filename */
-    src  = dir->d_name;
-    dest = &FIB->fib_FileName[1];
-
-    for (i =0; i<MAXFILENAMELENGTH-1;i++)
-    {
-        if(! (*dest++=*src++) )
-        {
-            break;
-        }
-    }
+    /* host name -> AROS name (charset + NFC), then set the BSTR length byte */
+    i = NameToAros(dir->d_name, (char *)&FIB->fib_FileName[1], MAXFILENAMELENGTH - 1);
+    if (i > MAXFILENAMELENGTH - 1)
+        i = MAXFILENAMELENGTH - 1;
     FIB->fib_FileName[0] = i;
 
     return 0;
@@ -1261,6 +1445,29 @@ LONG DoExamineAll(struct emulbase *emulbase, struct filehandle *fh, struct ExAll
     DoRewindDir(emulbase, fh);
 
     return error;
+}
+
+/* Read a host environment variable and return a private (mempool) copy of its
+ * value, or NULL if unset. Used by the AROS_HOST_VOLUME launcher hook to mount
+ * a host folder our way (so our ;WRITE keyword reaches new_volume intact). */
+char *GetHostEnv(struct emulbase *emulbase, const char *name)
+{
+    char *val, *copy = NULL;
+
+    HostLib_Lock();
+    val = emulbase->pdata.SysIFace->getenv((char *)name);
+    AROS_HOST_BARRIER
+    if (val && val[0])
+    {
+        int len = strlen(val);
+
+        copy = AllocVecPooled(emulbase->mempool, len + 1);
+        if (copy)
+            CopyMem(val, copy, len + 1);
+    }
+    HostLib_Unlock();
+
+    return copy;
 }
 
 char *GetHomeDir(struct emulbase *emulbase, char *sp)

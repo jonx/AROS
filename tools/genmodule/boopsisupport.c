@@ -247,11 +247,15 @@ void writeclassinit(struct config *cfg, FILE *out, struct classinfo *cl)
         "\n"
         "static void BOOPSI_%s_Shutdown(LIBBASETYPEPTR LIBBASE)\n"
         "{\n"
+        "#if %s_STORE_CLASSPTR\n"
         "    struct IClass *cl = %s_CLASSPTR_FIELD(LIBBASE);\n"
+        "#else\n"
+        "    struct IClass *cl = IntuitionBase ? %s_CLASSPTR_FIELD(LIBBASE) : NULL;\n"
+        "#endif\n"
         "    \n"
         "    if (cl != NULL)\n"
         "    {\n",
-        cl->basename, cl->basename
+        cl->basename, cl->basename, cl->basename, cl->basename
     );
     if (!(cl->options & COPTION_PRIVATE))
         fprintf(out, "        RemoveClass(cl);\n");
@@ -275,4 +279,3 @@ void writeclassinit(struct config *cfg, FILE *out, struct classinfo *cl)
         cl->basename, -cl->initpri
     );
 }
-

@@ -75,6 +75,7 @@ static const char *libcSymbols[] =
     "getcwd",
     "getenv",
     "poll" UNIX2003_SUFFIX,
+    "pathconf" UNIX2003_SUFFIX,
 #if defined(HOST_OS_linux) && defined(_STAT_VER)
     "__xstat",
     "__lxstat",

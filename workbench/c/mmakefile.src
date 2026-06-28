@@ -153,6 +153,15 @@ USER_LDFLAGS     := -static
 %build_prog mmake=workbench-c-grabscreen progname=GrabScreen \
     files=GrabScreen targetdir=$(AROS_C) coverageinstr=no
 
+# Library load-tester: OpenLibrary() a named lib and report OK/version or FAIL
+# (distinguishes "file present" from "init/deps failed", unlike Version).
+%build_prog mmake=workbench-c-testlib progname=TestLib \
+    files=TestLib targetdir=$(AROS_C) coverageinstr=no
+
+# Batch loader smoke test for the desktop bring-up chain.
+%build_prog mmake=workbench-c-loadmatrix progname=LoadMatrix \
+    files=LoadMatrix targetdir=$(AROS_C) coverageinstr=no
+
 %build_progs mmake=workbench-c \
     files="$(FILES)" targetdir=$(AROS_C) \
     uselibs="uuid debug" coverageinstr=no

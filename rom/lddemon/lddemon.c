@@ -95,6 +95,13 @@ AROS_LH1(BPTR, LDLoadSeg,
     AROS_LIBFUNC_EXIT
 }
 
+/* Disk-loader tracing for bring-up. OFF by default (no boot noise). To enable while
+   debugging a library load, set this to 1 and rebuild (make kernel-lddemon). Kept a
+   build-time switch on purpose: reading it from ENV: inside the loader did DOS-packet
+   I/O in arbitrary task contexts and tripped ExecuteStartup ("unexpected DOS packet").
+   Pairs with the C:TestLib load-tester; see docs/features/debug-tools/README.md. */
+volatile int __lddemon_trace = 0;
+
 /*
   BPTR LDLoad( caller, name, basedir, DOSBase )
     Try and load a segment from disk for the object <name>, relative
@@ -115,10 +122,11 @@ static BPTR LDLoad(struct IntLDDemonBase *ldBase, struct Process *caller, STRPTR
         or from the PROGDIR: assign. These could both be the same
         though.
     */
-    D(bug(
-        "[LDLoad] caller=(%p) %s, name=%s, basedir=%s\n",
-        caller, caller->pr_Task.tc_Node.ln_Name, name, basedir
-    ));
+    if (__lddemon_trace)
+        bug("[LDDiag] LDLoad caller=%s name=%s basedir=%s\n",
+            caller ? caller->pr_Task.tc_Node.ln_Name : "(null)",
+            name,
+            basedir ? basedir : "(null)");
 
     if (strncmp(name, "PROGDIR:", 8) == 0)
     {
@@ -180,6 +188,9 @@ static BPTR LDLoad(struct IntLDDemonBase *ldBase, struct Process *caller, STRPTR
     } else
         seglist = LDLoadSeg(name);
 
+    if (__lddemon_trace)
+        bug("[LDDiag] LDLoad result name=%s seglist=%p\n", name, BADDR(seglist));
+
     return seglist;
 }
 
@@ -212,7 +223,13 @@ static struct Library *LDInit(BPTR seglist, struct List *list, STRPTR resname, s
             if(    res->rt_MatchWord == RTC_MATCHWORD
                 && res->rt_MatchTag == res )
             {
-                D(bug("[LDInit] Calling InitResident(%p) on %s\n", res, res->rt_Name));
+                if (__lddemon_trace)
+                    bug("[LDDiag] LDInit resident candidate name=%s type=%ld ver=%ld pri=%ld seg=%p\n",
+                        res->rt_Name,
+                        (LONG)res->rt_Type,
+                        (LONG)res->rt_Version,
+                        (LONG)res->rt_Pri,
+                        BADDR(seglist));
                 /* AOS compatibility requirement.
                  * Ramlib ignores InitResident() return code.
                  * After InitResident() it checks if lib/dev appeared
@@ -225,14 +242,20 @@ static struct Library *LDInit(BPTR seglist, struct List *list, STRPTR resname, s
                 InitResident(res, seglist);
                 node = FindName(list, res->rt_Name);
                 Permit();
-                D(bug("[LDInit] Done calling InitResident(%p) on %s, seg %p, node %p\n", res, res->rt_Name, BADDR(seglist), node));
+                if (__lddemon_trace)
+                    bug("[LDDiag] LDInit after InitResident res=%s node=%p\n",
+                        res->rt_Name,
+                        node);
 
                 return (struct Library*)node;
             }
         }
         seg = *(BPTR *)BADDR(seg);
     }
-    D(bug("[LDInit] Couldn't find Resident for %p\n", seglist));
+    if (__lddemon_trace)
+        bug("[LDDiag] LDInit no resident found for %s seg=%p\n",
+            resname,
+            BADDR(seglist));
 #ifdef __mc68000
     /* If struct Resident was not found, just run the code. SegList in A0.
      * Required to load WB1.x devs:narrator.device. */
@@ -324,7 +347,12 @@ static struct LDObjectNode *LDRequestObject(STRPTR libname, ULONG version, STRPT
     struct Library *tmplib;
     struct LDObjectNode *object;
 
-    D(bug("[LDDemon] %s()\n", __func__));
+    if (__lddemon_trace)
+        bug("[LDDiag] LDRequestObject lib=%s stripped=%s version=%lu dir=%s\n",
+            libname,
+            stripped_libname,
+            version,
+            dir ? dir : "(null)");
 
     /*
         We get the DOS semaphore to prevent the following:
@@ -395,6 +423,8 @@ static struct LDObjectNode *LDRequestObject(STRPTR libname, ULONG version, STRPT
     ObtainSystemLock(list, SPINLOCK_MODE_READ, LOCKF_FORBID);
 #endif
     tmplib = (struct Library *)FindName(list, stripped_libname);
+    if (__lddemon_trace)
+        bug("[LDDiag] FindName(%s) before load -> %p\n", stripped_libname, tmplib);
 #if defined(__AROSEXEC_SMP__)
     ReleaseSystemLock(list, LOCKF_FORBID);
 #endif
@@ -437,12 +467,21 @@ static struct LDObjectNode *LDRequestObject(STRPTR libname, ULONG version, STRPT
             WaitPort(&ldd.ldd_ReplyPort);
         }
 
-        D(bug("[LDCaller] Returned 0x%p\n", ldd.ldd_Return));
+        if (__lddemon_trace)
+            bug("[LDDiag] loader returned raw=%p for %s\n",
+#if INIT_IN_LDDEMON_CONTEXT
+                ldd.ldd_Return,
+#else
+                BADDR(ldd.ldd_Return),
+#endif
+                libname);
 
 #if INIT_IN_LDDEMON_CONTEXT
         tmplib = ldd.ldd_Return;
 #else
         tmplib = CallLDInit(ldd.ldd_Return, list, stripped_libname, DOSBase, SysBase);
+        if (__lddemon_trace)
+            bug("[LDDiag] CallLDInit(%s) -> %p\n", stripped_libname, tmplib);
 #endif
     }
 
@@ -461,6 +500,10 @@ static struct LDObjectNode *LDRequestObject(STRPTR libname, ULONG version, STRPT
          */
         if (resident && (resident->rt_Type == list->lh_Type) && (resident->rt_Version >= version))
             InitResident(resident, BNULL);
+        if (__lddemon_trace)
+            bug("[LDDiag] FindResident fallback %s resident=%p\n",
+                stripped_libname,
+                resident);
     }
 
     return object;
@@ -508,15 +551,25 @@ AROS_LH2(struct Library *, OpenLibrary,
     struct Library *library;
     struct LDObjectNode *object;
 
-    D(bug("[LDDemon] %s()\n", __func__));
+    if (__lddemon_trace)
+        bug("[LDDiag] OpenLibrary request %s version=%lu\n", libname, version);
 
     object = LDRequestObject(libname, version, "libs", &SysBase->LibList, SysBase);
 
     if (!object)
+    {
+        if (__lddemon_trace)
+            bug("[LDDiag] OpenLibrary %s failed: no LDObject\n", libname);
         return NULL;
+    }
 
     /* Call the EXEC's OpenLibrary function */
     library = ExecOpenLibrary(object->ldon_Node.ln_Name, version);
+    if (__lddemon_trace)
+        bug("[LDDiag] ExecOpenLibrary(%s,%lu) -> %p\n",
+            object->ldon_Node.ln_Name,
+            version,
+            library);
 
     LDReleaseObject(object, SysBase);
 

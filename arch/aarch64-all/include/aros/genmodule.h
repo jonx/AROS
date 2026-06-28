@@ -34,9 +34,9 @@
             "\tldr  x16, 1f\n"          /* x16 = &libbasename           */ \
             "\tldr  x16, [x16]\n"       /* x16 = libbase                */ \
             "\tmov  x17, #%c0\n"        /* x17 = lvo*LIB_VECTSIZE        */ \
-            "\tsub  x16, x16, x17\n"    /* x16 = &JumpVec[-lvo]          */ \
-            "\tldr  x16, [x16]\n"       /* x16 = function pointer        */ \
-            "\tbr   x16\n"                                                 \
+            "\tsub  x17, x16, x17\n"    /* x17 = &JumpVec[-lvo]          */ \
+            "\tldr  x17, [x17]\n"       /* x17 = function pointer        */ \
+            "\tbr   x17\n"                                                 \
             "\t.align 3\n"                                                 \
             "1:\t.quad " #libbasename "\n"                                 \
             : : "i" ((lvo)*LIB_VECTSIZE)                                   \
@@ -72,9 +72,9 @@
             "\tldp  x2, x3, [sp, #16]\n"                                   \
             "\tldp  x0, x1, [sp], #80\n"                                   \
             "\tmov  x17, #%c0\n"                                           \
-            "\tsub  x16, x16, x17\n"          /* x16 = &JumpVec[-lvo]    */ \
-            "\tldr  x16, [x16]\n"             /* x16 = function pointer  */ \
-            "\tbr   x16\n"                                                 \
+            "\tsub  x17, x16, x17\n"          /* x17 = &JumpVec[-lvo]    */ \
+            "\tldr  x17, [x17]\n"             /* x17 = function pointer  */ \
+            "\tbr   x17\n"                                                 \
             "\t.align 3\n"                                                 \
             "1:\t.quad __aros_rellib_offset_" #libbasename "\n"            \
             : : "i" ((lvo)*LIB_VECTSIZE)                                   \

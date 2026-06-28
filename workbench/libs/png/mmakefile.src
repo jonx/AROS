@@ -52,11 +52,10 @@ endif
 #AFILES += \
 #	arm/filter_neon
 
-# Clang auto-defines __ARM_NEON for armv7-a+fp even with -mfpu=vfpv3-d16,
-# which makes pngpriv.h enable PNG_ARM_NEON_OPT=2 and reference the
-# arm/*_neon implementations above. Until those are wired in, force the
-# NEON path off so the link resolves.
-ifeq ($(AROS_TARGET_CPU),arm)
+# Clang auto-defines ARM NEON for ARM targets, which makes pngpriv.h enable
+# PNG_ARM_NEON_OPT=2 and reference the arm/*_neon implementations above.
+# Until those are wired in, force the NEON path off so the link resolves.
+ifneq (,$(filter arm aarch64,$(AROS_TARGET_CPU)))
 USER_CPPFLAGS += -DPNG_ARM_NEON_OPT=0
 endif
 

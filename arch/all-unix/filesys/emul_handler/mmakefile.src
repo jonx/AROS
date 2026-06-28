@@ -16,7 +16,7 @@ ifeq ($(HOST_STAT_H_FIXUP),yes)
 USER_CPPFLAGS += -DHOST_UNDEF_UNUSED
 endif
 
-FILES := emul_host_unix emul_host emul_dir
+FILES := emul_host_unix emul_host emul_dir emul_norm emul_charset emul_meta
 
 %build_archspecific mainmmake=kernel-fs-emul \
   modname=emul maindir=$(MAINDIR) arch=unix files="$(FILES)"

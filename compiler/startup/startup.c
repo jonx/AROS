@@ -67,12 +67,13 @@ extern void __startup_entries_init(void);
 static int __startup_latehook_dispatcher(struct Hook *_latehook);
 
 /* Guarantee that __startup_entry is placed at the beginning of the binary */
-__startup AROS_PROCH(__startup_entry, argstr, argsize, SysBase)
+__startup AROS_PROCH(__startup_entry, argstr, argsize, sysBase)
 {
     APTR TaskResBase;
     AROS_PROCFUNC_INIT
+    SysBase = sysBase;
 
-    D(bug("%s(\"%s\", %d, %x)\n", __func__, argstr, argsize, SysBase));
+    D(bug("%s(\"%s\", %d, %x)\n", __func__, argstr, argsize, sysBase));
 
     _TaskResBase = OpenResource("task.resource");
     if ((TaskResBase = _TaskResBase) != NULL)
@@ -92,7 +93,7 @@ __startup AROS_PROCH(__startup_entry, argstr, argsize, SysBase)
     __startup_error = RETURN_FAIL;
 
     __startup_entries_init();
-    __startup_entries_next();
+    ___startup_entries_next(sysBase);
 
     CloseLibrary((struct Library *)DOSBase);
 

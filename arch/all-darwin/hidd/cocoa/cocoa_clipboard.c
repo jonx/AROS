@@ -44,6 +44,8 @@
 
 #define HostLibBase (xsd.hostlib)
 
+#define COCOA_CLIP_MAX_BYTES (1024UL * 1024UL)
+
 /* HostLib_GetInterface resolves these in order into struct PBInterface. */
 static const char *const pb_symbols[] =
 {
@@ -150,6 +152,13 @@ static BOOL clip_write_ftxt(const UBYTE *bytes, ULONG len)
     struct IFFHandle *iff;
     BOOL ok = FALSE;
 
+    if (len > COCOA_CLIP_MAX_BYTES)
+    {
+        D(bug("[Cocoa] clip: refusing oversized AROS clipboard write (%lu bytes, max %lu)\n",
+              (unsigned long)len, (unsigned long)COCOA_CLIP_MAX_BYTES));
+        return FALSE;
+    }
+
     iff = AllocIFF();
     if (!iff) return FALSE;
 
@@ -209,13 +218,30 @@ static BOOL clip_read_ftxt(UBYTE **out, ULONG *outlen)
 
                     if ((cn->cn_Type == ID_FTXT) && (cn->cn_ID == ID_CHRS))
                     {
-                        UBYTE *nb = AllocVec(size + cn->cn_Size + 1, MEMF_ANY);
+                        LONG rawsize = cn->cn_Size;
+                        ULONG chunk;
+                        UBYTE *nb;
+
+                        if (rawsize <= 0)
+                            continue;
+                        chunk = (ULONG)rawsize;
+
+                        if (chunk > COCOA_CLIP_MAX_BYTES ||
+                            size > COCOA_CLIP_MAX_BYTES - chunk)
+                        {
+                            D(bug("[Cocoa] clip: refusing oversized PRIMARY_CLIP text (> %lu bytes)\n",
+                                  (unsigned long)COCOA_CLIP_MAX_BYTES));
+                            ok = FALSE;
+                            break;
+                        }
+
+                        nb = AllocVec(size + chunk + 1, MEMF_ANY);
                         if (!nb) { ok = FALSE; break; }
                         if (buf) { CopyMem(buf, nb, size); FreeVec(buf); }
                         buf = nb;
-                        if (ReadChunkBytes(iff, buf + size, cn->cn_Size) != (LONG)cn->cn_Size)
+                        if (ReadChunkBytes(iff, buf + size, chunk) != (LONG)chunk)
                         { ok = FALSE; break; }
-                        size += cn->cn_Size;
+                        size += chunk;
                         buf[size] = '\0';
                         ok = TRUE;
                     }
@@ -250,15 +276,50 @@ static const char *clip_preview(const UBYTE *b, ULONG len)
 
 /* ---- the sync task ------------------------------------------------------- */
 
+/*
+ * ConClip creates this rendezvous port after the startup-sequence has reached
+ * the console clipboard bridge. Use it as our readiness gate before touching
+ * clipboard.device: opening clipboard.device can lazy-load iffparse/locale, and
+ * doing that while DOS is still constructing the first CON: window has crashed
+ * this hosted port in locale.library.
+ */
+#define COCOA_CONCLIP_PORTNAME "ConClip.rendezvous"
+
+static BOOL cocoa_clipboard_wait_ready(void)
+{
+    ULONG waited = 0;
+
+    for (;;)
+    {
+        struct MsgPort *port;
+
+        Forbid();
+        port = FindPort(COCOA_CONCLIP_PORTNAME);
+        Permit();
+
+        if (port)
+        {
+            D(bug("[Cocoa] clipboard bridge starting after %s became ready\n",
+                  COCOA_CONCLIP_PORTNAME));
+            return TRUE;
+        }
+
+        if (waited == 0 || (waited % 250) == 0)
+            D(bug("[Cocoa] clipboard bridge waiting for %s\n",
+                  COCOA_CONCLIP_PORTNAME));
+
+        Delay(10);
+        waited += 10;
+    }
+}
+
 static void cocoa_clipboard_task(void)
 {
     long  lastHostCC, ourHostWrite = -1;
     LONG  lastArosWid, ourArosWrite = -1;
 
-    /* Let the boot settle before we touch devices/host calls: bringing up the
-       display + input + ConClip churns the threaded host scheduler (SIGALRM), and
-       a new process doing OpenDevice/host work in that window is what faults. */
-    Delay(250);
+    if (!cocoa_clipboard_wait_ready())
+        return;
 
     IFFParseBase = OpenLibrary("iffparse.library", 36);
     if (!IFFParseBase) { D(bug("[Cocoa] clipboard: no iffparse.library\n")); return; }
@@ -333,6 +394,12 @@ static void cocoa_clipboard_task(void)
                 {
                     D(bug("[Cocoa] clip:   no text flavour on the pasteboard (image/file?) -- skipped\n"));
                 }
+                else if (ul > COCOA_CLIP_MAX_BYTES)
+                {
+                    D(bug("[Cocoa] clip:   macOS text is too large (%lu bytes, max %lu) -- skipped\n",
+                          ul, (unsigned long)COCOA_CLIP_MAX_BYTES));
+                    pb_free_host(utf8);
+                }
                 else
                 {
                     unsigned long ll = 0;
@@ -383,10 +450,16 @@ static void cocoa_clipboard_task(void)
                             D(bug("[Cocoa] clip:   Latin-1 (%lu B) -> UTF-8 transcode FAILED\n", (unsigned long)ll));
                         else
                         {
-                            ourHostWrite = pb_set_text(utf8, ul); /* token + advance host baseline */
-                            lastHostCC   = ourHostWrite;
-                            D(bug("[Cocoa] clip: AROS->host  %lu bytes \"%s\" -> NSPasteboard (new macOS cc=%ld)\n",
-                                  ul, clip_preview(lat, ll), ourHostWrite));
+                            long newHostCC = pb_set_text(utf8, ul);
+                            if (newHostCC >= 0)
+                            {
+                                ourHostWrite = newHostCC; /* token + advance host baseline */
+                                lastHostCC   = newHostCC;
+                                D(bug("[Cocoa] clip: AROS->host  %lu bytes \"%s\" -> NSPasteboard (new macOS cc=%ld)\n",
+                                      ul, clip_preview(lat, ll), ourHostWrite));
+                            }
+                            else
+                                D(bug("[Cocoa] clip:   NSPasteboard write FAILED\n"));
                             pb_free_host(utf8);
                         }
                         FreeVec(lat);

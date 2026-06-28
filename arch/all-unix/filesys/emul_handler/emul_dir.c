@@ -14,12 +14,15 @@
 
 #include "emul_intern.h"
 #include "emul_unix.h"
+#include "emul_hostvol.h"
 
 #define is_special_dir(x) (x[0] == '.' && (!x[1] || (x[1] == '.' && !x[2])))
 
 /*
  * Retrieves next item in the directory and updates dirpos.
- * Also skips unwanted special entries (like . and ..).
+ * Also skips unwanted special entries (like . and ..) and the R-SIDECAR
+ * metadata files (".<name>.amimeta"), which are reserved and never visible
+ * to AROS as ordinary files.
  * Host call lock is already acquired so we don't need to do it.
  */
 struct dirent *ReadDir(struct emulbase *emulbase, struct filehandle *fh, IPTR *dirpos)
@@ -34,7 +37,7 @@ struct dirent *ReadDir(struct emulbase *emulbase, struct filehandle *fh, IPTR *d
         if (NULL == dir)
             break;
 
-    } while (is_special_dir(dir->d_name));
+    } while (is_special_dir(dir->d_name) || hv_is_sidecar_name(dir->d_name));
 
 #if DEBUG
     bug("[ReadDir] Filehandle %s, ", fh->hostname);

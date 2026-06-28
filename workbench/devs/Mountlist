@@ -120,9 +120,31 @@ USR:
 	Activate       = 1
 #
 
+/* Entry for a host folder (e.g. ~/Amiga). A host volume mounted from a        */
+/* mountlist is always READ-ONLY: AROS can dir/type/copy OUT of it, but writes */
+/* are blocked with ERROR_DISK_WRITE_PROTECTED. Read-only is our policy, and a */
+/* declarative mountlist entry has no way to opt out of it — the write keyword */
+/* is ours, not AROS's, and is deliberately NOT exposed to the Mount command.  */
+/* To mount a host folder read/write, use the launcher hook instead: set the   */
+/* AROS_HOST_VOLUME host environment variable to "<Vol>:<hostpath>;WRITE"       */
+/* before booting (e.g. AROS_HOST_VOLUME="Work:~/Amiga;WRITE"). That path is    */
+/* handled by emul-handler itself, so our ;WRITE keyword is never passed to,    */
+/* or mangled by, the Mount command.                                           */
+
+MAC:
+	FileSystem     = emul-handler
+	Device         = Mac:~/Amiga
+	LowCyl	       = 0
+	HighCyl	       = 0
+	Surfaces       = 1
+	BlocksPerTrack = 1
+	DOSType	       = 0x454D5500
+	Activate       = 1
+#
+
 /* Additional unix directories can be mounted the same way, ie. with */
 /* Filesytem set to "emul-handler" and Device encoding volume name   */
-/* and unix path like this: <volumename>:<pathname>                  */
+/* and unix path like this: <volumename>:<pathname>[;WRITE]          */
 
 /* Entry for FAT12/16/32 image (ie MSDOS/Win95/98 filesystem) */
 

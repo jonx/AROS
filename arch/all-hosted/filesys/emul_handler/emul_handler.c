@@ -109,7 +109,18 @@ static LONG makefilename(struct emulbase *emulbase, char **dest, char **part, st
     ret = validate(filename);
     if (ret)
         return ret;
-  
+
+    /*
+     * Translate the AROS-supplied name (ISO-8859-1) to the host charset/form
+     * (UTF-8 + NFC on Darwin) before it is spliced onto the host root and used
+     * for a host syscall. ASCII (incl. the '/' path separators) is unchanged,
+     * so the shrink()/append() path surgery below still operates on plain
+     * bytes; only non-ASCII components are rewritten. (R-CHARSET + R-NORM.)
+     */
+    char hostnamebuf[1024];
+    NameToHost(filename, hostnamebuf, sizeof hostnamebuf);
+    filename = hostnamebuf;
+
     dirlen = strlen(fh->hostname);
     flen = strlen(filename);
     len = flen + dirlen + 2;
@@ -324,6 +335,21 @@ static LONG set_protect(struct emulbase *emulbase, struct filehandle* fh,
         return ret;
 
     ret = DoChMod(emulbase, filename, aprot);
+
+    FreeVecPooled(emulbase->mempool, filename);
+    return ret;
+}
+
+static LONG set_comment(struct emulbase *emulbase, struct filehandle* fh,
+                        const char *file, const char *comment)
+{
+    LONG ret = 0;
+    char *filename = NULL;
+
+    if ((ret = makefilename(emulbase, &filename, NULL, fh, file)))
+        return ret;
+
+    ret = DoSetComment(emulbase, filename, comment);
 
     FreeVecPooled(emulbase->mempool, filename);
     return ret;
@@ -603,6 +629,15 @@ static struct filehandle *new_volume(struct emulbase *emulbase, const char *path
     const char *vol;
     int vol_len = 0;
     char *sp;
+    /*
+     * Access mode (R-WRITE): read-only is OUR policy, layered on top of AROS's
+     * normal mount path. The boot/root volume (empty device string) is writable;
+     * an explicit host-folder mount is READ-ONLY unless its device string carries
+     * our explicit write keyword (a trailing ;WRITE, ;W or ;RW — see below). A
+     * host mount that does not carry the keyword stays read-only, no matter how
+     * it was mounted.
+     */
+    BOOL writable = TRUE;
 
     /*
      * MakeDosNode() creates zero-length fssm_Device instead of BNULL pointer when ParamPkt[1] is zero.
@@ -610,11 +645,13 @@ static struct filehandle *new_volume(struct emulbase *emulbase, const char *path
      */
     if (path && path[0])
     {
+        char *hostspec, *opt;
+
         DMOUNT(bug("[emul] Mounting volume %s\n", path));
 
         /*
          * Volume name and Unix path are encoded into DEVICE entry of
-         * MountList like this: <volumename>:<unixpath>
+         * MountList like this: <volumename>:<unixpath>[;OPTION...]
          */
         vol = path;
         do
@@ -626,18 +663,59 @@ static struct filehandle *new_volume(struct emulbase *emulbase, const char *path
         } while (*path++ != ':');
         DMOUNT(bug("[emul] Host path: %s, volume name length %u\n", path, vol_len));
 
-        sp = strchr(path, '~');
+        /*
+         * Work on a private, mutable copy of the host-path portion so the
+         * trailing ;OPTION mount flags can be split off before the path is
+         * resolved (~ expansion, lookup). The ';' separator is reserved: a
+         * host path may not itself contain ';' in this first implementation.
+         */
+        hostspec = AllocVecPooled(emulbase->mempool, strlen(path) + 1);
+        if (!hostspec)
+            return NULL;
+        CopyMem(path, hostspec, strlen(path) + 1);
+
+        /*
+         * R-WRITE: a host folder mounts read-only by default. Writes are
+         * enabled only with an explicit ;WRITE (also ;W / ;RW). ;READONLY
+         * and ;RO are accepted, redundant aliases. Unknown options (e.g. a
+         * future ;CASE=...) are ignored here.
+         */
+        opt = strchr(hostspec, ';');
+        if (opt)
+        {
+            writable = FALSE;
+            *opt++ = 0;                 /* terminate the host path at the ';' */
+            while (opt && *opt)
+            {
+                char *next = strchr(opt, ';');
+                if (next)
+                    *next++ = 0;
+
+                if (!strcasecmp(opt, "WRITE") || !strcasecmp(opt, "W") ||
+                    !strcasecmp(opt, "RW"))
+                    writable = TRUE;
+                else if (!strcasecmp(opt, "READONLY") || !strcasecmp(opt, "RO"))
+                    writable = FALSE;
+                /* else: unknown/reserved option — ignored for now */
+
+                opt = next;
+            }
+        }
+        else
+            writable = FALSE;           /* bare host path: read-only default */
+
+        DMOUNT(bug("[emul] Mount mode: %s\n", writable ? "read/write" : "read-only"));
+
+        sp = strchr(hostspec, '~');
         if (sp)
         {
             unixpath = GetHomeDir(emulbase, sp + 1);
+            FreeVecPooled(emulbase->mempool, hostspec);
             if (!unixpath)
                 return NULL;
         } else {
-            unixpath = AllocVecPooled(emulbase->mempool, strlen(path)+1);
-            if (!unixpath)
-                return NULL;
-
-            CopyMem(path, unixpath, strlen(path)+1);
+            /* The stripped copy is already a mempool allocation — reuse it. */
+            unixpath = hostspec;
         }
     }
     else
@@ -684,6 +762,7 @@ static struct filehandle *new_volume(struct emulbase *emulbase, const char *path
         fhv->hostname   = unixpath;
         fhv->name       = unixpath + strlen(unixpath);
         fhv->type       = FHD_DIRECTORY;
+        fhv->readonly   = !writable;
         fhv->volumename = volname;
         if (!DoOpen(emulbase, fhv, ACCESS_READ, MODE_OLDFILE, 0, TRUE)) {
             DMOUNT(bug("[emul] Making volume node %s\n", volname));
@@ -725,6 +804,34 @@ static struct filehandle *new_volume(struct emulbase *emulbase, const char *path
            (struct filehandle *)_fh;\
          })
 
+/*
+ * R-WRITE: does this DOS action mutate the volume (file content, directory
+ * structure, or AmigaOS metadata)? On a read-only mount these are rejected
+ * with ERROR_DISK_WRITE_PROTECTED before any host syscall runs. Read, seek,
+ * examine, lock, info and copy-OUT actions are not listed and stay allowed.
+ */
+static BOOL action_is_mutating(LONG type)
+{
+    switch (type)
+    {
+    case ACTION_FINDOUTPUT:     /* open-for-write / create-truncate          */
+    case ACTION_FINDUPDATE:     /* open-for-update (read+write, may create)  */
+    case ACTION_WRITE:
+    case ACTION_CREATE_DIR:
+    case ACTION_DELETE_OBJECT:
+    case ACTION_RENAME_OBJECT:
+    case ACTION_SET_PROTECT:
+    case ACTION_SET_DATE:
+    case ACTION_SET_COMMENT:
+    case ACTION_SET_OWNER:
+    case ACTION_SET_FILE_SIZE:
+    case ACTION_MAKE_LINK:
+        return TRUE;
+    default:
+        return FALSE;
+    }
+}
+
 static void handlePacket(struct emulbase *emulbase, struct filehandle *fhv, struct MsgPort *mp, struct DosPacket *dp, struct DosLibrary *DOSBase)
 {
     SIPTR Res1 = DOSFALSE;
@@ -733,8 +840,22 @@ static void handlePacket(struct emulbase *emulbase, struct filehandle *fhv, stru
     struct FileHandle *f;
     struct FileLock *fl, *fl2;
     struct InfoData *id;
-  
+
     DB2(bug("[emul] Got command %u\n", dp->dp_Type));
+
+    /*
+     * R-WRITE write guard: a read-only host volume rejects every mutating
+     * action up front. ACTION_WRITE reports the error through the byte-count
+     * result (-1); all others use the DOSFALSE/IoErr() convention.
+     */
+    if (fhv->readonly && action_is_mutating(dp->dp_Type))
+    {
+        DCMD(bug("[emul] %p read-only: rejecting action %lu\n", fhv, dp->dp_Type));
+        Res1 = (dp->dp_Type == ACTION_WRITE) ? -1 : DOSFALSE;
+        Res2 = ERROR_DISK_WRITE_PROTECTED;
+        ReplyPkt(dp, Res1, Res2);
+        return;
+    }
 
     switch(dp->dp_Type)
     {
@@ -1145,16 +1266,21 @@ static void handlePacket(struct emulbase *emulbase, struct filehandle *fhv, stru
         fh = FH_FROM_LOCK(dp->dp_Arg1);
         id = BADDR(dp->dp_Arg2);
         DCMD(bug("[emul] %p ACTION_INFO:\n", fhv));
-  
+
         Res2 = disk_info(emulbase, fh, id);
+        /* R-WRITE: surface the read-only state of the mount to the caller. */
+        if (!Res2 && fhv->readonly)
+            id->id_DiskState = ID_WRITE_PROTECTED;
         Res1 = Res2 ? DOSFALSE : DOSTRUE;
         break;
-  
+
     case ACTION_DISK_INFO:
         id = (struct InfoData *)BADDR(dp->dp_Arg1);
         DCMD(bug("[emul] %p ACTION_DISK_INFO:\n", fhv));
 
         Res2 = disk_info(emulbase, fhv, id);
+        if (!Res2 && fhv->readonly)
+            id->id_DiskState = ID_WRITE_PROTECTED;
         Res1 = Res2 ? DOSFALSE : DOSTRUE;
         break;
 
@@ -1171,8 +1297,16 @@ static void handlePacket(struct emulbase *emulbase, struct filehandle *fhv, stru
         Res1 = DOSTRUE;
         break;
 
-/* FIXME: not supported yet
     case ACTION_SET_COMMENT:
+        /* dp_Arg1 unused; Arg2 = lock, Arg3 = BSTR name, Arg4 = BSTR comment */
+        fh = FH_FROM_LOCK(dp->dp_Arg2);
+        DCMD(bug("[emul] %p ACTION_SET_COMMENT: %p\n", fhv, fh));
+        Res2 = set_comment(emulbase, fh, AROS_BSTR_ADDR(dp->dp_Arg3),
+                           AROS_BSTR_ADDR(dp->dp_Arg4));
+        Res1 = (Res2 == 0) ? DOSTRUE : DOSFALSE;
+        break;
+
+/* FIXME: not supported yet
     case ACTION_MORE_CACHE:
     case ACTION_WAIT_CHAR:
   */

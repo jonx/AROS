@@ -64,8 +64,6 @@ static void __startup_detach(struct ExecBase *SysBase)
     D(bug("Entering __startup_detach()\n"));
 
     cli = Cli();
-    /* Without a CLI detaching makes no sense, just jump to
-       the real program.  */
     if (!cli)
     {
         D(bug("Wasn't started from cli.\n"));
@@ -76,15 +74,23 @@ static void __startup_detach(struct ExecBase *SysBase)
         D(bug("Was started from cli.\n"));
         mysegment = cli->cli_Module;
         cli->cli_Module = BNULL;
-        BPTR in, out;
+        BPTR in = BNULL;
+        BPTR out = BNULL;
+        BPTR lock;
 
         detached_name = __detached_name ? __detached_name : (STRPTR) FindTask(NULL)->tc_Node.ln_Name;
 
-        in  = OpenFromLock(DupLockFromFH(Input()));
-        out = OpenFromLock(DupLockFromFH(Output()));
-        if (IsInteractive(in))
+        lock = DupLockFromFH(Input());
+        if (lock)
+            in = OpenFromLock(lock);
+
+        lock = DupLockFromFH(Output());
+        if (lock)
+            out = OpenFromLock(lock);
+
+        if (in && IsInteractive(in))
             SetVBuf(in, NULL, BUF_LINE, -1);
-        if (IsInteractive(out))
+        if (out && IsInteractive(out))
             SetVBuf(out, NULL, BUF_LINE, -1);
     
         {
@@ -151,7 +157,8 @@ AROS_PROCH(__detach_trampoline, argstr, argsize, SysBase)
      * and to get WB 1.3's C:Status to list us properly,
      * we need to set cli_Module to something.
      */
-    Cli()->cli_Module =  (BPTR)-1;
+    if (Cli())
+        Cli()->cli_Module =  (BPTR)-1;
 
     /* The program has two options: either take care of telling the detacher
        process when exactly to go away, via the Detach() function, or let this
@@ -192,9 +199,11 @@ void __Detach(LONG retval)
         Wait(SIGF_SINGLE);
         __detacher_process = NULL;
 
-        Close(Input());
+        if (Input())
+            Close(Input());
         SelectInput(BNULL);
-        Close(Output());
+        if (Output())
+            Close(Output());
         SelectOutput(BNULL);
     }
 

@@ -14,6 +14,13 @@
 #include "__exitfunc.h"
 #include "debug.h"
 
+extern char *__aros_getoffsettable(void);
+
+static inline struct StdCIntBase *__stdc_get_intbase(void)
+{
+    return (struct StdCIntBase *)__aros_getoffsettable();
+}
+
 /*****************************************************************************
 
     NAME */
@@ -53,8 +60,7 @@
 
 ******************************************************************************/
 {
-    struct StdCIntBase *StdCBase =
-        (struct StdCIntBase *)__aros_getbase_StdCBase();
+    struct StdCIntBase *StdCBase = __stdc_get_intbase();
 
     D(bug("[%s] %s: StdCBase 0x%p\n", STDCNAME, __func__, StdCBase));
 
@@ -100,8 +106,7 @@
 
 ******************************************************************************/
 {
-    struct StdCIntBase *StdCBase =
-        (struct StdCIntBase *)__aros_getbase_StdCBase();
+    struct StdCIntBase *StdCBase = __stdc_get_intbase();
     D(bug("[%s] %s()\n", STDCNAME, __func__));
 
     struct ETask *etask = GetETask(FindTask(NULL));
@@ -142,8 +147,7 @@
 
 ******************************************************************************/
 {
-    struct StdCIntBase *StdCBase =
-        (struct StdCIntBase *)__aros_getbase_StdCBase();
+    struct StdCIntBase *StdCBase = __stdc_get_intbase();
     int *old = StdCBase->startup_errorptr;
 
     StdCBase->startup_errorptr = errorptr;
@@ -181,8 +185,7 @@
 
 ******************************************************************************/
 {
-    struct StdCIntBase *StdCBase =
-        (struct StdCIntBase *)__aros_getbase_StdCBase();
+    struct StdCIntBase *StdCBase = __stdc_get_intbase();
     return StdCBase->startup_errorptr;
 }
 
@@ -217,8 +220,7 @@
 
 ******************************************************************************/
 {
-    struct StdCIntBase *StdCBase =
-        (struct StdCIntBase *)__aros_getbase_StdCBase();
+    struct StdCIntBase *StdCBase = __stdc_get_intbase();
    
     *previousjmp = *StdCBase->exit_jmpbuf;
     *StdCBase->exit_jmpbuf = *exitjmp;
@@ -261,8 +263,7 @@
 
 ******************************************************************************/
 {
-    struct StdCIntBase *StdCBase =
-        (struct StdCIntBase *)__aros_getbase_StdCBase();
+    struct StdCIntBase *StdCBase = __stdc_get_intbase();
 
     /* No __stdc_program_startup() called; Alert()
     */

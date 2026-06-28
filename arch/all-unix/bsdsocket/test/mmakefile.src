@@ -9,8 +9,8 @@ USER_INCLUDES := -I$(SRCDIR)/workbench/network/common/include
 
 #MM workbench-libs-bsdsocket-test : includes linklibs
 
-%build_prog mmake=workbench-libs-bsdsocket-test \
-    progname=socktest targetdir=$(EXEDIR) \
-    files=socktest
+%build_progs mmake=workbench-libs-bsdsocket-test \
+    targetdir=$(EXEDIR) \
+    files="socktest nettest"
 
 %common

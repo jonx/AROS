@@ -63,6 +63,7 @@ struct TaskBase
     ULONG dTableSize;              /* descriptor table size                */
     struct Socket **dTable;        /* AROS fd -> Socket                    */
     APTR psig;                     /* PumpSig* (ps_create_cb) wake target  */
+    APTR he_buf;                   /* gethostbyname result (per-task, reused) */
 };
 
 #endif /* BSDSOCKET_INTERN_H */

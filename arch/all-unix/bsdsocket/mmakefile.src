@@ -16,6 +16,7 @@ FILES := \
     bsdsocket_core \
     bsdsocket_sockopt \
     bsdsocket_misc \
+    bsdsocket_resolve \
     waitselect \
     bsdsocket_stubs
 

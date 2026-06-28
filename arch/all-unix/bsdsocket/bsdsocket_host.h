@@ -58,6 +58,10 @@ struct HostPumpIFace
     void  (*ps_destroy)(APTR);
     int   (*hs_set_nonblock)(int);
     int   (*hs_socket)(int, int, int);
+    /* async DNS (getaddrinfo on a detached host thread; AROS timer-polls) */
+    APTR  (*hs_resolve_start)(const char *name);
+    int   (*hs_resolve_poll)(APTR job, unsigned *ip_net_out);
+    void  (*hs_resolve_free)(APTR job);
 };
 
 #endif /* BSDSOCKET_HOST_H */

@@ -62,10 +62,7 @@ AROS_LH1(unsigned long, inet_network,
     struct TaskBase *, taskBase, 34, BSDSocket)
 { AROS_LIBFUNC_INIT (void)taskBase; (void)cp; return (unsigned long)-1; AROS_LIBFUNC_EXIT }
 
-AROS_LH1(struct hostent *, gethostbyname,
-    AROS_LHA(char *, name, A0),
-    struct TaskBase *, taskBase, 35, BSDSocket)
-{ AROS_LIBFUNC_INIT (void)taskBase; (void)name; return NULL; AROS_LIBFUNC_EXIT }
+/* gethostbyname (LVO 35) is implemented in bsdsocket_resolve.c. */
 
 AROS_LH3(struct hostent *, gethostbyaddr,
     AROS_LHA(char *, addr, A0), AROS_LHA(int, len, D0), AROS_LHA(int, type, D1),

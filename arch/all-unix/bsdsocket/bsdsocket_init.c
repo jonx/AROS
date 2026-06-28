@@ -26,6 +26,7 @@ static const char *const pump_symbols[] =
 {
     "pump_start", "pump_stop", "pump_register", "pump_unregister", "pump_drain",
     "pump_wake_kqueue", "ps_create_cb", "ps_destroy", "hs_set_nonblock", "hs_socket",
+    "hs_resolve_start", "hs_resolve_poll", "hs_resolve_free",
     NULL
 };
 

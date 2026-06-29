@@ -25,6 +25,7 @@
 #include <proto/utility.h>
 
 #include <proto/dos.h>
+#include <dos/dostags.h>
 
 #include <proto/icon.h>
 
@@ -1013,6 +1014,10 @@ enum
     MEN_WANDERER_QUIT,
     MEN_WANDERER_SHUTDOWN,
 
+    MEN_TOOLS_CLOCK,
+    MEN_TOOLS_MULTIVIEW,
+    MEN_TOOLS_MORE,
+
     MEN_WINDOW_NEW_DRAWER,
     MEN_WINDOW_OPEN_PARENT,
     MEN_WINDOW_CLOSE,
@@ -1117,6 +1122,26 @@ void wanderer_menufunc_wanderer_shell(STRPTR *cd_ptr)
     CurrentDir(olddir);
     UnLock(cd);
 }
+///
+
+///wanderer_menufunc_tool_*()  -- launch a Utilities tool from the Tools menu
+/* The shipped Utilities have no .info icons, so OpenWorkbenchObject() can't
+   find them; launch the executable asynchronously instead (NIL: streams, so
+   the GUI tool runs detached without blocking Wanderer). */
+static void wanderer_launch_tool(CONST_STRPTR cmd)
+{
+    BPTR in  = Open("NIL:", MODE_OLDFILE);
+    BPTR out = Open("NIL:", MODE_NEWFILE);
+    if (SystemTags(cmd, SYS_Asynch, TRUE, SYS_Input, (IPTR)in,
+                   SYS_Output, (IPTR)out, TAG_DONE) < 0)
+    {
+        if (in)  Close(in);
+        if (out) Close(out);
+    }
+}
+void wanderer_menufunc_tool_clock(APTR dummy)     { wanderer_launch_tool("SYS:Utilities/Clock"); }
+void wanderer_menufunc_tool_multiview(APTR dummy) { wanderer_launch_tool("SYS:Utilities/MultiView"); }
+void wanderer_menufunc_tool_more(APTR dummy)      { wanderer_launch_tool("SYS:Utilities/More"); }
 ///
 
 ///wanderer_menufunc_wanderer_backdrop()
@@ -2945,6 +2970,13 @@ VOID SetMenuDefaultNotifies(Object *wanderer, Object *strip, STRPTR path)
     DoMenuNotify(strip, MEN_WANDERER_SHUTDOWN, MUIA_Menuitem_Trigger,
                                 wanderer_menufunc_wanderer_shutdown, NULL);
 
+    DoMenuNotify(strip, MEN_TOOLS_CLOCK, MUIA_Menuitem_Trigger,
+                                wanderer_menufunc_tool_clock, NULL);
+    DoMenuNotify(strip, MEN_TOOLS_MULTIVIEW, MUIA_Menuitem_Trigger,
+                                wanderer_menufunc_tool_multiview, NULL);
+    DoMenuNotify(strip, MEN_TOOLS_MORE, MUIA_Menuitem_Trigger,
+                                wanderer_menufunc_tool_more, NULL);
+
     DoMenuNotify(strip, MEN_WINDOW_NEW_DRAWER, MUIA_Menuitem_Trigger,
                                 wanderer_menufunc_window_newdrawer, path);
     DoMenuNotify(strip, MEN_WINDOW_OPEN_PARENT, MUIA_Menuitem_Trigger,
@@ -3853,7 +3885,10 @@ Object * Wanderer__Func_CreateWandererIntuitionMenu( BOOL isRoot, BOOL isBackdro
                 {NM_ITEM,       _(MSG_MEN_DELETE),      NULL                    , NM_ITEMDISABLED                       , 0, (APTR) MEN_ICON_DELETE },
                 {NM_ITEM,       _(MSG_MEN_FORMAT),      NULL                    , NM_ITEMDISABLED                       , 0, (APTR) MEN_ICON_FORMAT },
                 {NM_ITEM,       _(MSG_EMPTY_TRASH),     NULL                    , NM_ITEMDISABLED                       , 0, (APTR) MEN_ICON_EMPTYTRASH},
-            {NM_TITLE,          _(MSG_MEN_TOOLS),       NULL                    , NM_MENUDISABLED },
+            {NM_TITLE,          _(MSG_MEN_TOOLS),       NULL                    , 0 },
+                {NM_ITEM,       "Clock",                NULL                    , 0, 0, (APTR) MEN_TOOLS_CLOCK },
+                {NM_ITEM,       "MultiView",            NULL                    , 0, 0, (APTR) MEN_TOOLS_MULTIVIEW },
+                {NM_ITEM,       "Text Viewer",          NULL                    , 0, 0, (APTR) MEN_TOOLS_MORE },
             {NM_END}
         };
         _NewWandIntMenu__menustrip = MUI_MakeObject(MUIO_MenustripNM, nm, (IPTR) NULL);
@@ -3915,7 +3950,10 @@ Object * Wanderer__Func_CreateWandererIntuitionMenu( BOOL isRoot, BOOL isBackdro
                 {NM_ITEM,       _(MSG_MEN_DELETE),      NULL                    , NM_ITEMDISABLED                       , 0, (APTR) MEN_ICON_DELETE },
                 {NM_ITEM,       _(MSG_MEN_FORMAT),      NULL                    , NM_ITEMDISABLED },
                 {NM_ITEM,       _(MSG_EMPTY_TRASH),     NULL                    , NM_ITEMDISABLED                       , 0, (APTR) MEN_ICON_EMPTYTRASH},
-            {NM_TITLE,          _(MSG_MEN_TOOLS),       NULL                    , NM_MENUDISABLED },
+            {NM_TITLE,          _(MSG_MEN_TOOLS),       NULL                    , 0 },
+                {NM_ITEM,       "Clock",                NULL                    , 0, 0, (APTR) MEN_TOOLS_CLOCK },
+                {NM_ITEM,       "MultiView",            NULL                    , 0, 0, (APTR) MEN_TOOLS_MULTIVIEW },
+                {NM_ITEM,       "Text Viewer",          NULL                    , 0, 0, (APTR) MEN_TOOLS_MORE },
             {NM_END}
         };
         _NewWandIntMenu__menustrip = MUI_MakeObject(MUIO_MenustripNM, nm, (IPTR) NULL);

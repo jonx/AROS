@@ -5,13 +5,8 @@
 
     Modelled on the SDL hosted driver (event.c + sdl_kbdclass.c + sdl_mouseclass.c):
     a CocoaKbd and a CocoaMouse HIDD are registered as hardware drivers under the
-    system keyboard.hidd / mouse.hidd, and a high-priority task polls the host
-    window for events once per VBlank via cm_pump_events, translating each into an
-    AROS rawkey / mouse event and feeding it to the respective IrqHandler.
-
-    cm_pump_events hops to the host main thread (it dequeues NSEvents); like every
-    other cm_* call here it runs under Forbid()+HostLib_Lock() so the preemptive
-    AROS scheduler can't switch tasks while we're blocked in the host syscall.
+    system keyboard.hidd / mouse.hidd, and a polling task drains host events via
+    cm_pump_events, translating each into input.device RAWKEY/RAWMOUSE events.
 */
 
 #include <hidd/hidd.h>
@@ -23,6 +18,7 @@
 #include <exec/interrupts.h>
 #include <exec/io.h>
 #include <exec/ports.h>
+#include <exec/pm.h>
 #include <hardware/intbits.h>
 #include <devices/inputevent.h>
 #include <devices/input.h>
@@ -164,6 +160,10 @@ struct OOP_InterfaceDescr CocoaMouse_ifdescr[] =
 static struct IOStdReq *g_inputio;
 static UWORD g_keyqual;
 static UWORD g_mousequal;
+static UBYTE g_defer_rmb_pulses;
+static BOOL g_defer_rmb_toggle;
+static LONG g_defer_rmb_x;
+static LONG g_defer_rmb_y;
 
 #define COCOA_SHIFT_QUALIFIERS   (IEQUALIFIER_LSHIFT | IEQUALIFIER_RSHIFT)
 #define COCOA_ALT_QUALIFIERS     (IEQUALIFIER_LALT | IEQUALIFIER_RALT)
@@ -247,10 +247,14 @@ static void cocoa_send_input_event(struct InputEvent *ie)
     DoIO((struct IORequest *)g_inputio);
 }
 
-static void cocoa_send_mouse_motion(LONG x, LONG y)
+static void cocoa_send_mouse_position(LONG x, LONG y)
 {
     struct InputEvent ie;
 
+    /* This driver registers as a normal mouse HIDD, not as a tablet/touch
+       device. Keep host coordinates on the classic absolute RAWMOUSE path used
+       by the other hosted drivers; NEWPOINTERPOS/NEWTABLET can leave the
+       Wanderer pointer visually stuck on this stack. */
     memset(&ie, 0, sizeof ie);
     ie.ie_Class     = IECLASS_RAWMOUSE;
     ie.ie_Code      = IECODE_NOBUTTON;
@@ -258,6 +262,110 @@ static void cocoa_send_mouse_motion(LONG x, LONG y)
     ie.ie_X         = x;
     ie.ie_Y         = y;
     cocoa_send_input_event(&ie);
+}
+
+static void cocoa_defer_rmb_menu_pulse(LONG x, LONG y)
+{
+    g_defer_rmb_pulses = 6;
+    g_defer_rmb_toggle = FALSE;
+    g_defer_rmb_x = x;
+    g_defer_rmb_y = y;
+}
+
+static void cocoa_fire_deferred_rmb_menu_pulse(void)
+{
+    LONG nx;
+
+    if (!g_defer_rmb_pulses)
+        return;
+
+    if (!(g_mousequal & IEQUALIFIER_RBUTTON))
+    {
+        g_defer_rmb_pulses = 0;
+        return;
+    }
+
+    nx = (g_defer_rmb_x > 0) ? g_defer_rmb_x - 1 : g_defer_rmb_x + 1;
+    cocoa_send_mouse_position(g_defer_rmb_toggle ? g_defer_rmb_x : nx, g_defer_rmb_y);
+    g_defer_rmb_toggle = !g_defer_rmb_toggle;
+    g_defer_rmb_pulses--;
+}
+
+static void cocoa_handle_power_setting(LONG request)
+{
+    switch (request)
+    {
+    case CM_POWER_REQUEST_DOWN:
+        D(bug("[Cocoa:Settings] power request: shutdown\n"));
+        ShutdownA(SD_ACTION_POWEROFF);
+        D(bug("[Cocoa:Settings] ShutdownA(SD_ACTION_POWEROFF) returned\n"));
+        break;
+
+    case CM_POWER_RESET:
+        D(bug("[Cocoa:Settings] power request: cold reset\n"));
+        ShutdownA(SD_ACTION_COLDREBOOT);
+        D(bug("[Cocoa:Settings] ShutdownA(SD_ACTION_COLDREBOOT) returned\n"));
+        break;
+
+    case CM_POWER_FORCE_DOWN:
+    case CM_POWER_FORCE_QUIT:
+        D(bug("[Cocoa:Settings] power request: force %s -> hosted shutdown\n",
+              request == CM_POWER_FORCE_QUIT ? "quit" : "down"));
+        ShutdownA(SD_ACTION_POWEROFF);
+        D(bug("[Cocoa:Settings] forced ShutdownA(SD_ACTION_POWEROFF) returned\n"));
+        break;
+
+    default:
+        D(bug("[Cocoa:Settings] unknown power request %ld\n", (IPTR)request));
+        break;
+    }
+}
+
+static void cocoa_handle_setting_event(struct CMEvent *e)
+{
+    switch (e->code)
+    {
+    case CM_OPT_REQUEST_MODE_W:
+    case CM_OPT_REQUEST_MODE_H:
+        D(bug("[Cocoa:Settings] display mode request key=0x%lx value=%ld partner=%ld (dynamic modes not wired yet)\n",
+              (IPTR)e->code, (IPTR)e->x, (IPTR)e->y));
+        break;
+
+    case CM_OPT_KEYMAP:
+        D(bug("[Cocoa:Settings] keymap request id=%ld (keymap switching not wired yet)\n",
+              (IPTR)e->x));
+        break;
+
+    case CM_OPT_AUDIO_VOLUME:
+        D(bug("[Cocoa:Settings] audio volume request %ld (host CoreAudio gain mirrored)\n",
+              (IPTR)e->x));
+        break;
+
+    case CM_OPT_CLIPBOARD_SHARE:
+        D(bug("[Cocoa:Settings] clipboard sharing request %ld\n", (IPTR)e->x));
+        cocoa_clipboard_set_enabled(e->x != 0);
+        break;
+
+    case CM_OPT_AUDIO_DEVICE:
+        D(bug("[Cocoa:Settings] audio device request %ld (CoreAudio/AHI not wired yet)\n",
+              (IPTR)e->x));
+        break;
+
+    case CM_OPT_VOLUME_ADD:
+    case CM_OPT_VOLUME_REMOVE:
+        D(bug("[Cocoa:Settings] host volume %s request received, but string option ABI v3 is not consumed yet\n",
+              e->code == CM_OPT_VOLUME_ADD ? "add" : "remove"));
+        break;
+
+    case CM_OPT_POWER:
+        cocoa_handle_power_setting(e->x);
+        break;
+
+    default:
+        D(bug("[Cocoa:Settings] unknown setting key=0x%lx value=%ld partner=%ld\n",
+              (IPTR)e->code, (IPTR)e->x, (IPTR)e->y));
+        break;
+    }
 }
 
 /* ------------------------------------------------------------------------- */
@@ -298,7 +406,7 @@ static void cocoa_dispatch(struct CMEvent *e)
     case CM_EV_MOUSEMOVE:
         if (g_inputio)
         {
-            cocoa_send_mouse_motion(e->x, e->y);
+            cocoa_send_mouse_position(e->x, e->y);
         }
         break;
 
@@ -316,7 +424,7 @@ static void cocoa_dispatch(struct CMEvent *e)
                button) key off the pointer state that precedes the button
                transition. The host event carries x/y on the button event, but the
                raw mouse stack is more reliable if we publish the motion first. */
-            cocoa_send_mouse_motion(e->x, e->y);
+            cocoa_send_mouse_position(e->x, e->y);
 
             if (e->pressed)
                 g_mousequal |= qual;
@@ -324,6 +432,8 @@ static void cocoa_dispatch(struct CMEvent *e)
             {
                 code |= IECODE_UP_PREFIX;
                 g_mousequal &= ~qual;
+                if ((code & ~IECODE_UP_PREFIX) == IECODE_RBUTTON)
+                    g_defer_rmb_pulses = 0;
             }
 
             memset(&ie, 0, sizeof ie);
@@ -333,6 +443,17 @@ static void cocoa_dispatch(struct CMEvent *e)
             ie.ie_X         = e->x;
             ie.ie_Y         = e->y;
             cocoa_send_input_event(&ie);
+
+            /* Intuition's menu path is level-ish rather than purely edge-ish:
+               on this hosted path, a right-button transition alone can leave the
+               menu dormant until a later mouse event arrives while RBUTTON is in
+               the qualifier state. Queue a short train of tiny absolute moves on
+               later poll ticks so "press and hold" behaves like a real Amiga
+               menu press, without requiring the user to wiggle the mouse. Firing
+               them inline is too early; the menu task may not have entered its
+               active state. */
+            if (e->pressed && code == IECODE_RBUTTON)
+                cocoa_defer_rmb_menu_pulse(e->x, e->y);
         }
         break;
 
@@ -340,15 +461,68 @@ static void cocoa_dispatch(struct CMEvent *e)
         cocoa_present_visible(TRUE);
         break;
 
+    case CM_EV_CLOSE:
+        D(bug("[Cocoa:Input] host close event -> ShutdownA(SD_ACTION_POWEROFF)\n"));
+        ShutdownA(SD_ACTION_POWEROFF);
+        D(bug("[Cocoa:Input] close ShutdownA returned\n"));
+        break;
+
+    case CM_EV_SETTING:
+        cocoa_handle_setting_event(e);
+        break;
+
     default:
         break;
+    }
+}
+
+static BOOL cocoa_event_is_redundant(struct CMEvent *evbuf, int i, int n)
+{
+    int j;
+
+    if (evbuf[i].type != CM_EV_MOUSEMOVE && evbuf[i].type != CM_EV_RESIZE)
+        return FALSE;
+
+    for (j = i + 1; j < n; j++)
+    {
+        /* Preserve ordering around keys/buttons/settings/close events. */
+        if (evbuf[j].type != CM_EV_MOUSEMOVE && evbuf[j].type != CM_EV_RESIZE)
+            return FALSE;
+
+        if (evbuf[j].type == evbuf[i].type)
+            return TRUE;
+    }
+
+    return FALSE;
+}
+
+static void cocoa_dispatch_batch(struct CMEvent *evbuf, int n)
+{
+    int i;
+    ULONG skipped = 0;
+
+    for (i = 0; i < n; i++)
+    {
+        if (cocoa_event_is_redundant(evbuf, i, n))
+        {
+            skipped++;
+            continue;
+        }
+        cocoa_dispatch(&evbuf[i]);
+    }
+
+    if (skipped)
+    {
+        static ULONG reports = 0;
+        if (reports++ < 8)
+            D(bug("[Cocoa:Input] coalesced %lu motion/resize event(s)\n", (IPTR)skipped));
     }
 }
 
 static void cocoa_event_task(struct Task *creator, ULONG sync)
 {
     struct CMEvent   evbuf[CM_MAX_EVENTS];
-    int              n, i;
+    int              n;
 
     D(bug("[Cocoa:Input] event task starting\n"));
 
@@ -380,12 +554,24 @@ static void cocoa_event_task(struct Task *creator, ULONG sync)
         if (!xsd.ctx || !xsd.cm)        /* window not open yet -- nothing to poll */
             continue;
 
-        Forbid();
-        HostLib_Lock();
+        cocoa_fire_deferred_rmb_menu_pulse();
+
+        {
+        BOOL lockHost = cocoa_can_lock_hostlib();
+
+        if (lockHost)
+        {
+            Forbid();
+            HostLib_Lock();
+        }
         n = xsd.cm->cm_pump_events(xsd.ctx, evbuf, CM_MAX_EVENTS);
         AROS_HOST_BARRIER
-        HostLib_Unlock();
-        Permit();
+        if (lockHost)
+        {
+            HostLib_Unlock();
+            Permit();
+        }
+        }
 
         {
             static BOOL first = TRUE;
@@ -395,8 +581,7 @@ static void cocoa_event_task(struct Task *creator, ULONG sync)
                 D(bug("[Cocoa:Input] poll loop live (first cm_pump_events -> %d)\n", n));
             }
         }
-        for (i = 0; i < n; i++)
-            cocoa_dispatch(&evbuf[i]);
+        cocoa_dispatch_batch(evbuf, n);
 
         cocoa_present_visible(FALSE);
     }

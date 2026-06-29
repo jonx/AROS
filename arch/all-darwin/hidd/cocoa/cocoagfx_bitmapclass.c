@@ -115,8 +115,14 @@ void cocoa_present_visible(BOOL force)
     if (x2 <= x1 || y2 <= y1)
         return;
 
-    Forbid();
-    HostLib_Lock();
+    {
+    BOOL lockHost = cocoa_can_lock_hostlib();
+
+    if (lockHost)
+    {
+        Forbid();
+        HostLib_Lock();
+    }
     /* Upload the WHOLE framebuffer each present, not just the dirty bbox. This is
        REQUIRED by the host's N-buffered fbTex ring: consecutive frames land in
        different ring textures, so every upload must deliver a complete frame or
@@ -128,8 +134,12 @@ void cocoa_present_visible(BOOL force)
     xsd.cm->cm_upload_rect(xsd.ctx, buffer, (int)bpr, 0, 0, (int)bw, (int)bh);
     xsd.cm->cm_present(xsd.ctx);
     AROS_HOST_BARRIER
-    HostLib_Unlock();
-    Permit();
+    if (lockHost)
+    {
+        HostLib_Unlock();
+        Permit();
+    }
+    }
 }
 
 VOID CocoaBM__Hidd_BitMap__UpdateRect(OOP_Class *cl, OOP_Object *o, struct pHidd_BitMap_UpdateRect *msg)

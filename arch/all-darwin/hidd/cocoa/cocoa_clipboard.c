@@ -63,6 +63,7 @@ static const char *const pb_symbols[] =
 struct Library         *IFFParseBase;
 static struct MsgPort  *clipport;
 static struct IOClipReq *clipio;        /* raw PRIMARY_CLIP unit, for CBD_CURRENTWRITEID */
+static volatile BOOL    clip_enabled = TRUE;
 
 /* ---- host calls: each wrapped in the Forbid()+HostLib_Lock() discipline so the
    preemptive scheduler can't switch a task mid-host-syscall (the "out of stack"
@@ -317,6 +318,7 @@ static void cocoa_clipboard_task(void)
 {
     long  lastHostCC, ourHostWrite = -1;
     LONG  lastArosWid, ourArosWrite = -1;
+    BOOL  wasEnabled = TRUE;
 
     if (!cocoa_clipboard_wait_ready())
         return;
@@ -367,6 +369,28 @@ static void cocoa_clipboard_task(void)
     {
         long cc;
         Delay(10);                       /* ~5 Hz; clipboard latency is not critical */
+
+        if (!clip_enabled)
+        {
+            if (wasEnabled)
+            {
+                wasEnabled = FALSE;
+                D(bug("[Cocoa] clip: sharing disabled; bridge paused\n"));
+            }
+            continue;
+        }
+
+        if (!wasEnabled)
+        {
+            lastHostCC  = pb_change_count();
+            lastArosWid = clip_write_id();
+            ourHostWrite = -1;
+            ourArosWrite = -1;
+            wasEnabled = TRUE;
+            D(bug("[Cocoa] clip: sharing enabled; re-baselined macOS cc=%ld, AROS wid=%ld\n",
+                  lastHostCC, (long)lastArosWid));
+            continue;
+        }
 
         /* liveness heartbeat (~every 30s) so the poll loop is visibly alive even
            when nothing is being copied. */
@@ -498,4 +522,15 @@ BOOL cocoa_clipboard_init(struct cocoahidd *xsd_)
         NP_StackSize, 64 * 1024,
         TAG_DONE);
     return xsd.cliptask ? TRUE : FALSE;
+}
+
+void cocoa_clipboard_set_enabled(BOOL enabled)
+{
+    BOOL on = enabled ? TRUE : FALSE;
+
+    if (clip_enabled == on)
+        return;
+
+    clip_enabled = on;
+    D(bug("[Cocoa] clip: runtime sharing %s\n", on ? "ON" : "OFF"));
 }

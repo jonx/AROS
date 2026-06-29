@@ -8,10 +8,77 @@
 
 #include <aros/atomic.h>
 #include <aros/debug.h>
+#include <libraries/debug.h>
+#include <proto/debug.h>
 #include <proto/exec.h>
 
+#include "exec_intern.h"
 #include "exec_util.h"
 #include "semaphores.h"
+
+#undef DebugBase
+
+static void PrintSemaphoreCaller(APTR addr, struct ExecBase *SysBase)
+{
+    struct Library *DebugBase = PrivExecBase(SysBase)->DebugBase;
+    char *modname = NULL, *segname = NULL, *symname = NULL;
+    void *segaddr = NULL, *symaddr = NULL;
+    unsigned int segnum = 0;
+    struct TagItem tags[] =
+    {
+        { DL_ModuleName,    (IPTR)&modname },
+        { DL_SegmentNumber, (IPTR)&segnum  },
+        { DL_SegmentName,   (IPTR)&segname },
+        { DL_SegmentStart,  (IPTR)&segaddr },
+        { DL_SymbolName,    (IPTR)&symname },
+        { DL_SymbolStart,   (IPTR)&symaddr },
+        { TAG_DONE }
+    };
+
+    if (!DebugBase || !DecodeLocationA(addr, tags) || !modname)
+        return;
+
+    if (symaddr)
+        kprintf("decoded caller = %s %s + 0x%lx\n",
+                modname, symname ? symname : "(no symbol)",
+                (IPTR)addr - (IPTR)symaddr);
+    else
+        kprintf("decoded caller = %s seg %u %s + 0x%lx\n",
+                modname, segnum, segname ? segname : "(unnamed)",
+                (IPTR)addr - (IPTR)segaddr);
+}
+
+static APTR GetAArch64LVOCaller(void)
+{
+#if defined(__arm64__)
+    APTR *fp = (APTR *)__builtin_frame_address(0);
+    APTR *slot;
+
+    if (!fp || !TypeOfMem(fp))
+        return NULL;
+    fp = (APTR *)fp[0];         /* InternalObtainSemaphore frame */
+    if (!fp || !TypeOfMem(fp))
+        return NULL;
+    fp = (APTR *)fp[0];         /* _Exec_* wrapper frame */
+    if (!fp || !TypeOfMem(fp))
+        return NULL;
+
+    /*
+     * The generated aarch64 public LVO stub saves x30 at stub_sp + 0x90.
+     * The _Exec_* wrapper frame is based at stub_sp - 0x10, so the original
+     * caller LR is at wrapper_fp + 0xa0.
+     */
+    slot = (APTR *)((IPTR)fp + 0xa0);
+    if (!TypeOfMem(slot))
+        return NULL;
+    if (!TypeOfMem(*slot))
+        return NULL;
+
+    return *slot;
+#else
+    return NULL;
+#endif
+}
 
 BOOL CheckSemaphore(struct SignalSemaphore *sigSem, struct TraceLocation *caller, struct ExecBase *SysBase)
 {
@@ -21,10 +88,28 @@ BOOL CheckSemaphore(struct SignalSemaphore *sigSem, struct TraceLocation *caller
     {
         /* FindTask() is called only here, for speedup */
         struct Task *ThisTask = GET_THIS_TASK;
+        APTR lvoCaller = GetAArch64LVOCaller();
+        APTR alertCaller = lvoCaller ? lvoCaller : caller->caller;
 
         kprintf("%s called in supervisor mode!!!\n"
-                "sem = 0x%p task = 0x%p (%s)\n\n", caller->function, sigSem, ThisTask, ThisTask->tc_Node.ln_Name);
-        Exec_ExtAlert(ACPU_PrivErr & ~AT_DeadEnd, __builtin_return_address(0), CALLER_FRAME, 0, NULL, SysBase);
+                "super = %d sem = 0x%p type = %d name = %s owner = 0x%p queue = %d nest = %d\n"
+                "task = 0x%p (%s) state = %d\n"
+                "caller = 0x%p lvo-caller = 0x%p stack = 0x%p\n",
+                caller->function, (int)KrnIsSuper(), sigSem,
+                sigSem ? (int)sigSem->ss_Link.ln_Type : -1,
+                (sigSem && sigSem->ss_Link.ln_Name) ? sigSem->ss_Link.ln_Name : "(null)",
+                sigSem ? sigSem->ss_Owner : NULL,
+                sigSem ? (int)sigSem->ss_QueueCount : -1,
+                sigSem ? (int)sigSem->ss_NestCount : 0,
+                ThisTask,
+                (ThisTask && ThisTask->tc_Node.ln_Name) ? ThisTask->tc_Node.ln_Name : "(none)",
+                ThisTask ? (int)ThisTask->tc_State : -1,
+                caller->caller, lvoCaller, caller->stack);
+        PrintSemaphoreCaller(caller->caller, SysBase);
+        if (lvoCaller)
+            PrintSemaphoreCaller(lvoCaller, SysBase);
+        kprintf("\n");
+        Exec_ExtAlert(ACPU_PrivErr & ~AT_DeadEnd, alertCaller, caller->stack, 0, NULL, SysBase);
 
         return FALSE;
     }

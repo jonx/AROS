@@ -1,0 +1,16 @@
+# Copyright (C) 2026, The AROS Development Team. All rights reserved.
+
+include $(SRCDIR)/config/aros.cfg
+
+#MM- AHI-coreaudio-bridge-darwin : AHI-linklibs-coreaudio-bridge
+
+USER_CFLAGS = $(KERNEL_INCLUDES) -isystem $(GENINCDIR)
+
+COREAUDIO_BRIDGE_FILES = \
+    coreaudio \
+    coreaudio_hostlib
+
+%build_linklib mmake=AHI-linklibs-coreaudio-bridge \
+  libname=coreaudio-bridge \
+  files="$(COREAUDIO_BRIDGE_FILES)"
+

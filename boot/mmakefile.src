@@ -28,8 +28,11 @@ include $(SRCDIR)/config/aros.cfg
 #MM                              boot-$(ARCH)-$(CPU)-$(AROS_TARGET_VARIANT) \
 #MM                              boot-$(ARCH)-$(CPU) \
 #MM                              boot-$(ARCH) \
-#MM                              boot-$(FAMILY) \
-#MM                              test
+#MM                              boot-$(FAMILY)
+# NOTE: 'test' was removed from the boot deps -- the test suite
+# (developer/debug/test/*) does not belong in a bootable image, and a single
+# darwin-incomplete test (e.g. crt/posixc scanf) otherwise aborts the whole
+# distfiles/boot build. Build tests explicitly with `make test` instead.
 
 #MM distfiles-system : \
 #MM                              distfiles-system-$(ARCH)-$(CPU)-$(AROS_TARGET_VARIANT) \

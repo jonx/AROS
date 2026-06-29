@@ -14,6 +14,9 @@
 #define COCOA_INTERN_H
 
 #include <exec/types.h>
+#include <proto/exec.h>
+#include <proto/kernel.h>
+#include <resources/kernel.h>
 #include <oop/oop.h>
 
 /* ---- Mirror of the host shim's flat-C ABI (cocoametal.h). The shim pulls no
@@ -50,7 +53,29 @@ struct CMEvent                           /* INTERFACE.md §5 */
 #define CM_MOD_ALT       (1u << 2)
 #define CM_MOD_CMD       (1u << 3)
 
+/* CMOption values that the AROS side consumes from CM_EV_SETTING. Keep these
+   numerically mirrored with hosted/cocoametal/cocoametal.h. */
+#define CM_OPT_REQUEST_MODE_W   0x10
+#define CM_OPT_REQUEST_MODE_H   0x11
+#define CM_OPT_KEYMAP           0x12
+#define CM_OPT_AUDIO_VOLUME     0x13
+#define CM_OPT_CLIPBOARD_SHARE  0x14
+#define CM_OPT_AUDIO_DEVICE     0x15
+#define CM_OPT_VOLUME_ADD       0x16
+#define CM_OPT_VOLUME_REMOVE    0x17
+#define CM_OPT_POWER            0x18
+
+#define CM_POWER_REQUEST_DOWN   0
+#define CM_POWER_RESET          1
+#define CM_POWER_FORCE_DOWN     2
+#define CM_POWER_FORCE_QUIT     3
+
 typedef struct CMContext CMContext;      /* opaque host window handle */
+
+static inline BOOL cocoa_can_lock_hostlib(void)
+{
+    return FALSE;
+}
 
 /* The 13 cm_* host functions, in cocoametal.dylib symbol order (ABI v2,
    INTERFACE.md §1a). Order is the HostLib_GetInterface contract: append-only. */
@@ -178,5 +203,6 @@ void cocoa_input_expunge(struct cocoahidd *xsd);
 
 /* clipboard.c: start the NSPasteboard <-> clipboard.device sync task (non-fatal). */
 BOOL cocoa_clipboard_init(struct cocoahidd *xsd);
+void cocoa_clipboard_set_enabled(BOOL enabled);
 
 #endif /* COCOA_INTERN_H */

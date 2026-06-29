@@ -170,6 +170,25 @@ static void apply_meta(struct emulbase *emulbase, const char *path, ULONG *prot,
     }
 }
 
+static void apply_meta_fib(struct emulbase *emulbase, const char *path, ULONG *prot,
+                           UBYTE *comment, ULONG commentcap)
+{
+    HVMeta m;
+
+    if (comment && commentcap)
+        comment[0] = 0;
+    if (MetaRead(emulbase, path, &m) == 1) {
+        if (prot)
+            *prot |= (m.prot & HV_FIBF_AMIGA_ONLY);
+        if (comment && commentcap) {
+            ULONG k;
+            for (k = 0; m.comment[k] && k + 2 < commentcap && k < 255; k++)
+                comment[k + 1] = m.comment[k];
+            comment[0] = k;
+        }
+    }
+}
+
 /*********************************************************************************************/
 
 /* Make an AROS error-code (<dos/dos.h>) out of a unix error-code. */
@@ -583,6 +602,7 @@ LONG DoOpen(struct emulbase *emulbase, struct filehandle *fh, LONG access, LONG 
     struct stat st;
     LONG ret = ERROR_OBJECT_WRONG_TYPE;
     int r;
+    BOOL creating = FALSE;
 
     DOPEN(bug("[emul] Opening host name: %s\n", fh->hostname));
 
@@ -595,6 +615,8 @@ LONG DoOpen(struct emulbase *emulbase, struct filehandle *fh, LONG access, LONG 
     {
         /* Non-existing objects can be files opened for writing */
         st.st_mode = S_IFREG;
+        if ((mode == MODE_NEWFILE) || (mode == MODE_READWRITE))
+            creating = TRUE;
     }
 
     DOPEN(bug("[emul] lstat() returned %d, st_mode is 0x%08X\n", r, st.st_mode));
@@ -629,6 +651,16 @@ LONG DoOpen(struct emulbase *emulbase, struct filehandle *fh, LONG access, LONG 
         }
         if (r >= 0)
         {
+            if (creating)
+            {
+                /* Darwin/aarch64 hosted crosses into host libc through a
+                 * variadic open() function pointer. Apply the creation mode
+                 * again via non-variadic chmod() so fresh files do not inherit
+                 * a lost vararg as mode 000.
+                 */
+                emulbase->pdata.SysIFace->chmod(fh->hostname, 0770);
+                AROS_HOST_BARRIER
+            }
             fh->type = FHD_FILE;
             fh->fd   = (void *)(IPTR)r;
             ret = 0;
@@ -1315,8 +1347,8 @@ LONG DoExamineNext(struct emulbase *emulbase, struct filehandle *fh,
     {
         char ep[1024];
         entry_hostpath(fh, dir->d_name, ep, sizeof ep);
-        apply_meta(emulbase, ep, &FIB->fib_Protection,
-                   FIB->fib_Comment, sizeof FIB->fib_Comment);
+        apply_meta_fib(emulbase, ep, &FIB->fib_Protection,
+                       FIB->fib_Comment, sizeof FIB->fib_Comment);
     }
 
     if (S_ISDIR(st.st_mode))

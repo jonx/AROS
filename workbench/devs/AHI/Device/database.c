@@ -40,7 +40,6 @@
 #include <proto/ahi_sub.h>
 
 #include <string.h>
-#include <stdio.h>
 
 #include "ahi_def.h"
 #include "database.h"
@@ -63,6 +62,53 @@ const char *AHIDBDRIVERBASENAME = "DEVS:AHI";
 #define DRIVERNAME_BUF  128
 #define DRIVERNAME_MAX  100
 #define DRIVERTAGS_MAX  128
+
+static BOOL
+BuildDriverName(char *dst, ULONG dst_size, const char *base, const char *name)
+{
+    ULONG pos = 0;
+
+    if(dst_size == 0) {
+        return FALSE;
+    }
+
+    while(*base != '\0') {
+        if(pos + 1 >= dst_size) {
+            dst[0] = '\0';
+            return FALSE;
+        }
+        dst[pos++] = *base++;
+    }
+
+    if(pos + 1 >= dst_size) {
+        dst[0] = '\0';
+        return FALSE;
+    }
+    dst[pos++] = '/';
+
+    while(*name != '\0') {
+        if(pos + 1 >= dst_size) {
+            dst[0] = '\0';
+            return FALSE;
+        }
+        dst[pos++] = *name++;
+    }
+
+    if(pos + sizeof(".audio") > dst_size) {
+        dst[0] = '\0';
+        return FALSE;
+    }
+
+    dst[pos++] = '.';
+    dst[pos++] = 'a';
+    dst[pos++] = 'u';
+    dst[pos++] = 'd';
+    dst[pos++] = 'i';
+    dst[pos++] = 'o';
+    dst[pos] = '\0';
+
+    return TRUE;
+}
 
 #if !defined( WORDS_BIGENDIAN )
 struct TagItem32 {
@@ -759,9 +805,17 @@ AddModeFile(UBYTE *filename)
                             extratags[0].ti_Data = (IPTR) name->sp_Data;
 
                             // Now verify that the driver can really be opened
-                            snprintf(driver_name, DRIVERNAME_MAX, "%s/%s.audio", AHIDBDRIVERBASENAME, name->sp_Data);
-                            driver_base = OpenLibrary(driver_name, DriverVersion);
-                            if(driver_base == NULL) {
+                            if(rc && !BuildDriverName(driver_name, DRIVERNAME_MAX, AHIDBDRIVERBASENAME, name->sp_Data)) {
+                                Req("%s:\nAUDN chunk names a driver with too long path.",
+                                    (IPTR)filename);
+                                rc = FALSE;
+                            }
+                            if(rc) {
+                                driver_base = OpenLibrary(driver_name, DriverVersion);
+                            } else {
+                                driver_base = NULL;
+                            }
+                            if(rc && driver_base == NULL) {
 #ifdef __MORPHOS__
                                 // Make it MOSSYS:DEVS:AHI/...
                                 //                    ^

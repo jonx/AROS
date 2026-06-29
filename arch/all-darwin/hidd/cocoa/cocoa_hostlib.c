@@ -71,10 +71,8 @@ BOOL cocoa_hostlib_init(struct cocoahidd *xsd)
     }
 
     /* Refuse a stale/mismatched dylib (INTERFACE.md §7). */
-    HostLib_Lock();
     abi = xsd->cm->cm_abi_version();
     AROS_HOST_BARRIER
-    HostLib_Unlock();
 
     if (abi != CM_ABI_VERSION)
     {

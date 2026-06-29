@@ -15,6 +15,8 @@ struct HostInterface
     void *(*hostlib_GetPointer)(void *, const char *, char **);
     int   (*KPutC)(int chr);
     int   (*host_GetTime)(int, uint64_t *, uint64_t *);
+    void  (*host_Lock)(void);
+    void  (*host_Unlock)(void);
     struct MinList **ModListPtr;
 };
 

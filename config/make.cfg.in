@@ -296,7 +296,13 @@ ifeq ($(AROS_TARGET_CPU),aarch64)
 # block-scope static, so it collides across a module's objects; all copies are
 # identical (the required version), so allow the merge. (Cleaner upstream fix:
 # emit the marker at file scope where 'weak' sticks.)
+# Two link paths need this: regular modules link via the compiler driver
+# (so -Wl, on LDFLAGS), while the kickstart kobj link is a raw '$(AROS_LD) -Ur'
+# (config/make.tmpl) that bypasses LDFLAGS -- hence KOBJ_LDFLAGS, passed to ld
+# directly (no -Wl,). Setting only LDFLAGS is the "fixed it but kernel.resource
+# still won't link" trap.
 LDFLAGS                       += -Wl,--allow-multiple-definition
+KOBJ_LDFLAGS                  += --allow-multiple-definition
 # clang routes weak-symbol accesses through the GOT even with -fno-pic, emitting
 # ADR_GOT_PAGE/LD64_GOT_LO12_NC; the simple kickstart bootstrap loader has no GOT,
 # so build with the large code model (absolute movz/movk addressing instead).

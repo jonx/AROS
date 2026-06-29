@@ -22,6 +22,56 @@
 #include "hostlib.h"
 #include "shutdown.h"
 
+#if defined(HOST_OS_darwin)
+typedef void *host_pthread_t;
+extern host_pthread_t pthread_self(void);
+
+static volatile int HostLockState;
+static volatile uintptr_t HostLockOwner;
+static volatile unsigned int HostLockDepth;
+
+static void Host_Lock(void)
+{
+    uintptr_t self = (uintptr_t)pthread_self();
+
+    if (HostLockOwner == self)
+    {
+        HostLockDepth++;
+        return;
+    }
+
+    while (__sync_lock_test_and_set(&HostLockState, 1))
+        ;
+
+    HostLockOwner = self;
+    __sync_synchronize();
+    HostLockDepth = 1;
+}
+
+static void Host_Unlock(void)
+{
+    uintptr_t self = (uintptr_t)pthread_self();
+
+    if (HostLockOwner != self || HostLockDepth == 0)
+        return;
+
+    if (--HostLockDepth == 0)
+    {
+        HostLockOwner = 0;
+        __sync_synchronize();
+        __sync_lock_release(&HostLockState);
+    }
+}
+#else
+static void Host_Lock(void)
+{
+}
+
+static void Host_Unlock(void)
+{
+}
+#endif
+
 #if AROS_MODULES_DEBUG
 /* gdb hooks from which it obtains modules list */
 
@@ -48,6 +98,8 @@ static struct HostInterface _HostIFace =
     Host_HostLib_GetPointer,
     KPutC,
     Host_HostLib_GetTime,
+    Host_Lock,
+    Host_Unlock,
 #if AROS_MODULES_DEBUG
     &Debug_ModList,
 #else

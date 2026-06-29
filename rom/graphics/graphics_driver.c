@@ -88,6 +88,16 @@ int driver_init(struct GfxBase *GfxBase)
         return FALSE;
 
     baseGfx = OOP_FindClass(CLID_Hidd_Gfx);
+    if(!baseGfx)
+    {
+        bug("[driver_init] failed to find %s after opening gfx.hidd\n", CLID_Hidd_Gfx);
+        return FALSE;
+    }
+    if(!PrivGBase(GfxBase)->GfxRoot)
+    {
+        bug("[driver_init] missing %s root object\n", CLID_HW_Gfx);
+        return FALSE;
+    }
 
     /* Initialize the semaphores */
     InitSemaphore(&(PrivGBase(GfxBase)->blit_sema));

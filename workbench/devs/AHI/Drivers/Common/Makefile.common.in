@@ -19,6 +19,7 @@ MODEFILEDIR	= ${DISTDIR}/User/Devs/AudioModes
 VPATH		+= ${common_srcdir}
 
 host		= @host@
+host_cpu	= @host_cpu@
 
 CC		= @CC@
 AS		= @AS@
@@ -35,6 +36,12 @@ ASCPPFLAGS	= @ASCPPFLAGS@
 LDFLAGS		= @LDFLAGS@ -nostartfiles
 ifeq (@host_os@,aros)
 LDFLAGS		+= -static
+ifeq ($(host_cpu),aarch64)
+# clang emits AROS library-version request markers as strong ABS symbols on
+# this target, so hand-linked AHI drivers need the same merge policy as the
+# top-level AROS build.
+LDFLAGS		+= -Wl,--allow-multiple-definition
+endif
 endif
 ARFLAGS         = @ARFLAGS@
 

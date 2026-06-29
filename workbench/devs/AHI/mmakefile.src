@@ -17,7 +17,8 @@ include $(SRCDIR)/config/aros.cfg
 #MM- AHI-emulation-prereqs : \
 #MM                         AHI-alsa-bridge-$(AROS_TARGET_ARCH) \
 #MM                         AHI-pulseaudio-bridge-$(AROS_TARGET_ARCH) \
-#MM                         AHI-WASAPI-bridge-$(AROS_TARGET_ARCH)
+#MM                         AHI-WASAPI-bridge-$(AROS_TARGET_ARCH) \
+#MM                         AHI-coreaudio-bridge-$(AROS_TARGET_ARCH)
 
 #MM workbench-devs-AHI-subsystem : includes \
 #MM                         linklibs \

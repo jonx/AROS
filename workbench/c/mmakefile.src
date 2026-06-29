@@ -130,9 +130,8 @@ USER_LDFLAGS     := -static
 %build_prog mmake=workbench-c-requeststring progname=RequestString \
     files=RequestString targetdir=$(AROS_C) coverageinstr=no
 
-# Standalone targets for OS-introspection commands, so they can be built
-# without the whole "workbench-c" batch (which is currently blocked by an
-# unrelated Decoration link failure on darwin-aarch64).
+# Standalone targets for OS-introspection commands, so bring-up images can
+# build/deploy the small diagnostics without pulling the whole C: command set.
 %build_prog mmake=workbench-c-version progname=Version \
     files=Version targetdir=$(AROS_C) coverageinstr=no
 
@@ -162,14 +161,18 @@ USER_LDFLAGS     := -static
 %build_prog mmake=workbench-c-loadmatrix progname=LoadMatrix \
     files=LoadMatrix targetdir=$(AROS_C) coverageinstr=no
 
+# Direct ahi.device/CoreAudio playback smoke test. This avoids sound datatypes
+# and file-backed samples so the audio path can be validated during port bring-up.
+%build_prog mmake=workbench-c-ahismoke progname=AHISmoke \
+    files=AHISmoke targetdir=$(AROS_C) coverageinstr=no
+
 %build_progs mmake=workbench-c \
     files="$(FILES)" targetdir=$(AROS_C) \
     uselibs="uuid debug" coverageinstr=no
 
-# Same core C: command programs, but as a standalone batch that does NOT pull in
-# the Decoration subdir / GUI library chain (which fails to link on
-# darwin-aarch64 over a single missing __ieee754_sin). Lets the whole CLI command
-# set be built on the hosted target with: make workbench-c-tools
+# Same core C: command programs, but as a standalone batch that does not pull in
+# optional subdirectories. Useful for hosted bring-up when we want the basic CLI
+# command set without also rebuilding larger GUI helpers.
 %build_progs mmake=workbench-c-tools \
     files="$(FILES)" targetdir=$(AROS_C) \
     uselibs="uuid debug" coverageinstr=no

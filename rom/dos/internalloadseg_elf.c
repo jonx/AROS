@@ -30,6 +30,14 @@
 
 #define DATTR(x)
 
+/* Verbose loader tracing (exec-hunk / W^X / per-reloc-section lines). Off by
+ * default: the volume slows boot enough to perturb the timing/layout-sensitive
+ * corruption we are chasing. The corruption *guards* below stay unconditional;
+ * only the chatty progress lines are gated here. Set to 1 to re-enable. */
+#ifndef ILS_TRACE
+#define ILS_TRACE 0
+#endif
+
 struct hunk
 {
     ULONG size;
@@ -283,6 +291,17 @@ static int __attribute__ ((noinline)) load_hunk
         else
             sh->addr = hunk->data;
 
+        /* Executable hunks are page-allocated outside any MemHeader and flipped
+         * to R/X after relocation. Trace them so a hunk that overlaps live code
+         * (or a TypeOfMem() misclassification) shows up directly in the boot log,
+         * next to any "reloc OOB refused" line from relocate(). */
+        if (ILS_TRACE && (sh->flags & SHF_EXECINSTR))
+            bug("[ELF Loader] exec hunk '%s': hunk %p size 0x%x code @ %p"
+                " flags 0x%x align 0x%x TypeOfMem 0x%x\n",
+                strtab ? (STRPTR)(strtab + sh->name) : (STRPTR)"?",
+                hunk, (int)hunk_size, sh->addr,
+                (int)sh->flags, (int)sh->addralign, (int)TypeOfMem(hunk));
+
         /* Link the previous one with the new one */
         BPTR2HUNK(*next_hunk_ptr)->next = HUNK2BPTR(hunk);
 
@@ -328,38 +347,65 @@ static int __attribute__ ((noinline)) load_hunk
 #define R_AARCH64_LDST128_ABS_LO12_NC 299
 #endif
 
+/*
+ * Relocation write bounds guard.
+ *
+ * A relocation must only ever patch memory that lies inside the section it
+ * targets (toreloc). A bad rel->offset -- or a corrupted/misindexed section
+ * header -- could otherwise make p land outside the hunk and silently
+ * overwrite unrelated memory. On darwin-aarch64 this was observed to corrupt
+ * dos.library's own code at runtime (a stray write turned the segment loader's
+ * elf_read_block into garbage), surfacing as an intermittent NULL-ish branch.
+ *
+ * Refuse any relocation whose [p, p+width) escapes [addr, addr+size), turning
+ * silent corruption into a clean ERROR_BAD_HUNK with enough context to identify
+ * the offending relocation. Only wired into the active (aarch64) cases below.
+ */
+#define ILS_RELOC_FITS(_p, _width)                                          \
+    (   (UBYTE *)(_p)            >= (UBYTE *)toreloc->addr                   \
+     && (UBYTE *)(_p) + (_width) <= (UBYTE *)toreloc->addr + toreloc->size)
+
+#define ILS_RELOC_CHECK(_p, _width)                                         \
+    do {                                                                    \
+        if (!ILS_RELOC_FITS((_p), (_width))) {                              \
+            bug("[ELF Loader] reloc OOB refused: type %d off 0x%x p %p w%d" \
+                " sect '%s' addr %p size 0x%x sym '%s' s %p\n",             \
+                (int)rel_type, (int)rel_offset,                            \
+                (APTR)(_p), (int)(_width),                                 \
+                (STRPTR)sh[eh->shstrndx].addr + toreloc->name,            \
+                (APTR)toreloc->addr, (int)toreloc->size,                  \
+                (STRPTR)sh[shsymtab->link].addr + sym->name, (APTR)s);     \
+            SetIoErr(ERROR_BAD_HUNK);                                       \
+            return 0;                                                       \
+        }                                                                   \
+    } while (0)
+
 static int relocate
 (
     struct elfheader  *eh,
     struct sheader    *sh,
     ULONG              shrel_idx,
+    ULONG              shnum,
     struct sheader    *symtab_shndx,
     struct DosLibrary *DOSBase
 )
 {
-    struct sheader *shrel    = &sh[shrel_idx];
-    struct sheader *shsymtab = &sh[shrel->link];
-    struct sheader *toreloc  = &sh[shrel->info];
-
-    struct symbol *symtab   = (struct symbol *)shsymtab->addr;
-    UBYTE         *relbase  = (UBYTE *)shrel->addr;
+    struct sheader *shrel;
+    struct sheader *shsymtab;
+    struct sheader *toreloc;
+    UBYTE         *relbase;
+    struct symbol *symtab;
+    ULONG          nsyms;
     /*
      * Some toolchains emit SHT_REL (8-byte: offset+info, addend in the
      * field) while others emit SHT_RELA (12-byte: offset+info+addend).
      */
 #if defined(__arm__)
-    BOOL is_rela = (shrel->type == SHT_RELA);
+    BOOL is_rela;
 #endif
 
-    /*
-     * Ignore relocs if the target section has no allocation. that can happen
-     * eg. with a .debug PROGBITS and a .rel.debug section
-     */
-    if (!(toreloc->flags & SHF_ALLOC))
-        return 1;
-
-    ULONG numrel = shrel->size / shrel->entsize;
-    ULONG entsize = shrel->entsize;
+    ULONG numrel;
+    ULONG entsize;
     ULONG i;
 #if defined(__i386__) || defined(__x86_64__)
     IPTR got_base = 0;
@@ -373,10 +419,82 @@ static int relocate
     }
 #endif
 
+    /*
+     * Validate the section-header references before walking the table. If
+     * link/info point outside the section array, the header array itself was
+     * clobbered -- bail with evidence rather than chase a wild pointer. One
+     * concise line per rel section lets us correlate buffer addresses with the
+     * exec-hunk / pool layout when something does go wrong.
+     */
+    if (shnum && shrel_idx >= shnum) {
+        bug("[ELF Loader] reloc sect#%d outside section table shnum %d\n",
+            (int)shrel_idx, (int)shnum);
+        SetIoErr(ERROR_BAD_HUNK);
+        return 0;
+    }
+
+    shrel   = &sh[shrel_idx];
+    relbase = (UBYTE *)shrel->addr;
+#if defined(__arm__)
+    is_rela = (shrel->type == SHT_RELA);
+#endif
+
+    if (shnum && (shrel->link >= shnum || shrel->info >= shnum)) {
+        bug("[ELF Loader] reloc sect#%d corrupt hdr: link %d info %d shnum %d"
+            " (rel@%p)\n",
+            (int)shrel_idx, (int)shrel->link, (int)shrel->info, (int)shnum,
+            (APTR)relbase);
+        SetIoErr(ERROR_BAD_HUNK);
+        return 0;
+    }
+    if (shrel->entsize == 0 || (shrel->size % shrel->entsize) != 0) {
+        bug("[ELF Loader] reloc sect#%d corrupt size/entsize: size 0x%x entsize 0x%x\n",
+            (int)shrel_idx, (int)shrel->size, (int)shrel->entsize);
+        SetIoErr(ERROR_BAD_HUNK);
+        return 0;
+    }
+
+    shsymtab = &sh[shrel->link];
+    toreloc  = &sh[shrel->info];
+    symtab   = (struct symbol *)shsymtab->addr;
+    nsyms    = shsymtab->entsize ? (ULONG)(shsymtab->size / shsymtab->entsize) : 0;
+    numrel   = shrel->size / shrel->entsize;
+    entsize  = shrel->entsize;
+
+    /*
+     * Ignore relocs if the target section has no allocation. that can happen
+     * eg. with a .debug PROGBITS and a .rel.debug section
+     */
+    if (!(toreloc->flags & SHF_ALLOC))
+        return 1;
+
+    if (!relbase || !symtab || !toreloc->addr) {
+        bug("[ELF Loader] reloc sect#%d has null table/target: rel %p sym %p target %p\n",
+            (int)shrel_idx, (APTR)relbase, (APTR)symtab, (APTR)toreloc->addr);
+        SetIoErr(ERROR_BAD_HUNK);
+        return 0;
+    }
+    if (ILS_TRACE)
+        bug("[ELF Loader] reloc sect#%d '%s': %d ents rel@%p sym@%p(%d) target@%p sz0x%x\n",
+            (int)shrel_idx, (STRPTR)sh[eh->shstrndx].addr + shrel->name,
+            (int)numrel, (APTR)relbase, (APTR)symtab, (int)nsyms,
+            (APTR)toreloc->addr, (int)toreloc->size);
+
     for (i=0; i<numrel; i++)
     {
         struct relo *rel = (struct relo *)(relbase + i * entsize);
         struct symbol *sym;
+        elf_uintptr_t rel_offset = rel->offset;
+        elf_uintptr_t rel_info = rel->info;
+#if defined(__i386__) || (defined(__riscv) && !defined(__riscv64))
+        elf_intptr_t rel_addend = 0;
+#elif defined(__arm__)
+        elf_intptr_t rel_addend = is_rela ? ((struct rela *)rel)->addend : 0;
+#else
+        elf_intptr_t rel_addend = ((struct rela *)rel)->addend;
+#endif
+        ULONG rel_type = ELF_R_TYPE(rel_info);
+        ULONG rel_sym = ELF_R_SYM(rel_info);
         ULONG *p;
         IPTR s;
         ULONG shindex;
@@ -387,12 +505,21 @@ static int relocate
          * They even never have a target (shindex == SHN_UNDEF),
          * so we simply ignore them before doing any checks.
          */
-        if (ELF_R_TYPE(rel->info) == R_ARM_V4BX)
+        if (rel_type == R_ARM_V4BX)
             continue;
 #endif
 
-        sym = &symtab[ELF_R_SYM(rel->info)];
-        p = toreloc->addr + rel->offset;
+        if (nsyms && rel_sym >= nsyms) {
+            bug("[ELF Loader] reloc #%d/%d: sym idx %d >= %d (info %p) --"
+                " corrupt rel/symtab; rel@%p sym@%p\n",
+                (int)i, (int)numrel, (int)rel_sym, (int)nsyms,
+                (APTR)(IPTR)rel_info, (APTR)(relbase + i * entsize), (APTR)symtab);
+            SetIoErr(ERROR_BAD_HUNK);
+            return 0;
+        }
+
+        sym = &symtab[rel_sym];
+        p = toreloc->addr + rel_offset;
 
         DB2(bug("[ELF Loader] Processing symbol %s\n", sh[shsymtab->link].addr + sym->name));
 
@@ -409,7 +536,7 @@ static int relocate
                 break;
 
             case SHN_UNDEF:
-                if (ELF_R_TYPE(rel->info) != 0) {
+                if (rel_type != 0) {
                     D(bug("[ELF Loader] Undefined symbol '%s'\n",
                       (STRPTR)sh[shsymtab->link].addr + sym->name));
                     SetIoErr(ERROR_BAD_HUNK);
@@ -426,12 +553,21 @@ static int relocate
                         SetIoErr(ERROR_BAD_HUNK);
                         return 0;
                     }
-                    shindex = ((ULONG *)symtab_shndx->addr)[ELF_R_SYM(rel->info)];
+                    shindex = ((ULONG *)symtab_shndx->addr)[rel_sym];
+                }
+                if (shnum && shindex >= shnum) {
+                    bug("[ELF Loader] reloc #%d: shindex %d >= shnum %d --"
+                        " corrupt symtab (sym '%s' info %p value %p, sym@%p)\n",
+                        (int)i, (int)shindex, (int)shnum,
+                        (STRPTR)sh[shsymtab->link].addr + sym->name,
+                        (APTR)(IPTR)rel_info, (APTR)sym->value, (APTR)sym);
+                    SetIoErr(ERROR_BAD_HUNK);
+                    return 0;
                 }
                 s = (IPTR)sh[shindex].addr + sym->value;
         }
 
-        switch (ELF_R_TYPE(rel->info))
+        switch (rel_type)
         {
             #if defined(__i386__)
 
@@ -456,24 +592,24 @@ static int relocate
 
             #elif defined(__x86_64__)
             case R_X86_64_64: /* 64bit direct/absolute */
-                *(UQUAD *)p = s + rel->addend;
+                *(UQUAD *)p = s + rel_addend;
                 break;
 
             case R_X86_64_PLT32:
             case R_X86_64_PC32: /* PC relative 32 bit signed */
-                *(ULONG *)p = s + rel->addend - (IPTR) p;
+                *(ULONG *)p = s + rel_addend - (IPTR) p;
                 break;
 
             case R_X86_64_32:
-                *(ULONG *)p = (UQUAD)s + (UQUAD)rel->addend;
+                *(ULONG *)p = (UQUAD)s + (UQUAD)rel_addend;
                 break;
 
             case R_X86_64_32S:
-                *(LONG *)p = (QUAD)s + (QUAD)rel->addend;
+                *(LONG *)p = (QUAD)s + (QUAD)rel_addend;
                 break;
 
             case R_X86_64_PC64:
-                *(UQUAD *)p = (UQUAD)s + (UQUAD)rel->addend - (IPTR) p;
+                *(UQUAD *)p = (UQUAD)s + (UQUAD)rel_addend - (IPTR) p;
                 break;
 
             case R_X86_64_GOTOFF64:
@@ -481,7 +617,7 @@ static int relocate
                     SetIoErr(ERROR_BAD_HUNK);
                     return 0;
                 }
-                *(UQUAD *)p = (UQUAD)s + (UQUAD)rel->addend - (UQUAD)got_base;
+                *(UQUAD *)p = (UQUAD)s + (UQUAD)rel_addend - (UQUAD)got_base;
                 break;
 
             case R_X86_64_NONE: /* No reloc */
@@ -490,27 +626,27 @@ static int relocate
             #elif defined(__mc68000__)
 
             case R_68K_32:
-                *p = s + rel->addend;
+                *p = s + rel_addend;
                 break;
 
             case R_68K_16:
-                *(UWORD *)p = s + rel->addend;
+                *(UWORD *)p = s + rel_addend;
                 break;
 
             case R_68K_8:
-                *(UBYTE *)p = s + rel->addend;
+                *(UBYTE *)p = s + rel_addend;
                 break;
 
             case R_68K_PC32:
-                *p = s + rel->addend - (ULONG)p;
+                *p = s + rel_addend - (ULONG)p;
                 break;
 
             case R_68K_PC16:
-                *(UWORD *)p = s + rel->addend - (ULONG)p;
+                *(UWORD *)p = s + rel_addend - (ULONG)p;
                 break;
 
             case R_68K_PC8:
-                *(UBYTE *)p = s + rel->addend - (ULONG)p;
+                *(UBYTE *)p = s + rel_addend - (ULONG)p;
                 break;
 
             case R_68K_NONE:
@@ -519,20 +655,20 @@ static int relocate
             #elif defined(__ppc__) || defined(__powerpc__)
 
             case R_PPC_ADDR32:
-                *p = s + rel->addend;
+                *p = s + rel_addend;
                 break;
 
             case R_PPC_ADDR16_LO:
                 {
                     unsigned short *c = (unsigned short *) p;
-                    *c = (s + rel->addend) & 0xffff;
+                    *c = (s + rel_addend) & 0xffff;
                 }
                 break;
 
             case R_PPC_ADDR16_HA:
                 {
                     unsigned short *c = (unsigned short *) p;
-                    ULONG temp = s + rel->addend;
+                    ULONG temp = s + rel_addend;
                     *c = temp >> 16;
                     if ((temp & 0x8000) != 0)
                         (*c)++;
@@ -542,14 +678,14 @@ static int relocate
             case R_PPC_REL16_LO:
                 {
                     unsigned short *c = (unsigned short *) p;
-                    *c = (s + rel->addend - (ULONG) p) & 0xffff;
+                    *c = (s + rel_addend - (ULONG) p) & 0xffff;
                 }
                 break;
 
             case R_PPC_REL16_HA:
                 {
                     unsigned short *c = (unsigned short *) p;
-                    ULONG temp = s + rel->addend - (ULONG) p;
+                    ULONG temp = s + rel_addend - (ULONG) p;
                     *c = temp >> 16;
                     if ((temp & 0x8000) != 0)
                         (*c)++;
@@ -558,11 +694,11 @@ static int relocate
 
             case R_PPC_REL24:
                 *p &= ~0x3fffffc;
-                *p |= (s + rel->addend - (ULONG) p) & 0x3fffffc;
+                *p |= (s + rel_addend - (ULONG) p) & 0x3fffffc;
                 break;
 
             case R_PPC_REL32:
-                *p = s + rel->addend - (ULONG) p;
+                *p = s + rel_addend - (ULONG) p;
                 break;
 
             case R_PPC_NONE:
@@ -721,7 +857,7 @@ static int relocate
                      * the full 32-bit addend so MOVT/MOVW pairs combine
                      * correctly. */
                     ULONG imm16 = ((*p & 0x000F0000u) >> 4) | (*p & 0x00000FFFu);
-                    if (ELF_R_TYPE(rel->info) == R_ARM_MOVT_ABS)
+                    if (rel_type == R_ARM_MOVT_ABS)
                         addend = (LONG)(imm16 << 16);
                     else
                         addend = (LONG)imm16;
@@ -729,7 +865,7 @@ static int relocate
                 ULONG temp = (ULONG)s + (ULONG)addend;
 
                 // Select the 16-bit half to encode.
-                ULONG imm16 = (ELF_R_TYPE(rel->info) == R_ARM_MOVT_ABS)
+                ULONG imm16 = (rel_type == R_ARM_MOVT_ABS)
                     ? ((temp >> 16) & 0xFFFFu)   // upper 16 bits for MOVT
                     : (temp & 0xFFFFu);          // lower 16 bits for MOVW
 
@@ -756,39 +892,48 @@ static int relocate
             #elif defined(__aarch64__)
 
             case R_AARCH64_ABS64:
-                *(UQUAD *)p = s + rel->addend;
+                ILS_RELOC_CHECK(p, 8);
+                *(UQUAD *)p = s + rel_addend;
                 break;
             case R_AARCH64_ABS32:
-                *(ULONG *)p = (ULONG)(s + rel->addend);
+                ILS_RELOC_CHECK(p, 4);
+                *(ULONG *)p = (ULONG)(s + rel_addend);
                 break;
             case R_AARCH64_PREL64:
-                *(UQUAD *)p = s + rel->addend - (IPTR)p;
+                ILS_RELOC_CHECK(p, 8);
+                *(UQUAD *)p = s + rel_addend - (IPTR)p;
                 break;
             case R_AARCH64_PREL32:
-                *(ULONG *)p = (ULONG)(s + rel->addend - (IPTR)p);
+                ILS_RELOC_CHECK(p, 4);
+                *(ULONG *)p = (ULONG)(s + rel_addend - (IPTR)p);
                 break;
 
             /* movz/movk: replace the 16-bit imm (instruction bits 5-20). */
             case R_AARCH64_MOVW_UABS_G0:
             case R_AARCH64_MOVW_UABS_G0_NC:
-                *p = (*p & 0xffe0001fu) | ((((s + rel->addend) >> 0)  & 0xffff) << 5);
+                ILS_RELOC_CHECK(p, 4);
+                *p = (*p & 0xffe0001fu) | ((((s + rel_addend) >> 0)  & 0xffff) << 5);
                 break;
             case R_AARCH64_MOVW_UABS_G1:
             case R_AARCH64_MOVW_UABS_G1_NC:
-                *p = (*p & 0xffe0001fu) | ((((s + rel->addend) >> 16) & 0xffff) << 5);
+                ILS_RELOC_CHECK(p, 4);
+                *p = (*p & 0xffe0001fu) | ((((s + rel_addend) >> 16) & 0xffff) << 5);
                 break;
             case R_AARCH64_MOVW_UABS_G2:
             case R_AARCH64_MOVW_UABS_G2_NC:
-                *p = (*p & 0xffe0001fu) | ((((s + rel->addend) >> 32) & 0xffff) << 5);
+                ILS_RELOC_CHECK(p, 4);
+                *p = (*p & 0xffe0001fu) | ((((s + rel_addend) >> 32) & 0xffff) << 5);
                 break;
             case R_AARCH64_MOVW_UABS_G3:
-                *p = (*p & 0xffe0001fu) | ((((s + rel->addend) >> 48) & 0xffff) << 5);
+                ILS_RELOC_CHECK(p, 4);
+                *p = (*p & 0xffe0001fu) | ((((s + rel_addend) >> 48) & 0xffff) << 5);
                 break;
 
             /* ADRP: 21-bit page offset, split immlo (bits 29-30) / immhi (5-23). */
             case R_AARCH64_ADR_PREL_PG_HI21:
             {
-                IPTR x = (((s + rel->addend) & ~(IPTR)0xfff) - ((IPTR)p & ~(IPTR)0xfff)) >> 12;
+                ILS_RELOC_CHECK(p, 4);
+                IPTR x = (((s + rel_addend) & ~(IPTR)0xfff) - ((IPTR)p & ~(IPTR)0xfff)) >> 12;
                 *p = (*p & 0x9f00001fu) | ((x & 0x3) << 29) | (((x >> 2) & 0x7ffff) << 5);
                 break;
             }
@@ -796,27 +941,58 @@ static int relocate
             /* ADD/LDST imm12 (instruction bits 10-21), LDST scaled by size. */
             case R_AARCH64_ADD_ABS_LO12_NC:
             case R_AARCH64_LDST8_ABS_LO12_NC:
-                *p = (*p & 0xffc003ffu) | ((((s + rel->addend) & 0xfff) >> 0) << 10);
+                ILS_RELOC_CHECK(p, 4);
+                *p = (*p & 0xffc003ffu) | ((((s + rel_addend) & 0xfff) >> 0) << 10);
                 break;
             case R_AARCH64_LDST16_ABS_LO12_NC:
-                *p = (*p & 0xffc003ffu) | ((((s + rel->addend) & 0xfff) >> 1) << 10);
+                ILS_RELOC_CHECK(p, 4);
+                *p = (*p & 0xffc003ffu) | ((((s + rel_addend) & 0xfff) >> 1) << 10);
                 break;
             case R_AARCH64_LDST32_ABS_LO12_NC:
-                *p = (*p & 0xffc003ffu) | ((((s + rel->addend) & 0xfff) >> 2) << 10);
+                ILS_RELOC_CHECK(p, 4);
+                *p = (*p & 0xffc003ffu) | ((((s + rel_addend) & 0xfff) >> 2) << 10);
                 break;
             case R_AARCH64_LDST64_ABS_LO12_NC:
-                *p = (*p & 0xffc003ffu) | ((((s + rel->addend) & 0xfff) >> 3) << 10);
+                ILS_RELOC_CHECK(p, 4);
+                *p = (*p & 0xffc003ffu) | ((((s + rel_addend) & 0xfff) >> 3) << 10);
                 break;
             case R_AARCH64_LDST128_ABS_LO12_NC:
-                *p = (*p & 0xffc003ffu) | ((((s + rel->addend) & 0xfff) >> 4) << 10);
+                ILS_RELOC_CHECK(p, 4);
+                *p = (*p & 0xffc003ffu) | ((((s + rel_addend) & 0xfff) >> 4) << 10);
                 break;
 
-            /* b/bl: 26-bit signed branch offset >> 2 (instruction bits 0-25). */
+            /* b/bl: 26-bit signed branch offset >> 2 (instruction bits 0-25).
+             * The encodable reach is +/-128MB; a target outside that range (or
+             * a misaligned one) cannot be represented and must be refused rather
+             * than silently truncated to a bogus address -- parity with the
+             * R_ARM_CALL/JUMP24 path above, and a real concern now that code
+             * hunks are mmap'd (KrnAllocPages) far from the kickstart. */
             case R_AARCH64_JUMP26:
             case R_AARCH64_CALL26:
             {
-                IPTR x = (s + rel->addend - (IPTR)p) >> 2;
-                *p = (*p & 0xfc000000u) | (x & 0x03ffffffu);
+                SIPTR temp = (SIPTR)(s + rel_addend - (IPTR)p);
+                SIPTR imm26;
+
+                ILS_RELOC_CHECK(p, 4);
+
+                if (temp & 3) {
+                    bug("[ELF Loader] CALL26/JUMP26 unaligned: p %p s %p addend %p\n",
+                        (APTR)p, (APTR)s, (APTR)(IPTR)rel_addend);
+                    SetIoErr(ERROR_BAD_HUNK);
+                    return 0;
+                }
+
+                imm26 = temp >> 2;
+
+                /* signed 26-bit immediate: [-2^25, 2^25 - 1] */
+                if (imm26 < -((SIPTR)1 << 25) || imm26 > (((SIPTR)1 << 25) - 1)) {
+                    bug("[ELF Loader] CALL26/JUMP26 out of range: p %p s %p addend %p\n",
+                        (APTR)p, (APTR)s, (APTR)(IPTR)rel_addend);
+                    SetIoErr(ERROR_BAD_HUNK);
+                    return 0;
+                }
+
+                *p = (*p & 0xfc000000u) | ((ULONG)imm26 & 0x03ffffffu);
                 break;
             }
 
@@ -830,7 +1006,7 @@ static int relocate
             #endif
 
             default:
-                bug("[ELF Loader] Unknown relocation #%d type %d\n", i, ELF_R_TYPE(rel->info));
+                bug("[ELF Loader] Unknown relocation #%d type %d\n", i, rel_type);
                 SetIoErr(ERROR_BAD_HUNK);
                 return 0;
         }
@@ -838,6 +1014,9 @@ static int relocate
 
     return 1;
 }
+
+#undef ILS_RELOC_CHECK
+#undef ILS_RELOC_FITS
 
 #ifdef __arm__
 
@@ -1189,10 +1368,19 @@ BPTR InternalLoadSeg_ELF
          * a given toolchain is not fixed (e.g. clang/lld emits SHT_REL for ARM
          * 32-bit while some gcc builds emit SHT_RELA).
          */
-        if ((sh[i].type == SHT_REL || sh[i].type == SHT_RELA) && sh[sh[i].info].addr)
+        if (sh[i].type == SHT_REL || sh[i].type == SHT_RELA)
         {
+            if (sh[i].info >= int_shnum) {
+                bug("[ELF Loader] reloc sect#%d corrupt target index %d >= shnum %d\n",
+                    (int)i, (int)sh[i].info, (int)int_shnum);
+                SetIoErr(ERROR_BAD_HUNK);
+                goto error;
+            }
+            if (!sh[sh[i].info].addr)
+                continue;
+
             sh[i].addr = load_block(file, sh[i].offset, sh[i].size, funcarray, &srb, DOSBase);
-            if (!sh[i].addr || !relocate(&eh, sh, i, symtab_shndx, DOSBase))
+            if (!sh[i].addr || !relocate(&eh, sh, i, int_shnum, symtab_shndx, DOSBase))
                 goto error;
 
             ilsFreeMem(sh[i].addr, sh[i].size);
@@ -1244,7 +1432,12 @@ end:
                 BPTR next = hunk->next;
 
                 if (!TypeOfMem(hunk))
+                {
+                    if (ILS_TRACE)
+                        bug("[ELF Loader] W^X flip -> R/X: hunk %p size 0x%x\n",
+                            hunk, (int)hunk->size);
                     KrnSetProtection(hunk, hunk->size, MAP_Readable | MAP_Executable);
+                }
 
                 curr = next;
             }

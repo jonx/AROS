@@ -269,6 +269,22 @@ static void core_IRQ(int sig, regs_t *sc)
 {
     struct KernelBase *KernelBase = getKernelBase();
 
+#ifdef HOST_OS_darwin
+    /* If this process-directed signal landed on a host thread that is NOT
+     * AROS's (a libdispatch/Metal/AppKit worker), drop it: running the
+     * scheduler / touching the global SupervisorCount off AROS's thread races
+     * the real AROS task and shows up as "ObtainSemaphore called in supervisor
+     * mode!!! -> Privilege violation". The next VBlank tick (~10-20ms) is
+     * delivered to AROS's thread, so dropping this one is harmless.
+     * pthread_self() is async-signal-safe. */
+    {
+        struct PlatformData *pd = KernelBase->kb_PlatformData;
+        if (pd->aros_host_thread && pd->iface->pthread_self
+            && pd->iface->pthread_self() != pd->aros_host_thread)
+            return;
+    }
+#endif
+
     SUPERVISOR_ENTER;
 
     /* Just additional protection - what if there's more than 32 signals? */
@@ -312,6 +328,9 @@ static const char *kernel_functions[] =
 #endif
 #endif
     "_exit",
+#ifdef HOST_OS_darwin
+    "sys_icache_invalidate",
+#endif
 #ifdef HOST_OS_android
     "sigwait",
 #else
@@ -319,6 +338,9 @@ static const char *kernel_functions[] =
     "sigfillset",
     "sigaddset",
     "sigdelset",
+#endif
+#ifdef HOST_OS_darwin
+    "pthread_self",
 #endif
     NULL
 };
@@ -362,6 +384,19 @@ int core_Start(void *libc)
     /* Cache errno pointer, for context switching */
     pd->errnoPtr = pd->iface->__error();
     AROS_HOST_BARRIER
+
+#ifdef HOST_OS_darwin
+    /* Remember which host thread is AROS's. core_Start runs on it, so this is
+     * the AROS scheduler thread. The VBlank tick (process-directed SIGALRM from
+     * ITIMER_REAL) can be delivered to any host thread whose mask has it
+     * unblocked -- including a libdispatch/Metal/AppKit worker that a Cocoa
+     * call on AROS's thread spawned with the (unblocked) inherited mask.
+     * core_IRQ uses this to drop such a tick instead of running the scheduler /
+     * touching SupervisorCount off AROS's thread (the "ObtainSemaphore called
+     * in supervisor mode" privilege-violation race). */
+    pd->aros_host_thread = pd->iface->pthread_self();
+    AROS_HOST_BARRIER
+#endif
 
 #if DEBUG
     /* Pass unhandled exceptions to the debugger, if present */

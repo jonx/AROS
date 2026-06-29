@@ -649,6 +649,7 @@ ac_includes_default="\
 ac_header_c_list=
 ac_subst_vars='LTLIBOBJS
 LIBOBJS
+HAVE_COREAUDIO
 HAVE_WASAPI
 HAVE_PULSEAUDIO
 HAVE_ALSA
@@ -4407,6 +4408,11 @@ printf "%s\n" "$as_me: error: in \`$ac_pwd':" >&2;}
 as_fn_error $? "no acceptable C compiler found in \$PATH
 See \`config.log' for more details" "$LINENO" 5; }
 
+ahi_saved_LDFLAGS=$LDFLAGS
+case $host_os in
+  aros) LDFLAGS="$LDFLAGS -nostartfiles -Wl,--allow-multiple-definition" ;;
+esac
+
 # Provide some information about the compiler.
 printf "%s\n" "$as_me:${as_lineno-$LINENO}: checking for C compiler version" >&5
 set X $ac_compile
@@ -5490,6 +5496,49 @@ then :
 printf "%s\n" "Hosted WASAPI Driver will be built" >&6; }; HAVE_WASAPI=1
 fi
 
+{ printf "%s\n" "$as_me:${as_lineno-$LINENO}: checking for COREAUDIO_Init in -lcoreaudio-bridge" >&5
+printf %s "checking for COREAUDIO_Init in -lcoreaudio-bridge... " >&6; }
+if test ${ac_cv_lib_coreaudio_bridge_COREAUDIO_Init+y}
+then :
+  printf %s "(cached) " >&6
+else $as_nop
+  ac_check_lib_save_LIBS=$LIBS
+LIBS="-lcoreaudio-bridge  $LIBS"
+cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+/* end confdefs.h.  */
+
+/* Override any GCC internal prototype to avoid an error.
+   Use char because int might match the return type of a GCC
+   builtin and then its argument prototype would still apply.  */
+char COREAUDIO_Init ();
+int
+main (void)
+{
+return COREAUDIO_Init ();
+  ;
+  return 0;
+}
+_ACEOF
+if ac_fn_c_try_link "$LINENO"
+then :
+  ac_cv_lib_coreaudio_bridge_COREAUDIO_Init=yes
+else $as_nop
+  ac_cv_lib_coreaudio_bridge_COREAUDIO_Init=no
+fi
+rm -f core conftest.err conftest.$ac_objext conftest.beam \
+    conftest$ac_exeext conftest.$ac_ext
+LIBS=$ac_check_lib_save_LIBS
+fi
+{ printf "%s\n" "$as_me:${as_lineno-$LINENO}: result: $ac_cv_lib_coreaudio_bridge_COREAUDIO_Init" >&5
+printf "%s\n" "$ac_cv_lib_coreaudio_bridge_COREAUDIO_Init" >&6; }
+if test "x$ac_cv_lib_coreaudio_bridge_COREAUDIO_Init" = xyes
+then :
+   { printf "%s\n" "$as_me:${as_lineno-$LINENO}: result: Hosted CoreAudio Driver will be built" >&5
+printf "%s\n" "Hosted CoreAudio Driver will be built" >&6; }; HAVE_COREAUDIO=1
+fi
+
+LDFLAGS=$ahi_saved_LDFLAGS
+
 
 
 
@@ -5857,7 +5906,7 @@ printf "%s\n" "#define AC_APPLE_UNIVERSAL_BUILD 1" >>confdefs.h
 
 
 
-ac_config_files="$ac_config_files Makefile AHI/Makefile AHI-Handler/Makefile AddAudioModes/Makefile Device/Makefile Docs/Makefile Drivers/Makefile Drivers/Common/Makefile.common Drivers/Device/Makefile Drivers/Filesave/Makefile Drivers/Void/Makefile Drivers/ac97/Makefile Drivers/VIA-AC97/Makefile Drivers/HDAudio/Makefile Drivers/CMI8738/Makefile Drivers/SB128/Makefile Drivers/EMU10kx/Makefile Drivers/Envy24HT/Makefile Drivers/Envy24/Makefile Drivers/Alsa/Makefile Drivers/OSS/Makefile Drivers/PulseAudio/Makefile Drivers/WASAPI/Makefile Drivers/RPiPWM/Makefile Drivers/RPiHDMI/Makefile Examples/Makefile Examples/Device/PlayTest/Makefile Examples/Extras/CloneAudioModes/Makefile Examples/Low-level/PlaySineEverywhere/Makefile Examples/Low-level/Test-7.1/Makefile Examples/Low-level/ScanAudioModes/Makefile Include/Makefile"
+ac_config_files="$ac_config_files Makefile AHI/Makefile AHI-Handler/Makefile AddAudioModes/Makefile Device/Makefile Docs/Makefile Drivers/Makefile Drivers/Common/Makefile.common Drivers/Device/Makefile Drivers/Filesave/Makefile Drivers/Void/Makefile Drivers/ac97/Makefile Drivers/VIA-AC97/Makefile Drivers/HDAudio/Makefile Drivers/CMI8738/Makefile Drivers/SB128/Makefile Drivers/EMU10kx/Makefile Drivers/Envy24HT/Makefile Drivers/Envy24/Makefile Drivers/Alsa/Makefile Drivers/OSS/Makefile Drivers/PulseAudio/Makefile Drivers/WASAPI/Makefile Drivers/CoreAudio/Makefile Drivers/RPiPWM/Makefile Drivers/RPiHDMI/Makefile Examples/Makefile Examples/Device/PlayTest/Makefile Examples/Extras/CloneAudioModes/Makefile Examples/Low-level/PlaySineEverywhere/Makefile Examples/Low-level/Test-7.1/Makefile Examples/Low-level/ScanAudioModes/Makefile Include/Makefile"
 
 ac_config_commands="$ac_config_commands default"
 
@@ -6575,6 +6624,7 @@ do
     "Drivers/OSS/Makefile") CONFIG_FILES="$CONFIG_FILES Drivers/OSS/Makefile" ;;
     "Drivers/PulseAudio/Makefile") CONFIG_FILES="$CONFIG_FILES Drivers/PulseAudio/Makefile" ;;
     "Drivers/WASAPI/Makefile") CONFIG_FILES="$CONFIG_FILES Drivers/WASAPI/Makefile" ;;
+    "Drivers/CoreAudio/Makefile") CONFIG_FILES="$CONFIG_FILES Drivers/CoreAudio/Makefile" ;;
     "Drivers/RPiPWM/Makefile") CONFIG_FILES="$CONFIG_FILES Drivers/RPiPWM/Makefile" ;;
     "Drivers/RPiHDMI/Makefile") CONFIG_FILES="$CONFIG_FILES Drivers/RPiHDMI/Makefile" ;;
     "Examples/Makefile") CONFIG_FILES="$CONFIG_FILES Examples/Makefile" ;;
@@ -7178,5 +7228,3 @@ if test -n "$ac_unrecognized_opts" && test "$enable_option_checking" != no; then
   { printf "%s\n" "$as_me:${as_lineno-$LINENO}: WARNING: unrecognized options: $ac_unrecognized_opts" >&5
 printf "%s\n" "$as_me: WARNING: unrecognized options: $ac_unrecognized_opts" >&2;}
 fi
-
-

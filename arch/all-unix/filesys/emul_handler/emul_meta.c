@@ -276,6 +276,11 @@ int MetaWrite(struct emulbase *emulbase, const char *filepath, const HVMeta *m)
     fd = iface->open(tmp, O_WRONLY | O_CREAT | O_TRUNC, 0644);
     AROS_HOST_BARRIER
     if (fd < 0) { HostLib_Unlock(); return -1; }
+    /* See emul_host.c: darwin/aarch64 hosted can lose the variadic open()
+     * mode across the host-libc function pointer boundary.
+     */
+    iface->chmod(tmp, 0644);
+    AROS_HOST_BARRIER
 
     while (wr < off) {
         ssize_t n = iface->write(fd, body + wr, off - wr);

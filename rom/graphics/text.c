@@ -19,11 +19,19 @@ static BOOL textfont_has_bitmap_data(struct TextFont *tf)
     return (tf != NULL) &&
            ((IPTR)tf->tf_CharData > 4096) &&
            ((IPTR)tf->tf_CharLoc > 4096) &&
+           (((IPTR)tf->tf_CharLoc & 3) == 0) &&
+           (tf->tf_CharKern == NULL ||
+            (((IPTR)tf->tf_CharKern > 4096) && (((IPTR)tf->tf_CharKern & 1) == 0))) &&
+           (tf->tf_CharSpace == NULL ||
+            (((IPTR)tf->tf_CharSpace > 4096) && (((IPTR)tf->tf_CharSpace & 1) == 0))) &&
            (tf->tf_Modulo > 0) &&
            (tf->tf_Modulo <= 4096) &&
+           (tf->tf_XSize > 0) &&
            (tf->tf_YSize > 0) &&
            (tf->tf_YSize <= 1024) &&
-           (tf->tf_LoChar <= tf->tf_HiChar);
+           (tf->tf_LoChar <= tf->tf_HiChar) &&
+           (NUMCHARS(tf) > 0) &&
+           (NUMCHARS(tf) <= 512);
 }
 #else
 static BOOL textfont_has_bitmap_data(struct TextFont *tf)
@@ -37,12 +45,14 @@ static BOOL textfont_has_bitmap_data(struct TextFont *tf)
 #endif
 
 static BOOL textfont_glyph_in_bounds(struct TextFont *tf, ULONG glyphpos,
-                                     UWORD glyphwidth)
+                                     UWORD glyphwidth, WORD rasheight)
 {
     ULONG rowbits;
 
     if (!glyphwidth)
         return TRUE;
+    if (rasheight <= 0 || rasheight > tf->tf_YSize)
+        return FALSE;
 
     rowbits = (ULONG)tf->tf_Modulo * 8;
     return (glyphpos < rowbits) && ((ULONG)glyphwidth <= rowbits - glyphpos);
@@ -186,7 +196,7 @@ void BltTemplateBasedText(struct RastPort *rp, CONST_STRPTR text, ULONG len,
 
             glyphwidth = charloc & 0xFFFF;
             glyphpos = charloc >> 16;
-            if (!textfont_glyph_in_bounds(tf, glyphpos, glyphwidth))
+            if (!textfont_glyph_in_bounds(tf, glyphpos, glyphwidth, rasheight))
                 glyphwidth = 0;
 
             if(tf->tf_CharKern) {
@@ -393,7 +403,7 @@ void BltTemplateAlphaBasedText(struct RastPort *rp, CONST_STRPTR text, ULONG len
 
             glyphwidth = charloc & 0xFFFF;
             glyphpos = charloc >> 16;
-            if (!textfont_glyph_in_bounds(tf, glyphpos, glyphwidth))
+            if (!textfont_glyph_in_bounds(tf, glyphpos, glyphwidth, rasheight))
                 glyphwidth = 0;
 
             if(tf->tf_CharKern) {

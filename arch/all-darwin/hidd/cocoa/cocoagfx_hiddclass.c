@@ -172,6 +172,8 @@ OOP_Object *CocoaGfx__Hidd_Gfx__Show(OOP_Class *cl, OOP_Object *o, struct pHidd_
     if (msg->bitMap && !xsd.ctx && xsd.cm)
     {
         IPTR w = COCOA_WIDTH, h = COCOA_HEIGHT;
+        BOOL lockHost = cocoa_can_lock_hostlib();
+
         OOP_GetAttr(msg->bitMap, aHidd_BitMap_Width,  &w);
         OOP_GetAttr(msg->bitMap, aHidd_BitMap_Height, &h);
 
@@ -181,12 +183,18 @@ OOP_Object *CocoaGfx__Hidd_Gfx__Show(OOP_Class *cl, OOP_Object *o, struct pHidd_
          * semaphore, so without Forbid the preemptive scheduler can switch a
          * task at the syscall boundary and save its SP on the host stack ->
          * "out of stack limits" when restored. */
-        Forbid();
-        HostLib_Lock();
+        if (lockHost)
+        {
+            Forbid();
+            HostLib_Lock();
+        }
         xsd.ctx = xsd.cm->cm_open((int)w, (int)h, &cocoa_fmt, "AROS");
         AROS_HOST_BARRIER
-        HostLib_Unlock();
-        Permit();
+        if (lockHost)
+        {
+            HostLib_Unlock();
+            Permit();
+        }
         D(bug("[Cocoa] cm_open(%ld,%ld) -> 0x%p\n", w, h, xsd.ctx));
     }
 

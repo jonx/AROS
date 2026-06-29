@@ -4,11 +4,13 @@
 #include <exec/nodes.h>
 #include <exec/semaphores.h>
 
+#include "hostinterface.h"
+
 /*
  * Windows is a very harsh environment.
  * It requires us to Forbid() in order to call itself.
  */
-#ifdef HOST_OS_mingw32
+#if defined(HOST_OS_mingw32)
 #define USE_FORBID_LOCK
 #endif
 
@@ -21,7 +23,7 @@ struct HostLibBase
 #endif
 };
 
-#ifdef USE_FORBID_LOCK
+#if defined(USE_FORBID_LOCK)
 #define HOSTLIB_LOCK()   Forbid()
 #define HOSTLIB_UNLOCK() Permit()
 #else

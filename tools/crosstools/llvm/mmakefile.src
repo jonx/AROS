@@ -499,6 +499,24 @@ LLVM_TOOL_INSTTARGETS := install-llvm-ar-stripped install-llvm-nm-stripped insta
 
 #MM
 tools-crosstools-llvm-toolchain : $(LLLVM_EXTRA_DEPS)
+	$(Q)$(IF) ! $(TEST) -f $(llvm-installflag) && $(TEST) "x$(AROS_ALLOW_LLVM_REBUILD)" != "x1" ; then \
+	    $(ECHO) "" ; \
+	    $(ECHO) "############################################################################" ; \
+	    $(ECHO) "#  REFUSING to build the LLVM cross-toolchain from source (~1-2 hours).      " ; \
+	    $(ECHO) "#  Nothing set AROS_ALLOW_LLVM_REBUILD=1, so this is almost certainly an      " ; \
+	    $(ECHO) "#  accident -- typically a bare 'make' (default target) on a tree configured  " ; \
+	    $(ECHO) "#  WITHOUT a prebuilt toolchain. Building module metatargets does NOT need it. " ; \
+	    $(ECHO) "#                                                                              " ; \
+	    $(ECHO) "#  REUSE an existing toolchain (the normal path) -- reconfigure with:          " ; \
+	    $(ECHO) "#    configure ... --with-aros-toolchain=yes --with-aros-toolchain-install=DIR " ; \
+	    $(ECHO) "#  then build module metatargets (kernel-dos, workbench-libs, ...) directly.   " ; \
+	    $(ECHO) "#                                                                              " ; \
+	    $(ECHO) "#  To BUILD LLVM from source ON PURPOSE, re-run with:                          " ; \
+	    $(ECHO) "#    make AROS_ALLOW_LLVM_REBUILD=1 <target>                                    " ; \
+	    $(ECHO) "############################################################################" ; \
+	    $(ECHO) "" ; \
+	    exit 1 ; \
+	    fi
 ifneq (,$(findstring AROS_BUILD_TYPE_NIGHTLY,$(CONFIG_BASE_CPPFLAGS)))
 	$(Q)$(IF) ! $(TEST) -f $(llvm-installflag); then                                                                                    \
         $(ECHO) "Building llvm/LLVM.so" &&                                                                                              \

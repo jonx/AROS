@@ -31,7 +31,6 @@
 #include <proto/exec.h>
 #include <proto/graphics.h>
 #include <proto/intuition.h>
-#include <stdlib.h>
 #include <limits.h>
 
 #include "version.h"
@@ -88,7 +87,7 @@ cleanup(void)
 }
 
 
-void
+BOOL
 OpenAHI(void)
 {
     D(bug("[AddAudioModes] %s()\n", __func__);)
@@ -115,7 +114,7 @@ OpenAHI(void)
         if(AHIDevice != 0) {
             Printf("Unable to open '%s' version %ld\n", AHINAME, AHIVERSION);
             cleanup();
-            exit(RETURN_FAIL);
+            return FALSE;
         }
 
         AHIBase = (struct Library *) AHIio->ahir_Std.io_Device;
@@ -125,6 +124,8 @@ OpenAHI(void)
         IAHI = (struct AHIIFace *) GetInterface(AHIBase, "main", 1, NULL);
 #endif
     }
+
+    return TRUE;
 }
 
 // Disable command line processing
@@ -166,7 +167,10 @@ main(void)
         if(args.refresh && !args.remove) {
             ULONG id;
 
-            OpenAHI();
+            if(!OpenAHI()) {
+                FreeArgs(rdargs);
+                return RETURN_FAIL;
+            }
 
             /* First, empty the database */
 
@@ -212,7 +216,10 @@ main(void)
         if(args.files != NULL && !args.remove) {
             int i = 0;
 
-            OpenAHI();
+            if(!OpenAHI()) {
+                FreeArgs(rdargs);
+                return RETURN_FAIL;
+            }
 
             while(args.files[i]) {
                 D(bug("[AddAudioModes] %s: Trying to load '%s' ... \n", __func__, args.files[i]);)
@@ -234,7 +241,10 @@ main(void)
             } else {
                 ULONG id;
 
-                OpenAHI();
+                if(!OpenAHI()) {
+                    FreeArgs(rdargs);
+                    return RETURN_FAIL;
+                }
 
                 for(id = AHI_NextAudioID(AHI_INVALID_ID);
                         id != (ULONG) AHI_INVALID_ID;

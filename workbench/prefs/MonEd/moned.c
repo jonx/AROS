@@ -144,8 +144,14 @@ UBYTE					*sp_Title = "MonitorSpec Ed V3a (Raul. A. Sobon)";
 /*
  * --- TagItems for the slider gadgets.
  */
+/*
+ * NB: GTSL_LevelFormat's ti_Data is a (string) pointer.  A pointer-to-integer
+ * cast is not a compile-time constant in strict C (clang rejects it in a
+ * static initializer), so it is left 0 here and filled in by InitTagStrings()
+ * at startup, before any of these arrays are used.
+ */
 struct TagItem  sp_HsyncTags[] = {
-	{GTSL_LevelFormat,		(IPTR)"%03lx"},
+	{GTSL_LevelFormat,		0},
 	{GTSL_MaxLevelLen,		3L},
 	{GTSL_Min,				0L},
 	{GTSL_Max,				64L},
@@ -153,7 +159,7 @@ struct TagItem  sp_HsyncTags[] = {
 	{TAG_DONE} };
 
 struct TagItem  sp_VsyncTags[] = {
-	{GTSL_LevelFormat,		(IPTR)"%04lx"},
+	{GTSL_LevelFormat,		0},
 	{GTSL_MaxLevelLen,		4L},
 	{GTSL_Min,				0L},
 	{GTSL_Max,				8000L},
@@ -161,7 +167,7 @@ struct TagItem  sp_VsyncTags[] = {
 	{TAG_DONE} };
 
 struct TagItem  sp_RowTags[] = {
-	{GTSL_LevelFormat,		(IPTR)"%03lx"},
+	{GTSL_LevelFormat,		0},
 	{GTSL_MaxLevelLen,		3L},
 	{GTSL_Min,				0L},
 	{GTSL_Max,				768L},
@@ -169,12 +175,23 @@ struct TagItem  sp_RowTags[] = {
 	{TAG_DONE} };
 
 struct TagItem  sp_TotClkTags[] = {
-	{GTSL_LevelFormat,		(IPTR)"%03lx"},
+	{GTSL_LevelFormat,		0},
 	{GTSL_MaxLevelLen,		3L},
 	{GTSL_Min,				1L},
 	{GTSL_Max,				768L},
 	{GA_Disabled,			FALSE},
 	{TAG_DONE} };
+
+/*
+ * --- Fill in the GTSL_LevelFormat string pointers that cannot be expressed
+ * --- as compile-time-constant static initializers (see note above).
+ */
+static void InitTagStrings( void ){
+	sp_HsyncTags[0].ti_Data  = (IPTR)"%03lx";
+	sp_VsyncTags[0].ti_Data  = (IPTR)"%04lx";
+	sp_RowTags[0].ti_Data    = (IPTR)"%03lx";
+	sp_TotClkTags[0].ti_Data = (IPTR)"%03lx";
+}
 
 
 ULONG		version=30;
@@ -487,7 +504,7 @@ void UpDateDisplay( void ){
  *						Draw3DOutBox
  *	Description : just like normal bevelbox except inside color is selectable
  *				  plus it looks MONUMENTAL!
- *								¯¯¯¯¯¯¯¯¯¯¯
+ *								ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
  *  Returns		: NULL
  *	Globals		: usual
  *
@@ -557,7 +574,7 @@ void Draw3DBox(
  *						Draw3DLine
  *	Description : just like normal line except its 3D (sorta!) (horizontal)
  *				  plus it looks MONUMENTAL!
- *								¯¯¯¯¯¯¯¯¯¯¯
+ *								ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
  *  Returns		: NULL
  *	Globals		: usual
  *
@@ -738,7 +755,7 @@ long OpenDisplay( void ){
 			if ((sp_Wnd = OpenWindowTagList( NULL, ReqTags ))) {
 				D(printf("Window %p\n", sp_Wnd));
 				SetFont( sp_Wnd->RPort, thinpazfont8 );
-				if( MainScreen->BitMap.Depth > 2 ) {
+				if( GetBitMapAttr(MainScreen->RastPort.BitMap, BMA_DEPTH) > 2 ) {
 					Draw3DBox( sp_Wnd->RPort, 0, 0,	sp_Wnd->Width-sp_Wnd->BorderLeft-sp_Wnd->BorderRight,
 						sp_Wnd->Height-sp_Wnd->BorderTop-sp_Wnd->BorderBottom, 2, 3, 1 );
 
@@ -798,6 +815,7 @@ int main( int argc,char *argv[] )
 {
 	BOOL				 running  = TRUE;
 
+	InitTagStrings();
 
 	if( !OpenLibraries() ) {
 		ShowFault(0, "Libraries cant be opened!");
@@ -815,7 +833,7 @@ int main( int argc,char *argv[] )
 		SaveMonitor();
 
 		if( *argv[1] == '?' ){
-			puts( "Moned3a, © 1994 Raul Sobon / PRoJeCT-23");
+			puts( "Moned3a, ï¿½ 1994 Raul Sobon / PRoJeCT-23");
 			puts( " moned HBSTRT=0xnnn HBSTOP=0xnnn HBSTOP=0xnnn");
 			puts( "       HSSTRT=0xnnn HSSTOP=0xnnn VBSTRT=0xnnn");
 			puts( "       VBSTOP=0xnnn VSSTRT=0xnnn VSSTOP=0xnnn");

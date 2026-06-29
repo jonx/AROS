@@ -1,0 +1,15 @@
+#
+#  Makefile.in for the Darwin/CoreAudio hosted sound card driver
+#
+
+VPATH      = @srcdir@
+
+srcdir     = @srcdir@
+
+DRIVER     = coreaudio.audio
+MODEFILE   = COREAUDIO
+
+OBJECTS    = coreaudio-init.o coreaudio-main.o coreaudio-playslave.o coreaudio-accel.o
+LIBS       = -lcoreaudio-bridge
+
+include ../Common/Makefile.common

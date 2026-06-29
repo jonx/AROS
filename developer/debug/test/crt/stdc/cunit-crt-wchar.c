@@ -9,6 +9,7 @@
 #include <locale.h>
 #include <wchar.h>
 #include <wctype.h>
+#include <errno.h>
 
 #include <CUnit/Basic.h>
 #include <CUnit/Automated.h>
@@ -75,6 +76,10 @@ void test_mblen(void)
     int mlen = mblen(s, 2);
 
     CU_ASSERT_EQUAL(mlen, 2);
+
+    /* The null byte is a valid character of length 0 (C99 7.22.7.1), not 1. */
+    CU_ASSERT_EQUAL(mblen("", 1), 0);
+    CU_ASSERT_EQUAL(mblen("A", 1), 1);
 }
 
 /* Test mbrlen with single multibyte characters */
@@ -100,6 +105,69 @@ void test_mbtowc(void)
 
     CU_ASSERT_EQUAL(len, 2);
     CU_ASSERT_EQUAL(wc, 0x00E4);
+
+    /* The null byte converts to L'\0' and returns 0 (C99 7.22.7.2), not 1. */
+    wc = 0xFFFF;
+    CU_ASSERT_EQUAL(mbtowc(&wc, "", 1), 0);
+    CU_ASSERT_EQUAL(wc, L'\0');
+
+    CU_ASSERT_EQUAL(mbtowc(&wc, "A", 1), 1);
+    CU_ASSERT_EQUAL(wc, L'A');
+}
+
+/* Invalid UTF-8 multibyte sequences must be rejected (return -1 / (size_t)-1
+   with errno == EILSEQ): overlong encodings, UTF-16 surrogate code points and
+   code points beyond U+10FFFF are all ill-formed (C99 7.24.6, Unicode). */
+void test_mb_invalid(void)
+{
+    wchar_t wc;
+
+    /* Overlong 2-byte encoding of U+0000 (0xC0 0x80) and of U+007F. */
+    CU_ASSERT_EQUAL(mbtowc(&wc, "\xC0\x80", 2), -1);
+    CU_ASSERT_EQUAL(mbtowc(&wc, "\xC1\xBF", 2), -1);
+
+    /* Overlong 3-byte encoding of U+007F (0xE0 0x81 0xBF). */
+    CU_ASSERT_EQUAL(mbtowc(&wc, "\xE0\x81\xBF", 3), -1);
+
+    /* UTF-16 surrogate halves U+D800 and U+DFFF are not valid scalars. */
+    CU_ASSERT_EQUAL(mbtowc(&wc, "\xED\xA0\x80", 3), -1);
+    CU_ASSERT_EQUAL(mbtowc(&wc, "\xED\xBF\xBF", 3), -1);
+
+    /* Code point U+110000 and an out-of-range lead byte exceed U+10FFFF. */
+    CU_ASSERT_EQUAL(mbtowc(&wc, "\xF4\x90\x80\x80", 4), -1);
+    CU_ASSERT_EQUAL(mbtowc(&wc, "\xF5\x80\x80\x80", 4), -1);
+
+    /* A malformed continuation byte is still rejected. */
+    CU_ASSERT_EQUAL(mbtowc(&wc, "\xC3\x28", 2), -1);
+
+    /* mbrtowc() must reject the same way, setting errno to EILSEQ. */
+    {
+        mbstate_t st = {0};
+        size_t r;
+        errno = 0;
+        r = mbrtowc(&wc, "\xED\xA0\x80", 3, &st);
+        CU_ASSERT_EQUAL(r, (size_t)-1);
+        CU_ASSERT_EQUAL(errno, EILSEQ);
+    }
+
+    /* mbrlen() is defined in terms of mbrtowc() and must agree on ill-formed
+       input. */
+    {
+        mbstate_t st = {0};
+        CU_ASSERT_EQUAL(mbrlen("\xC0\x80", 2, &st), (size_t)-1);
+    }
+
+    /* The whole mb-decode family must report the null character as length 0
+       (C99 7.22.7), not 1. */
+    {
+        mbstate_t st = {0};
+        wchar_t wc2 = 0xFFFF;
+        CU_ASSERT_EQUAL(mblen("", 1), 0);
+        CU_ASSERT_EQUAL(mbtowc(&wc2, "", 1), 0);
+        CU_ASSERT_EQUAL(wc2, L'\0');
+        CU_ASSERT_EQUAL(mbrtowc(&wc2, "", 1, &st), 0);
+        CU_ASSERT_EQUAL(mbrlen("", 1, &st), 0);
+    }
 }
 
 /* Test mbstowcs conversion */
@@ -171,6 +239,26 @@ void test_wcstombs(void)
     CU_ASSERT(strcmp(dest, expected) == 0);
     /* Note: wcstombs() takes src by value, so (unlike wcsrtombs()) it does
        not update the caller's pointer - hence no src consumption check. */
+}
+
+/* With a NULL destination, mbstowcs()/wcstombs() must return the full
+   converted length and ignore the length limit (C99 7.24.6 / POSIX). */
+void test_mb_null_count(void)
+{
+    const char *mbs = "hello";
+    wchar_t wcs[] = { L'h', L'e', L'l', L'l', L'o', 0 };
+    wchar_t wbuf[8];
+    char cbuf[8];
+
+    /* dst == NULL: the limit is ignored, the full length is returned. */
+    CU_ASSERT_EQUAL(mbstowcs(NULL, mbs, 0), 5);
+    CU_ASSERT_EQUAL(mbstowcs(NULL, mbs, 2), 5);
+    CU_ASSERT_EQUAL(wcstombs(NULL, wcs, 0), 5);
+    CU_ASSERT_EQUAL(wcstombs(NULL, wcs, 2), 5);
+
+    /* With a real buffer, the limit still bounds the conversion. */
+    CU_ASSERT_EQUAL(mbstowcs(wbuf, mbs, 3), 3);
+    CU_ASSERT_EQUAL(wcstombs(cbuf, wcs, 3), 3);
 }
 
 /* Test wcsrtombs conversion */
@@ -273,11 +361,13 @@ int main(void)
     if ((NULL == CU_add_test(pSuite, "mblen", test_mblen)) ||
     (NULL == CU_add_test(pSuite, "mbrlen", test_mbrlen)) ||
     (NULL == CU_add_test(pSuite, "mbtowc", test_mbtowc)) ||
+    (NULL == CU_add_test(pSuite, "mb_invalid", test_mb_invalid)) ||
     (NULL == CU_add_test(pSuite, "mbstowcs", test_mbstowcs)) ||
     (NULL == CU_add_test(pSuite, "mbsrtowcs", test_mbsrtowcs)) ||
     (NULL == CU_add_test(pSuite, "wctomb", test_wctomb)) ||
     (NULL == CU_add_test(pSuite, "wcrtomb", test_wcrtomb)) ||
     (NULL == CU_add_test(pSuite, "wcstombs", test_wcstombs)) ||
+    (NULL == CU_add_test(pSuite, "mb_null_count", test_mb_null_count)) ||
     (NULL == CU_add_test(pSuite, "wcsrtombs", test_wcsrtombs)) ||
     (NULL == CU_add_test(pSuite, "towcase", test_towcase)) ||
     (NULL == CU_add_test(pSuite, "iswctype", test_iswctype)) ||

@@ -39,9 +39,25 @@ If NOT WARN
     Execute S/Test cunit/crt/stdc/cunit-crt-stdlib-c89
     Execute S/Test cunit/crt/stdc/cunit-crt-stdlib-c99
     Execute S/Test cunit/crt/stdc/cunit-crt-stdlib-c11
+    Execute S/Test cunit/crt/stdc/cunit-crt-stdlib-ext
 
     ; Perform C11 <uchar.h> Unicode conversion unit tests...
     Execute S/Test cunit/crt/stdc/cunit-crt-uchar-c11
+
+    ; Perform <time.h> unit tests...
+    Execute S/Test cunit/crt/stdc/cunit-crt-time-c89
+
+    ; Perform strftime() unit tests...
+    Execute S/Test cunit/crt/stdc/cunit-crt-strftime-c89
+
+    ; Perform formatted-input (scanf) unit tests...
+    Execute S/Test cunit/crt/stdc/cunit-crt-scanf-c89
+
+    ; Perform formatted-output (printf/swprintf) unit tests...
+    Execute S/Test cunit/crt/stdc/cunit-crt-printf-c99
+
+    ; Perform math error-handling (pole/domain/overflow) unit tests...
+    Execute S/Test cunit/crt/stdc/cunit-crt-matherr-c99
 
     ; Perform basic math unit tests...
     Execute S/Test cunit/crt/stdc/math/cunit-crt-math

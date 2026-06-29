@@ -284,19 +284,17 @@ VOID consoleTaskEntry(struct ConsoleBase *ConsoleDevice)
                                         switch (cdihmsg->ie.ie_Code)
                                         {
                                         case RAWKEY_C:
-                                            D(bug("Console_Copy\n"));
-                                            Console_Copy(cdihmsg->unit);
-                                            actual = 0;
-                                            break;
                                         case RAWKEY_V:
-                                            D(bug("Console_Paste\n"));
-                                            Console_Paste(cdihmsg->unit);
-                                            /* We have likely put something
-                                             * into the input buffer */
-                                            if (ICU(cdihmsg->unit)->
-                                                numStoredChars)
-                                                answer_requests(cdihmsg->
-                                                    unit, ConsoleDevice);
+                                            /* Right-Amiga+C/V are the console
+                                             * window's menu shortcuts (the con-handler
+                                             * MEN_CONSOLE_COPY / MEN_CONSOLE_PASTE
+                                             * items use CommKeys "c"/"v"). Intuition's
+                                             * menu already delivers the copy/paste via
+                                             * do_paste(), so here we only swallow the
+                                             * translated char (RawKeyConvert can still
+                                             * yield 'c'/'v' under some keymaps) so it
+                                             * is not also typed. Doing Console_Copy/
+                                             * Console_Paste here too double-pasted. */
                                             actual = 0;
                                             break;
                                         }

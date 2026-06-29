@@ -1,0 +1,19 @@
+# LoadKeymap -- build a keymap from a .akmd text descriptor at runtime + install it.
+# Built like CPUInfo: a normal main() command, -noposixc, so it loads reliably on
+# the darwin-aarch64 hosted port (the legacy SetKeyboard / 68K-hunk path does not).
+
+include $(SRCDIR)/config/aros.cfg
+
+FILES   := loadkeymap parsedescriptor
+
+EXEDIR  := $(AROS_C)
+
+USER_CFLAGS := -noposixc
+
+#MM workbench-c-loadkeymap : includes linklibs
+
+%build_prog mmake=workbench-c-loadkeymap \
+    progname=LoadKeymap targetdir=$(EXEDIR) \
+    files="$(FILES)"
+
+%common

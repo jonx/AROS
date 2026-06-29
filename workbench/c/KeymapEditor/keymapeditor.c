@@ -177,7 +177,7 @@ static void drawall(struct Window *w)
 {
     struct RastPort *rp = w->RPort;
     int bx = w->BorderLeft + MX, by = w->BorderTop + MY;
-    static const char *hint = "Click a key, then type its new character. Live; close to keep.";
+    static const char *hint = "Click a key, then type its new character (Esc cancels). Live; close to keep.";
     int r, k;
 
     SetAPen(rp, 1);
@@ -261,7 +261,11 @@ int main(void)
                 }
                 break;
             case IDCMP_VANILLAKEY:
-                if (gSel >= 0 && code >= 32 && code < 127)
+                if (code == 0x1B)           /* Esc: cancel - deselect, no remap */
+                {
+                    if (gSel >= 0) { gSel = -1; drawall(win); }
+                }
+                else if (gSel >= 0 && code >= 32 && code < 127)
                 {
                     int r = gSel >> 8, k = gSel & 0xFF;
                     UBYTE rk = rows[r].keys[k];

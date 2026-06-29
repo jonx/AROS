@@ -21,8 +21,14 @@ OLDKEYMAPS := \
 
 KEYMAPFILES := $(foreach f,$(KEYMAPS),$(AROS_DEVS)/Keymaps/$(f))
 
+# Also install the .akmd text descriptors next to the compiled keymaps so the
+# LoadKeymap command (workbench/c/LoadKeymap) can parse them at runtime. The
+# hosted darwin-aarch64 port cannot LoadSeg the 68K-HUNK keymaps, so it reads
+# these text files instead.
+KEYMAPDESCFILES := $(foreach f,$(KEYMAPS),$(AROS_DEVS)/Keymaps/$(f).akmd)
+
 #MM
-workbench-devs-keymaps-build : $(foreach f,$(KEYMAPS),$(AROS_DEVS)/Keymaps/$(f))
+workbench-devs-keymaps-build : $(foreach f,$(KEYMAPS),$(AROS_DEVS)/Keymaps/$(f)) $(KEYMAPDESCFILES)
 	$(Q)$(NOP)
 
 OBJDIR := $(GENDIR)/$(CURDIR)
@@ -30,6 +36,9 @@ OBJDIR := $(GENDIR)/$(CURDIR)
 $(AROS_DEVS)/Keymaps/% : $(SRCDIR)/$(CURDIR)/%.akmd $(MKAMIKEYMAP)
 	$(Q)$(ECHO) "Generating $(notdir $@) KeyMap..."
 	$(Q)$(MKAMIKEYMAP) -d $< -k $@
+
+$(AROS_DEVS)/Keymaps/%.akmd : $(SRCDIR)/$(CURDIR)/%.akmd
+	$(Q)$(CP) $< $@
 
 #MM workbench-devs-keymaps-setup
 %rule_makedirs dirs="$(AROS_DEVS)/Keymaps" setuptarget=workbench-devs-keymaps-setup

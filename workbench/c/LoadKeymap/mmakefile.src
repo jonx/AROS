@@ -10,6 +10,7 @@ EXEDIR  := $(AROS_C)
 
 USER_CFLAGS := -noposixc
 
+#MM- workbench-c : workbench-c-loadkeymap
 #MM workbench-c-loadkeymap : includes linklibs
 
 %build_prog mmake=workbench-c-loadkeymap \

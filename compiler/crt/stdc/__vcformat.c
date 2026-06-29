@@ -18,17 +18,9 @@
 
 #include <ctype.h>
 
-/*
- * Always enable floating-point conversions (%[aAeEfFgG]). The sibling engines
- * (__vcscan, __vwformat, __vwscanf) and the kernel _vkprintf are already
- * unconditionally FULL_SPECIFIERS; __vcformat was the lone exception, gated on
- * STDC_STATIC. On targets that force the freestanding libstdc.static.a early in
- * every link (darwin-aarch64, see config/make.cfg.in), that gate let its strong,
- * float-less __vcformat shadow the float-capable StdCBase dispatcher -- so printf
- * from posixc.library / stdcio.library printed "%f" literally. The float math it
- * pulls in (log10/pow/isinf/...) resolves via the weak StdCBase library stubs.
- */
+#ifndef STDC_STATIC
 #define FULL_SPECIFIERS
+#endif
 
 const unsigned char *const __stdc_char_decimalpoint = ".";
 

@@ -311,7 +311,10 @@ KOBJ_LDFLAGS                  += --allow-multiple-definition
 # clang routes weak-symbol accesses through the GOT even with -fno-pic, emitting
 # ADR_GOT_PAGE/LD64_GOT_LO12_NC; the simple kickstart bootstrap loader has no GOT,
 # so build with the large code model (absolute movz/movk addressing instead).
-CFLAGS                        += -mcmodel=large
+# -ffixed-x18: x18 is the Darwin platform register (reserved); AROS-hosted preempts
+# via signals which do not preserve it, so a value left live in x18 is clobbered.
+# Reserve it OS-wide. Found via the ffmpeg h264 + gfx.hidd blit crashes (NOTES.md).
+CFLAGS                        += -mcmodel=large -ffixed-x18
 # The macOS host system headers (cc_include/machine/_types.h, sys/cdefs.h, ...)
 # guard their arch dispatch on __arm64__, not the __aarch64__ the AROS-targeted
 # clang defines; AROS files that pull a host header (e.g. the BSD math sources)

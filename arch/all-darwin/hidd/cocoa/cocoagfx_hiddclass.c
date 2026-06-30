@@ -70,13 +70,12 @@ OOP_Object *CocoaGfx__Root__New(OOP_Class *cl, OOP_Object *o, struct pRoot_New *
     };
     struct TagItem modetags[] =
     {
-        { aHidd_Gfx_PixFmtTags, (IPTR)pftags    },
-        { aHidd_Gfx_SyncTags,   (IPTR)sync_mode },
-        { TAG_DONE,             0               }
+        { aHidd_DMEnum_PixFmtTags, (IPTR)pftags    },
+        { aHidd_DMEnum_SyncTags,   (IPTR)sync_mode },
+        { TAG_DONE,                0               }
     };
     struct TagItem msgtags[] =
     {
-        { aHidd_Gfx_ModeTags, (IPTR)modetags                       },
         { aHidd_Name,         (IPTR)"cocoa.hidd"                   },
         { aHidd_HardwareName, (IPTR)"Cocoa/Metal Display (macOS)"  },
         { aHidd_ProducerName, (IPTR)"AROS darwin-aarch64 graft"    },
@@ -94,7 +93,22 @@ OOP_Object *CocoaGfx__Root__New(OOP_Class *cl, OOP_Object *o, struct pRoot_New *
 
     o = (OOP_Object *)OOP_DoSuperMethod(cl, o, (OOP_Msg)&supermsg);
     if (o)
+    {
+        /* gfx HIDD refactor: the mode database, CreateObject and Show moved off
+           the Gfx class onto a separate Hidd_Display subclass. Create our
+           display object, hand it the mode tags, and cache its DMEnumerator. */
+        struct TagItem displaytags[] =
+        {
+            { aHidd_Display_GfxHidd,  (IPTR)o        },
+            { aHidd_Display_ModeTags, (IPTR)modetags },
+            { TAG_DONE,               0              }
+        };
+
         xsd.gfxhidd = o;
+        xsd.display = OOP_NewObject(xsd.displayclass, NULL, displaytags);
+        if (xsd.display)
+            OOP_GetAttr(xsd.display, aHidd_Display_DMEnumerator, (IPTR *)&xsd.dmenum);
+    }
 
     ReturnPtr("[Cocoa] CocoaGfx::New", OOP_Object *, o);
 }
@@ -113,6 +127,9 @@ VOID CocoaGfx__Root__Get(OOP_Class *cl, OOP_Object *o, struct pRoot_Get *msg)
         case aoHidd_Gfx_DriverName:
             *msg->storage = (IPTR)"Cocoa";
             return;
+        case aoHidd_Gfx_DisplayDefault:
+            *msg->storage = (IPTR)xsd.display;
+            return;
         }
     }
     OOP_DoSuperMethod(cl, o, (OOP_Msg)msg);
@@ -122,7 +139,7 @@ VOID CocoaGfx__Root__Get(OOP_Class *cl, OOP_Object *o, struct pRoot_Get *msg)
    The graphics core creates the real front framebuffer with FrameBuffer=TRUE,
    which implies Displayable only later inside the base class, so checking only
    Displayable here misses exactly the bitmap that receives UpdateRect(). */
-OOP_Object *CocoaGfx__Hidd_Gfx__CreateObject(OOP_Class *cl, OOP_Object *o, struct pHidd_Gfx_CreateObject *msg)
+OOP_Object *CocoaGfx__Hidd_Display__CreateObject(OOP_Class *cl, OOP_Object *o, struct pHidd_Display_CreateObject *msg)
 {
     OOP_Object *object;
 
@@ -133,7 +150,7 @@ OOP_Object *CocoaGfx__Hidd_Gfx__CreateObject(OOP_Class *cl, OOP_Object *o, struc
             { TAG_IGNORE, 0                   },
             { TAG_MORE,   (IPTR)msg->attrList }
         };
-        struct pHidd_Gfx_CreateObject p;
+        struct pHidd_Display_CreateObject p;
 
         if (GetTagData(aHidd_BitMap_ModeID, vHidd_ModeID_Invalid, msg->attrList) != vHidd_ModeID_Invalid)
         {
@@ -162,9 +179,9 @@ OOP_Object *CocoaGfx__Hidd_Gfx__CreateObject(OOP_Class *cl, OOP_Object *o, struc
 /* Lazy window open on first Show; record the actual front framebuffer returned
    by the gfx base class for the present hook. In direct-FB mode this is not the
    source screen bitmap passed in msg->bitMap. */
-OOP_Object *CocoaGfx__Hidd_Gfx__Show(OOP_Class *cl, OOP_Object *o, struct pHidd_Gfx_Show *msg)
+OOP_Object *CocoaGfx__Hidd_Display__Show(OOP_Class *cl, OOP_Object *o, struct pHidd_Display_Show *msg)
 {
-    struct pHidd_Gfx_Show mymsg = { msg->mID, msg->bitMap, msg->flags };
+    struct pHidd_Display_Show mymsg = { msg->mID, msg->bitMap, msg->flags };
     OOP_Object *shown;
 
     D(bug("[Cocoa] CocoaGfx::Show(0x%p)\n", msg->bitMap));
@@ -214,17 +231,22 @@ static struct OOP_MethodDescr CocoaGfx_Root_descr[] =
 };
 #define NUM_CocoaGfx_Root_METHODS 2
 
-static struct OOP_MethodDescr CocoaGfx_Hidd_Gfx_descr[] =
+static struct OOP_MethodDescr CocoaGfx_Hidd_Display_descr[] =
 {
-    { (OOP_MethodFunc)CocoaGfx__Hidd_Gfx__CreateObject, moHidd_Gfx_CreateObject },
-    { (OOP_MethodFunc)CocoaGfx__Hidd_Gfx__Show,         moHidd_Gfx_Show         },
+    { (OOP_MethodFunc)CocoaGfx__Hidd_Display__CreateObject, moHidd_Display_CreateObject },
+    { (OOP_MethodFunc)CocoaGfx__Hidd_Display__Show,         moHidd_Display_Show         },
     { NULL, 0 }
 };
-#define NUM_CocoaGfx_Hidd_Gfx_METHODS 2
+#define NUM_CocoaGfx_Hidd_Display_METHODS 2
 
 struct OOP_InterfaceDescr CocoaGfx_ifdescr[] =
 {
-    { CocoaGfx_Root_descr,     IID_Root,     NUM_CocoaGfx_Root_METHODS     },
-    { CocoaGfx_Hidd_Gfx_descr, IID_Hidd_Gfx, NUM_CocoaGfx_Hidd_Gfx_METHODS },
+    { CocoaGfx_Root_descr, IID_Root, NUM_CocoaGfx_Root_METHODS },
+    { NULL, NULL, 0 }
+};
+
+struct OOP_InterfaceDescr CocoaGfx_Display_ifdescr[] =
+{
+    { CocoaGfx_Hidd_Display_descr, IID_Hidd_Display, NUM_CocoaGfx_Hidd_Display_METHODS },
     { NULL, NULL, 0 }
 };

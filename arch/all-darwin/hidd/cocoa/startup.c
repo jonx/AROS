@@ -33,6 +33,8 @@ OOP_AttrBase HiddBitMapAttrBase;
 OOP_AttrBase HiddColorMapAttrBase;
 OOP_AttrBase HiddSyncAttrBase;
 OOP_AttrBase HiddGfxAttrBase;
+OOP_AttrBase HiddDisplayAttrBase;
+OOP_AttrBase HiddDMEnumAttrBase;
 OOP_AttrBase HiddChunkyBMAttrBase;
 
 static struct OOP_ABDescr attrbases[] =
@@ -44,6 +46,8 @@ static struct OOP_ABDescr attrbases[] =
     { IID_Hidd_ColorMap, &HiddColorMapAttrBase },
     { IID_Hidd_Sync,     &HiddSyncAttrBase     },
     { IID_Hidd_Gfx,      &HiddGfxAttrBase      },
+    { IID_Hidd_Display,  &HiddDisplayAttrBase  },
+    { IID_Hidd_DMEnum,   &HiddDMEnumAttrBase   },
     { IID_Hidd_ChunkyBM, &HiddChunkyBMAttrBase },
     { NULL,              NULL                  }
 };
@@ -124,7 +128,24 @@ int main(void)
                     { TAG_DONE,             0                        }
                 };
 
+                struct TagItem CocoaDisplay_tags[] =
+                {
+                    { aMeta_SuperID,        (IPTR)CLID_Hidd_Display       },
+                    { aMeta_InterfaceDescr, (IPTR)CocoaGfx_Display_ifdescr },
+                    { aMeta_InstSize,       0                             },
+                    { aMeta_ID,             (IPTR)CLID_Hidd_Display_Cocoa },
+                    { TAG_DONE,             0                             }
+                };
+
                 xsd.gfxclass->UserData = &xsd;
+
+                /* gfx HIDD refactor: CreateObject/Show + the mode DB now live on
+                   a Hidd_Display subclass. Register it before the gfx New runs
+                   (CocoaGfx::New instantiates one from xsd.displayclass). */
+                xsd.displayclass = OOP_NewObject(NULL, CLID_HiddMeta, CocoaDisplay_tags);
+                if (xsd.displayclass)
+                    xsd.displayclass->UserData = &xsd;
+
                 xsd.bmclass = OOP_NewObject(NULL, CLID_HiddMeta, CocoaBM_tags);
                 if (xsd.bmclass)
                 {
@@ -166,6 +187,8 @@ int main(void)
                     }
                     OOP_DisposeObject((OOP_Object *)xsd.bmclass);
                 }
+                if (xsd.displayclass)
+                    OOP_DisposeObject((OOP_Object *)xsd.displayclass);
                 OOP_DisposeObject((OOP_Object *)xsd.gfxclass);
             }
             cocoa_hostlib_expunge(&xsd);

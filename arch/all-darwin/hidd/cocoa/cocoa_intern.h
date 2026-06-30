@@ -122,8 +122,11 @@ struct PBInterface
 struct cocoahidd
 {
     OOP_Class          *gfxclass;        /* CocoaGfx (CLID_Hidd_Gfx subclass)  */
+    OOP_Class          *displayclass;    /* CocoaDisplay (CLID_Hidd_Display sub) */
     OOP_Class          *bmclass;         /* CocoaBM (CLID_Hidd_BitMap subclass) */
     OOP_Object         *gfxhidd;         /* the singleton gfx object           */
+    OOP_Object         *display;         /* the Hidd_Display object (modes/show) */
+    OOP_Object         *dmenum;          /* its display-mode enumerator         */
     OOP_Class          *basebm;          /* CLID_Hidd_BitMap base class         */
     APTR                hostlib;         /* hostlib.resource (HostLibBase macro) */
     APTR                cmHandle;        /* dlopen handle for cocoametal.dylib  */
@@ -169,6 +172,8 @@ struct bmdata
 /* Class IDs for the runtime-created (CLID_HiddMeta) cocoa classes. */
 #define CLID_Hidd_Gfx_Cocoa  "hidd.gfx.cocoa"
 #define IID_Hidd_Gfx_Cocoa   "hidd.gfx.cocoa"
+#define CLID_Hidd_Display_Cocoa "hidd.display.cocoa"
+#define IID_Hidd_Display_Cocoa  "hidd.display.cocoa"
 #define IID_Hidd_BitMap_Cocoa "hidd.bitmap.cocoa"
 
 /* The single driver-global state (one Cocoa display in the system). */
@@ -176,6 +181,7 @@ extern struct cocoahidd xsd;
 
 /* Class interface descriptors (defined in the class .c files). */
 extern struct OOP_InterfaceDescr CocoaGfx_ifdescr[];
+extern struct OOP_InterfaceDescr CocoaGfx_Display_ifdescr[];
 extern struct OOP_InterfaceDescr CocoaBM_ifdescr[];
 extern struct OOP_InterfaceDescr CocoaKbd_ifdescr[];
 extern struct OOP_InterfaceDescr CocoaMouse_ifdescr[];
@@ -187,6 +193,8 @@ extern OOP_AttrBase HiddAttrBase;
 extern OOP_AttrBase HiddPixFmtAttrBase;
 extern OOP_AttrBase HiddSyncAttrBase;
 extern OOP_AttrBase HiddGfxAttrBase;
+extern OOP_AttrBase HiddDisplayAttrBase;
+extern OOP_AttrBase HiddDMEnumAttrBase;
 extern OOP_AttrBase HiddBitMapAttrBase;
 extern OOP_AttrBase HiddChunkyBMAttrBase;
 extern OOP_AttrBase HiddColorMapAttrBase;

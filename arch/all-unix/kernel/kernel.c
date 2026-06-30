@@ -170,6 +170,23 @@ static void core_TrapHandler(int sig, regs_t *regs)
     bug("[KRN] Trap signal %d [h2], SysBase %p, KernelBase %p\n", sig, SysBase, KernelBase);
     PRINT_SC(regs);
 
+#ifdef FAULTADDR
+    /* The faulting data address + GPRs -- the bad pointer is in one of these, and
+     * the fault address says exactly what was touched (NULL? wild? just past a
+     * buffer?). Essential for tracking down an out-of-bounds without a sanitizer. */
+    {
+        int _r;
+        bug("[KRN] fault addr=%p ESR=%08x\n", (APTR)(IPTR)FAULTADDR(regs), (unsigned)ESR(regs));
+        for (_r = 0; _r < 28; _r += 4)
+            bug("[KRN] x%-2d=%p x%-2d=%p x%-2d=%p x%-2d=%p\n",
+                _r,   (APTR)(IPTR)Xn(regs, _r),     _r+1, (APTR)(IPTR)Xn(regs, _r+1),
+                _r+2, (APTR)(IPTR)Xn(regs, _r+2),   _r+3, (APTR)(IPTR)Xn(regs, _r+3));
+        bug("[KRN] x28=%p fp =%p lr =%p sp =%p\n",
+            (APTR)(IPTR)Xn(regs, 28), (APTR)(IPTR)FP(regs),
+            (APTR)(IPTR)LR(regs), (APTR)(IPTR)SP(regs));
+    }
+#endif
+
     /*
      * Call/jump through a NULL (or near-NULL) function pointer: the CPU is
      * executing at (near) address 0, so there is no code at the faulting PC and a

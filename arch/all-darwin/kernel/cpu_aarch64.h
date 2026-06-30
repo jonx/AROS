@@ -49,6 +49,12 @@ do {                                            \
 #define PC(context)     ((context)->uc_mcontext->__ss.__pc)
 #define CPSR(context)   ((context)->uc_mcontext->__ss.__cpsr)
 
+/* Exception state: faulting virtual address + exception syndrome. Defining
+ * FAULTADDR also signals the shared trap handler (arch/all-unix/kernel/kernel.c)
+ * to dump the fault address + GPRs -- skipped on arches that don't define it. */
+#define FAULTADDR(context) ((context)->uc_mcontext->__es.__far)
+#define ESR(context)       ((context)->uc_mcontext->__es.__esr)
+
 #define GPSTATE(context) ((context)->uc_mcontext->__ss)
 #define FPSTATE(context) ((context)->uc_mcontext->__ns)
 

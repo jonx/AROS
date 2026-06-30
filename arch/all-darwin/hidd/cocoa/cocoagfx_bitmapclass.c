@@ -29,8 +29,21 @@ void cocoa_mark_dirty(OOP_Object *bm, WORD x, WORD y, WORD width, WORD height)
 {
     WORD x2, y2;
 
-    if ((bm != xsd.visible) || width <= 0 || height <= 0)
+    if (width <= 0 || height <= 0)
         return;
+
+    /* Present only the DISPLAYABLE screen bitmap. The gfx HIDD refactor routes
+       UpdateRect through this method for many CocoaBM bitmaps -- including 32x32
+       icon image bitmaps, which carry modeid=0 (NOT vHidd_ModeID_Invalid) and so
+       would slip past a ModeID test and get presented as a tiny image on black.
+       Displayable (a real on-screen 800x600 surface) is the right gate. */
+    {
+        IPTR disp = 0;
+        OOP_GetAttr(bm, aHidd_BitMap_Displayable, &disp);
+        if (!disp)
+            return;
+    }
+    xsd.visible = bm;
 
     x2 = x + width;
     y2 = y + height;

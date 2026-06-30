@@ -19,6 +19,16 @@
 #include <ctype.h>
 #include <wchar.h>
 
+/*
+ * The static (STDC_STATIC) build stays lean: no FULL_SPECIFIERS. Since the merge
+ * of kalamatee's stdc batch, the FULL_SPECIFIERS path pulls wide-char conversion
+ * (wctomb -> wcrtomb -> ...), which is NOT in the freestanding libstdc.static.a,
+ * so force-linking a FULL_SPECIFIERS static __vcformat leaves every printf-using
+ * module with `undefined symbol: wctomb`. Keeping it gated here lets the kickstart
+ * pull a base-free lean __vcformat (boot path needs no %f). Disk-program printf
+ * "%f" via the lean static build is a known, separate TODO (would need wctomb et
+ * al. added to STDC_STATIC, or a kickstart-only -lstdc.static link type).
+ */
 #ifndef STDC_STATIC
 #define FULL_SPECIFIERS
 #endif

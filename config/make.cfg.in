@@ -282,13 +282,15 @@ CFLAGS                        = $(strip $(TARGET_ISA_CFLAGS) $(TARGET_CFLAGS) $(
 CXXFLAGS                      = $(strip $(TARGET_ISA_CXXFLAGS) $(TARGET_CXXFLAGS))
 CPPFLAGS                      = $(strip $(TARGET_CPPFLAGS))
 AFLAGS                        = $(strip $(TARGET_ISA_AFLAGS) $(USER_AFLAGS) $(CONFIG_AFLAGS))
-# Disk programs do NOT force-link -lstdc.static: they reach StdCBase via the spec's
-# weak -lstdc stubs, both for compiler-emitted mem/str and for __vcformat (so printf
-# "%f" uses the float-capable StdCBase dispatcher, not the lean STDC_STATIC build).
-# Only the freestanding kickstart link type needs the base-free static runtime, where
-# StdCBase is still NULL at early boot -- that stays in KERNEL_LDFLAGS above. Putting
-# -lstdc.static in the general LDFLAGS made its float-less __vcformat shadow StdCBase.
-LDFLAGS                       = $(strip $(USER_LDFLAGS) $(TARGET_LDFLAGS))
+# -lstdc.static: strong freestanding C runtime, force-linked before the spec's weak
+# -lstdc so compiler-emitted memset/memcpy/memmove/__vcformat/... bind to base-free
+# implementations. REQUIRED here (not just KERNEL_LDFLAGS): in a hosted build the
+# kickstart links as compiler=target via this general LDFLAGS, not KERNEL_LDFLAGS, so
+# without it kernel.resource's memset resolves to the weak StdCBase stub and derefs a
+# NULL StdCBase at early boot (SIGSEGV before [KRN]). Disk programs share this link
+# type, so __vcformat is un-gated to FULL_SPECIFIERS (see __vcformat.c) -- otherwise the
+# lean static __vcformat pulled here would print "%f" literally.
+LDFLAGS                       = $(strip $(USER_LDFLAGS) $(TARGET_LDFLAGS) -lstdc.static)
 
 # darwin-aarch64 (hosted) target specifics. These previously lived only in the
 # build dir's make.cfg and were lost whenever make.cfg was regenerated from this

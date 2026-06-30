@@ -20,6 +20,12 @@ USER_CFLAGS+=$(HOST_DEBUG)
 USER_LDFLAGS+=$(HOST_DEBUG)
 endif
 
+# The hosted bootstrap is a host loader built compiler=kernel, so it inherits
+# KERNEL_LDFLAGS -- which carries -lstdc.static for the *native* kickstart's
+# freestanding C runtime. The host toolchain has no such library (ld: library
+# 'stdc.static' not found), and the loader links host libc anyway, so strip it.
+KERNEL_LDFLAGS := $(filter-out -lstdc.static,$(KERNEL_LDFLAGS))
+
 # Allow to add host-specific options
 -include $(SRCDIR)/arch/all-$(FAMILY)/bootstrap/make.opts
 -include $(SRCDIR)/arch/all-$(ARCH)/bootstrap/make.opts

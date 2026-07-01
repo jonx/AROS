@@ -6,6 +6,8 @@
 
 #include <exec/interrupts.h>
 #include <exec/execbase.h>
+#include <exec/memory.h>
+#include <exec/semaphores.h>
 #include <aros/asmcall.h>
 #include <aros/atomic.h>
 #include <aros/symbolsets.h>
@@ -308,6 +310,88 @@ static const char *core_TaskState(UBYTE s)
     }
 }
 
+/* TRUE if p looks dereferenceable: inside one of exec's managed RAM regions.
+ * (Module .data/.bss lives outside these mmaps and is missed -- acceptable for
+ * a best-effort diagnostic.) */
+static BOOL core_DiagValidPtr(APTR p)
+{
+    struct Node *n;
+    if (!p || ((IPTR)p & 3))
+        return FALSE;
+    for (n = SysBase->MemList.lh_Head; n->ln_Succ; n = n->ln_Succ)
+    {
+        struct MemHeader *mh = (struct MemHeader *)n;
+        if (p >= (APTR)mh->mh_Lower && p < mh->mh_Upper)
+            return TRUE;
+    }
+    return FALSE;
+}
+
+/* Print cand if it is a valid NT_SIGNALSEM node not yet in seen[].
+ * tag+num form the location label: ("x", 19) => "x19", ("sp+", 0x40) => "sp+64". */
+#define DIAG_SEM_SEEN_MAX 16
+static void core_DiagSemReport(const char *tag, unsigned long num,
+                               struct SignalSemaphore *ss,
+                               struct SignalSemaphore **seen, int *nseen)
+{
+    struct Task *owner;
+    const char *sname, *oname;
+    int j;
+
+    if (!core_DiagValidPtr(ss))
+        return;
+    if (ss->ss_Link.ln_Type != NT_SIGNALSEM)
+        return;
+    for (j = 0; j < *nseen; j++)
+        if (seen[j] == ss)
+            return;
+    if (*nseen < DIAG_SEM_SEEN_MAX)
+        seen[(*nseen)++] = ss;
+
+    sname = (ss->ss_Link.ln_Name && core_DiagValidPtr(ss->ss_Link.ln_Name))
+            ? ss->ss_Link.ln_Name : "(unnamed)";
+    owner = ss->ss_Owner;
+    oname = (owner && core_DiagValidPtr(owner)
+             && owner->tc_Node.ln_Name && core_DiagValidPtr(owner->tc_Node.ln_Name))
+            ? owner->tc_Node.ln_Name : (owner ? "(?)" : "none/shared");
+
+    bug("[KRN-DIAG]     %s%lu -> semaphore %p '%s' owner=%p '%s' nest=%d queue=%d\n",
+        tag, num, ss, sname, owner, oname,
+        (int)ss->ss_NestCount, (int)ss->ss_QueueCount);
+}
+
+/*
+ * Semaphore forensics for a blocked task. InternalObtainSemaphore keeps the
+ * SignalSemaphore pointer live across its Wait() -- sometimes in a callee-saved
+ * register (x19-x28), but the compiler may spill it to the stack instead. So
+ * scan both: the saved callee-saved registers, then the blocked task's stack
+ * from its saved SP up (bounded by tc_SPUpper and a scan cap). Report every
+ * distinct word that points at a valid NT_SIGNALSEM node, with its owner --
+ * that names the other side of a deadlock.
+ */
+static void core_DiagSemCandidates(struct Task *t, struct ExceptionContext *regs)
+{
+    struct SignalSemaphore *seen[DIAG_SEM_SEEN_MAX];
+    int nseen = 0;
+    int i;
+
+    for (i = 19; i <= 28; i++)
+        core_DiagSemReport("x", i, (struct SignalSemaphore *)(IPTR)regs->x[i],
+                           seen, &nseen);
+
+    if (regs->sp && !(regs->sp & 7)
+        && (APTR)regs->sp >= t->tc_SPLower && (APTR)regs->sp < t->tc_SPUpper)
+    {
+        IPTR *sp  = (IPTR *)regs->sp;
+        IPTR *top = (IPTR *)t->tc_SPUpper;
+        if (top - sp > 2048)  /* cap the scan at 16 KB above SP */
+            top = sp + 2048;
+        for (; sp < top; sp++)
+            core_DiagSemReport("sp+", (unsigned long)((IPTR)sp - regs->sp),
+                               (struct SignalSemaphore *)*sp, seen, &nseen);
+    }
+}
+
 static void core_DiagBacktrace(IPTR pc, IPTR fp)
 {
     ULONG i;
@@ -349,6 +433,7 @@ static void core_DiagTask(struct Task *t, regs_t *live)
     {
         struct AROSCPUContext *ctx = t->tc_UnionETask.tc_ETask->et_RegFrame;
         core_DiagBacktrace((IPTR)ctx->regs.pc, (IPTR)ctx->regs.fp);
+        core_DiagSemCandidates(t, &ctx->regs);
     }
 }
 

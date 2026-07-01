@@ -31,11 +31,18 @@ extern int pthread_sigmask(int, const host_sigset_t *, host_sigset_t *);
 #define HOST_SIGVTALRM   26
 #define HOST_SIGUSR1     30
 #define HOST_SIGUSR2     31
+#if defined(__APPLE__)
+#define HOST_SIGINFO     29    /* BSD/darwin: the out-of-band task-dump signal */
+#endif
 static host_sigset_t aros_signal_mask(void)
 {
-    return (1u << (HOST_SIGALRM   - 1)) | (1u << (HOST_SIGVTALRM - 1)) |
-           (1u << (HOST_SIGIO     - 1)) | (1u << (HOST_SIGUSR1   - 1)) |
-           (1u << (HOST_SIGUSR2   - 1));
+    host_sigset_t m = (1u << (HOST_SIGALRM   - 1)) | (1u << (HOST_SIGVTALRM - 1)) |
+                      (1u << (HOST_SIGIO     - 1)) | (1u << (HOST_SIGUSR1   - 1)) |
+                      (1u << (HOST_SIGUSR2   - 1));
+#if defined(HOST_SIGINFO)
+    m |= (1u << (HOST_SIGINFO - 1));
+#endif
+    return m;
 }
 
 /* CoreFoundation run loop, declared by hand (link -framework CoreFoundation).

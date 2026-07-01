@@ -282,6 +282,105 @@ static void core_TrapHandler(int sig, regs_t *regs)
     SUPERVISOR_LEAVE;
 }
 
+#ifdef SIGINFO
+/*
+ * Out-of-band guest diagnostics. Delivered by a host signal (SIGINFO) that the
+ * bootstrap main thread blocks, so it converges on AROS's scheduler thread. Its
+ * job is to answer "what is every task doing, and where is it stuck?" WITHOUT
+ * needing a working shell -- essential when the input chain itself is
+ * deadlocked. Read-only: it walks the task lists and symbolizes each task's
+ * saved frame; it never mutates exec state. Safe in the wedged case (nothing is
+ * running to race the walk); best-effort otherwise. Triggered by
+ * `aros-ctl tasks`.
+ */
+static const char *core_TaskState(UBYTE s)
+{
+    switch (s)
+    {
+    case TS_INVALID:  return "INVALID";
+    case TS_ADDED:    return "ADDED";
+    case TS_RUN:      return "RUN";
+    case TS_READY:    return "READY";
+    case TS_WAIT:     return "WAIT";
+    case TS_EXCEPT:   return "EXCEPT";
+    case TS_REMOVED:  return "REMOVED";
+    default:          return "?";
+    }
+}
+
+static void core_DiagBacktrace(IPTR pc, IPTR fp)
+{
+    ULONG i;
+    if (pc)
+    {
+        bug("[KRN-DIAG]     pc=%p", (APTR)pc);
+        krnSymbolize(pc);
+        bug("\n");
+    }
+    for (i = 0; i < 16 && fp; i++)
+    {
+        IPTR saved_fp = ((IPTR *)fp)[0];
+        IPTR ret      = ((IPTR *)fp)[1];
+        if (!ret)
+            break;
+        bug("[KRN-DIAG]     <- %p", (APTR)ret);
+        krnSymbolize(ret);
+        bug("\n");
+        if (saved_fp <= fp || (saved_fp & 0xF))
+            break;
+        fp = saved_fp;
+    }
+}
+
+static void core_DiagTask(struct Task *t, regs_t *live)
+{
+    bug("[KRN-DIAG] task %p '%s' state=%s pri=%d sigWait=%08x sigRecvd=%08x\n",
+        t, t->tc_Node.ln_Name ? t->tc_Node.ln_Name : "(unnamed)",
+        core_TaskState(t->tc_State), (int)(BYTE)t->tc_Node.ln_Pri,
+        (unsigned)t->tc_SigWait, (unsigned)t->tc_SigRecvd);
+
+    if (live)
+    {
+        /* the running task: use the live signal frame */
+        core_DiagBacktrace(PC(live), (IPTR)FP(live));
+    }
+    else if ((t->tc_Flags & TF_ETASK) && t->tc_UnionETask.tc_ETask
+             && t->tc_UnionETask.tc_ETask->et_RegFrame)
+    {
+        struct AROSCPUContext *ctx = t->tc_UnionETask.tc_ETask->et_RegFrame;
+        core_DiagBacktrace((IPTR)ctx->regs.pc, (IPTR)ctx->regs.fp);
+    }
+}
+
+static void core_DiagHandler(int sig, regs_t *regs)
+{
+    struct Task *cur = SysBase->ThisTask;
+    struct Task *t;
+
+    bug("[KRN-DIAG] ===== task dump (signal %d) =====\n", sig);
+    bug("[KRN-DIAG] IDNestCnt=%d TDNestCnt=%d SysFlags=%04x\n",
+        (int)SysBase->IDNestCnt, (int)SysBase->TDNestCnt, (unsigned)SysBase->SysFlags);
+
+    if (cur)
+    {
+        bug("[KRN-DIAG] -- current --\n");
+        core_DiagTask(cur, regs);
+    }
+
+    bug("[KRN-DIAG] -- ready --\n");
+    for (t = (struct Task *)SysBase->TaskReady.lh_Head;
+         t->tc_Node.ln_Succ; t = (struct Task *)t->tc_Node.ln_Succ)
+        core_DiagTask(t, NULL);
+
+    bug("[KRN-DIAG] -- waiting --\n");
+    for (t = (struct Task *)SysBase->TaskWait.lh_Head;
+         t->tc_Node.ln_Succ; t = (struct Task *)t->tc_Node.ln_Succ)
+        core_DiagTask(t, NULL);
+
+    bug("[KRN-DIAG] ===== end task dump =====\n");
+}
+#endif /* SIGINFO */
+
 static void core_IRQ(int sig, regs_t *sc)
 {
     struct KernelBase *KernelBase = getKernelBase();
@@ -322,6 +421,9 @@ static void core_IRQ(int sig, regs_t *sc)
 GLOBAL_SIGNAL_INIT(core_TrapHandler)
 GLOBAL_SIGNAL_INIT(core_SysCall)
 GLOBAL_SIGNAL_INIT(core_IRQ)
+#ifdef SIGINFO
+GLOBAL_SIGNAL_INIT(core_DiagHandler)
+#endif
 
 /* libc functions that we use */
 static const char *kernel_functions[] =
@@ -480,6 +582,16 @@ int core_Start(void *libc)
     SETHANDLER(sa, core_SysCall);
     pd->iface->sigaction(SIGUSR1, &sa, NULL);
     AROS_HOST_BARRIER
+
+#ifdef SIGINFO
+    /* Out-of-band guest task dump (aros-ctl tasks). Like the SIGUSRs it must not
+     * defer itself, and the bootstrap blocks it on the host threads so it
+     * converges on AROS's thread. */
+    SETHANDLER(sa, core_DiagHandler);
+    pd->iface->sigaction(SIGINFO, &sa, NULL);
+    AROS_HOST_BARRIER
+    SIGDELSET(&pd->sig_int_mask, SIGINFO);
+#endif
 
     /* We need to start up with disabled interrupts */
     pd->iface->sigprocmask(SIG_BLOCK, &pd->sig_int_mask, NULL);

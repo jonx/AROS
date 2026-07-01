@@ -131,12 +131,38 @@ do {                                            \
 /* We emulate the AArch64 synchronous/IRQ/FIQ/SError exceptions (not softint). */
 #define EXCEPTIONS_COUNT 6
 
+/*
+ * FP/NEON save area size. A raw byte blob, NOT _STRUCT_ARM_NEON_STATE64,
+ * because kernel.resource TUs build with __AROS_EXEC_LIBRARY__ (no Apple
+ * headers, regs_t is a black box) yet still need struct AROSCPUContext.
+ * 576 >= sizeof(_STRUCT_ARM_NEON_STATE64) (520 -> 528 padded); checked at
+ * compile time below where the real type is visible.
+ */
+#define AARCH64_FPU_AREA_SIZE 576
+
 struct AROSCPUContext
 {
     struct ExceptionContext regs;
     int errno_backup;
+    /*
+     * FP/NEON save area. regs.fpuContext must point here (set by
+     * PREPARE_INITIAL_CONTEXT below, via KrnCreateContext) or SAVEREGS/
+     * RESTOREREGS silently skip q0-q31/fpsr/fpcr and every task switch leaks
+     * one task's NEON state into the next. On-stack AROSCPUContext users
+     * (core_TrapHandler) memset() the struct, leaving fpuContext NULL --
+     * there the skip is intentional and safe.
+     */
+    unsigned char fpu[AARCH64_FPU_AREA_SIZE] __attribute__((aligned(16)));
 };
+
+#define PREPARE_INITIAL_CONTEXT(ctx) ((ctx)->regs.fpuContext = (ctx)->fpu)
 
 /* Darwin arm64 has NEON/VFP. */
 #define AARCH64_FPU_TYPE FPU_VFP
 #define AARCH64_FPU_SIZE sizeof(_STRUCT_ARM_NEON_STATE64)
+
+#ifndef __AROS_EXEC_LIBRARY__
+/* The raw save area must hold the real NEON state (only checkable where the
+ * Apple type is visible). */
+typedef char __aarch64_fpu_area_fits[(AARCH64_FPU_AREA_SIZE >= (int)sizeof(_STRUCT_ARM_NEON_STATE64)) ? 1 : -1];
+#endif

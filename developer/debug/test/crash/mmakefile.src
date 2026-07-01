@@ -1,0 +1,13 @@
+# Copyright (C) 2026, The AROS Development Team. All rights reserved.
+
+include $(SRCDIR)/config/aros.cfg
+
+#MM- test : test-crashlab
+#MM- development : test-crashlab
+
+# CrashLab installs into C: (not AROS:Tests) so it can be run directly as a
+# shell command for crash-containment before/after demos: CrashLab <TRIGGER>.
+%build_prog mmake=test-crashlab progname=CrashLab \
+    files=crashlab targetdir=$(AROS_C) coverageinstr=no
+
+%common

@@ -2,7 +2,7 @@
 #define _POSIXC_STDLIB_H_
 
 /*
-    Copyright © 1995-2025, The AROS Development Team. All rights reserved.
+    Copyright ï¿½ 1995-2025, The AROS Development Team. All rights reserved.
     $Id$
 
     POSIX.1-2008 header file stdlib.h
@@ -50,6 +50,12 @@ int mkstemp(char *);
 #if defined(_GNU_SOURCE) || defined(_BSD_SOURCE)
 char *mktemp(char *);
 int getloadavg(double loadavg[], int n);
+/* arc4random_*: on a hosted build these borrow the host libc's CSPRNG via
+   hostlib.resource; on native they fall back to a weak, non-crypto source.
+   (`unsigned int` is 32-bit on AROS, i.e. the BSD `uint32_t` return.) */
+void arc4random_buf(void *buf, size_t nbytes);
+unsigned int arc4random(void);
+unsigned int arc4random_uniform(unsigned int upper_bound);
 #endif
 
 /* Deprecated or unimplemented functions (preserved) */

@@ -25,6 +25,7 @@ POSIXC := \
     access \
     alphasort \
     alphasort64 \
+    arc4random \
     asctime_r \
     basename \
     cfgetispeed \

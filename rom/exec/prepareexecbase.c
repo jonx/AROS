@@ -336,6 +336,15 @@ struct ExecBase *PrepareExecBase(struct MemHeader *mh, struct TagItem *msg)
             PrivExecBase(SysBase)->IntFlags = EXECF_StackSnoop;
 
         /*
+         * Opt-in crash containment: a CPU trap in a user task becomes a
+         * recoverable guru + RemTask of the offender instead of a dead-end
+         * alert. Default (flag absent) keeps the classic dead-end behavior.
+         */
+        opts = strcasestr(args, "containment");
+        if (opts)
+            PrivExecBase(SysBase)->IntFlags |= EXECF_Containment;
+
+        /*
          * Parse system runtime debug flags.
          * These are public. In future they will be editable by prefs program.
          * However in order to be able to turn them on during early startup,

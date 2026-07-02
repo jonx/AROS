@@ -25,6 +25,15 @@ static void Exec_CrashHandler(void)
     iet->iet_AlertFlags &= ~AF_Alert;
 
     Alert(iet->iet_AlertCode);
+
+    /*
+     * Alert() only returns for a recoverable alert, i.e. when the trap was
+     * contained (EXECF_Containment) and the user chose Continue. The task
+     * itself cannot continue: its context was abandoned at the faulting
+     * instruction (this handler was jumped to, there is nothing to return
+     * to). Remove it; the rest of the system keeps running.
+     */
+    RemTask(NULL);
 }
 
 /* In original AmigaOS the trap handler is entered in supervisor mode with the
@@ -66,9 +75,31 @@ void Exec_TrapHandler(ULONG trapNum, struct ExceptionContext *ctx)
 #endif
 {
     struct Task *ThisTask = GET_THIS_TASK;
+    BOOL contained = FALSE;
 
-    /* Our situation is deadend */
-    trapNum |= AT_DeadEnd;
+    /*
+     * Opt-in crash containment (boot argument "containment"): a CPU trap in
+     * a USER task raises a recoverable guru and removes the offending task
+     * instead of dead-ending the whole system. Requirements:
+     * - the fault must not have interrupted supervisor context. On hosted
+     *   ports KrnIsSuper() is a nesting counter and the trap handler itself
+     *   accounts for exactly one level, so > 1 means the fault hit kernel/
+     *   interrupt code; kernel faults stay dead-end (unsafe to continue).
+     * - a valid ETask (needed for the user-mode requester), and no crash
+     *   already in progress (a double-crash stays dead-end).
+     * Honest limit: a fault that corrupted shared state (no MMU isolation)
+     * may still take the system down later; containment is best-effort.
+     */
+    if ((PrivExecBase(SysBase)->IntFlags & EXECF_Containment)
+        && (KrnIsSuper() <= 1)
+        && ThisTask && (ThisTask->tc_Flags & TF_ETASK)
+        && (ThisTask->tc_State != TS_REMOVED)
+        && !(GetIntETask(ThisTask)->iet_AlertFlags & AF_Alert))
+        contained = TRUE;
+
+    /* Our situation is deadend, unless containment applies */
+    if (!contained)
+        trapNum |= AT_DeadEnd;
 
     /*
      * We must have a valid ETask in order to be able

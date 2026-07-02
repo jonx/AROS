@@ -16,6 +16,7 @@
 #include <proto/exec.h>
 #include <proto/dos.h>
 #include <exec/alerts.h>
+#include <exec/rawfmt.h>
 #include <exec/tasks.h>
 #include <dos/dostags.h>
 
@@ -25,6 +26,9 @@ static void say(const char *s)
 {
     PutStr(s);
     Flush(Output());
+    /* Mirror to the kernel debug channel (host log on hosted builds), so a
+       harness can grep the marker even when the console dies with us. */
+    NewRawDoFmt("%s", RAWFMTFUNC_SERIAL, NULL, s);
 }
 
 /* Case-insensitive ASCII compare, no libc dependency. */

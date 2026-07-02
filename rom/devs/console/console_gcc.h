@@ -281,6 +281,12 @@ struct ConsoleBase
     struct SignalSemaphore consoleTaskLock;
 
     struct Interrupt *inputHandler;
+    /* Second input handler, BELOW intuition (priority < 50). Intuition
+       delivers window events (IECLASS_SIZEWINDOW, IECLASS_REFRESHWINDOW,
+       IECLASS_CLOSEWINDOW, IECLASS_GADGETDOWN/UP) for IDCMP-less windows
+       by generating input events that only handlers below priority 50 can
+       see, so the priority-51 handler above never receives them. */
+    struct Interrupt *winEventHandler;
     struct Task *consoleTask;
     struct MsgPort *commandPort;
 

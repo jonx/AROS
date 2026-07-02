@@ -138,11 +138,18 @@ VOID consoleTaskEntry(struct ConsoleBase *ConsoleDevice)
             if (!OpenDevice("input.device", -1, (struct IORequest *)inputio,
                     0UL))
             {
-                /* Initialize the inputhandler itself */
+                /* Initialize the inputhandlers themselves */
                 ConsoleDevice->inputHandler = initCDIH(ConsoleDevice);
                 if (ConsoleDevice->inputHandler)
                 {
                     inputio->io_Data = ConsoleDevice->inputHandler;
+                    inputio->io_Command = IND_ADDHANDLER;
+
+                    DoIO((struct IORequest *)inputio);
+
+                    /* The window-event handler sits below intuition, where
+                       intuition's generated window events are visible */
+                    inputio->io_Data = ConsoleDevice->winEventHandler;
                     inputio->io_Command = IND_ADDHANDLER;
 
                     DoIO((struct IORequest *)inputio);

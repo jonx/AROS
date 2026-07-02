@@ -112,9 +112,10 @@ static void krnHaltHost(struct PlatformData *pd, int code)
 
 static void core_TrapHandler(int sig, regs_t *regs)
 {
-    static volatile int in_trap  = 0;
-    static int          loop_sig = 0;
-    static IPTR         loop_pc  = 0;
+    static volatile int in_trap   = 0;
+    static int          loop_sig  = 0;
+    static IPTR         loop_pc   = 0;
+    static struct Task *loop_task = NULL;
     struct KernelBase *KernelBase = getKernelBase();
     struct PlatformData *pd = KernelBase->kb_PlatformData;
     const struct SignalTranslation *s;
@@ -141,7 +142,12 @@ static void core_TrapHandler(int sig, regs_t *regs)
      * first dump instead of spamming. A real recovery would not re-fault at the
      * same PC, so this never fires on forward progress.
      */
-    if (fatal && sig == loop_sig && pc == loop_pc)
+    /* The task is part of the key: under the opt-in containment policy a
+     * contained (removed) task's successor CAN legitimately fault at the same
+     * pc (e.g. the same crashing program run twice); only the SAME task
+     * re-faulting at the same instruction is a no-progress loop. */
+    if (fatal && sig == loop_sig && pc == loop_pc
+        && (SysBase ? (struct Task *)SysBase->ThisTask : NULL) == loop_task)
     {
         bug("[KRN] Trap re-faulting at pc=%p (signal %d) -- unrecoverable; halting host.\n",
             (APTR)(IPTR)pc, sig);
@@ -149,8 +155,9 @@ static void core_TrapHandler(int sig, regs_t *regs)
         SUPERVISOR_LEAVE;       /* only reached if the host _exit was unavailable */
         return;
     }
-    loop_sig = sig;
-    loop_pc  = pc;
+    loop_sig  = sig;
+    loop_pc   = pc;
+    loop_task = SysBase ? (struct Task *)SysBase->ThisTask : NULL;
 
     /*
      * Re-entered while already printing a crash: a second fault hit inside the
@@ -271,14 +278,26 @@ static void core_TrapHandler(int sig, regs_t *regs)
     RESTOREREGS(&ctx, regs);
 
     /*
-     * The program counter may have been redirected by the exec trap path (into a
-     * guru/alert subroutine). Align the stack as if a return address was passed,
-     * so it stays 16-byte aligned -- necessary for x86_64, harmless elsewhere.
-     * If this fault is really a non-progressing loop, the loop breaker at the top
-     * of this handler stops the host on the next (identical) re-entry.
+     * The program counter may have been redirected by the exec trap path (into
+     * a guru/alert subroutine). Fix up the stack for the redirected entry:
+     * - x86_64: the ABI expects (%rsp + 8) % 16 == 0 at a function entry (as
+     *   if a return address was just pushed), so push a fake slot.
+     * - aarch64 (and others): SP must stay 16-byte ALIGNED at all times; the
+     *   hardware faults any SP-relative access otherwise (SP-alignment
+     *   SIGBUS, ESR EC 0x26). Do NOT subtract 8 here -- that misalignment is
+     *   exactly what used to kill Exec_CrashHandler before it could run, so
+     *   every guru turned into a re-fault halt. Just defensively re-align.
+     * If this fault is really a non-progressing loop, the loop breaker at the
+     * top of this handler stops the host on the next (identical) re-entry.
      */
     if (pc != PC(regs))
+    {
+#ifdef __x86_64__
         if ((SP(regs) & 0xf) == 0x0) SP(regs) -= 8;
+#else
+        if (SP(regs) & 0xf) SP(regs) &= ~(IPTR)0xf;
+#endif
+    }
 
     in_trap = 0;
     SUPERVISOR_LEAVE;

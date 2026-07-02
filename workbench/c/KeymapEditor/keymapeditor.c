@@ -35,7 +35,9 @@ struct GfxBase       *GfxBase;
 struct Library       *KeymapBase;
 
 static struct KeyMap *gKM;          /* our writable default keymap */
+static struct KeyMap *gOrig = NULL; /* the original default keymap (for revert-all) */
 static int            gSel = -1;    /* selected key as (row<<8)|col, or -1 */
+static UWORD          gLastCode = 0;/* last key code received (shown in the status line) */
 
 /* --- keyboard layout: the main alphanumeric block, by rawkey code ---------- */
 
@@ -57,7 +59,7 @@ static const struct Row rows[4] =
 #define KEYH 32
 #define GAP   3
 #define MX   12
-#define MY   30
+#define MY   44
 
 /* read the character rawkey rk produces under qualifier qual, via our keymap */
 static UBYTE keychar(UBYTE rk, UWORD qual)
@@ -71,7 +73,9 @@ static UBYTE keychar(UBYTE rk, UWORD qual)
     ie.ie_Code      = rk;
     ie.ie_Qualifier = qual;
     n = MapRawKey(&ie, (STRPTR)buf, sizeof(buf), gKM);
-    return (n == 1 && buf[0] >= 32 && buf[0] < 127) ? buf[0] : 0;
+    /* accept printable ASCII + Latin-1 high range (accented chars), reject
+       controls + DEL */
+    return (n == 1 && buf[0] >= 32 && buf[0] != 127) ? buf[0] : 0;
 }
 
 /* Take a private, writable copy of the default keymap and install it, so our
@@ -100,6 +104,7 @@ static BOOL takeover(void)
     km->km_HiCapsable    = old->km_HiCapsable;
     km->km_HiRepeatable  = old->km_HiRepeatable;
 
+    gOrig = old;
     gKM = km;
     SetKeyMapDefault(km);
     return TRUE;
@@ -135,6 +140,14 @@ static BOOL setkey(UBYTE rk, UWORD qual, UBYTE c)
 }
 
 static BOOL setbase(UBYTE rk, UBYTE c) { return setkey(rk, 0, c); }
+
+/* Undo every edit: re-copy the original keymap's char tables into our copy. */
+static void revertall(void)
+{
+    if (!gOrig || !gKM) return;
+    CopyMem((APTR)gOrig->km_LoKeyMap, (APTR)gKM->km_LoKeyMap, 0x40 * sizeof(IPTR));
+    CopyMem((APTR)gOrig->km_HiKeyMap, (APTR)gKM->km_HiKeyMap, 0x38 * sizeof(IPTR));
+}
 
 /* which key is under (mx,my)? returns (row<<8)|col, or -1 */
 static int hittest(struct Window *w, int mx, int my)
@@ -177,13 +190,46 @@ static void drawall(struct Window *w)
 {
     struct RastPort *rp = w->RPort;
     int bx = w->BorderLeft + MX, by = w->BorderTop + MY;
-    static const char *hint = "Click a key, then type its new character (Esc cancels). Live; close to keep.";
+    static const char *hint =
+        "Click a key, then press the character to assign. Close to keep.";
+    char st[100]; int n = 0; const char *p;
     int r, k;
 
+    /* line 1: instructions */
     SetAPen(rp, 1);
     SetDrMd(rp, JAM1);
-    Move(rp, bx, w->BorderTop + 16);
+    Move(rp, bx, w->BorderTop + 14);
     Text(rp, (STRPTR)hint, strlen(hint));
+
+    /* line 2: dynamic status, with the last key received (so you can see input
+       is reaching the editor). Cleared first so it can shrink. */
+    SetAPen(rp, 0);
+    RectFill(rp, bx, w->BorderTop + 20, bx + 532, w->BorderTop + 31);
+    SetAPen(rp, 1);
+    if (gSel >= 0)
+    {
+        int rr = gSel >> 8, kk = gSel & 0xFF; UBYTE rk = rows[rr].keys[kk];
+        UBYTE c = keychar(rk, 0);
+        p = "Editing key '"; while (*p) st[n++] = *p++;
+        st[n++] = c ? c : '?';
+        p = "' - press new char, Esc cancels."; while (*p) st[n++] = *p++;
+    }
+    else
+    {
+        p = "No key selected.  Esc undoes all edits."; while (*p) st[n++] = *p++;
+    }
+    if (gLastCode)
+    {
+        int hi = (gLastCode >> 4) & 0xf, lo = gLastCode & 0xf;
+        p = "   last key '"; while (*p) st[n++] = *p++;
+        st[n++] = (gLastCode >= 32 && gLastCode != 127) ? (char)gLastCode : '.';
+        p = "' (0x"; while (*p) st[n++] = *p++;
+        st[n++] = hi < 10 ? '0' + hi : 'a' + hi - 10;
+        st[n++] = lo < 10 ? '0' + lo : 'a' + lo - 10;
+        st[n++] = ')';
+    }
+    Move(rp, bx, w->BorderTop + 29);
+    Text(rp, st, n);
 
     for (r = 0; r < 4; r++)
     {
@@ -220,7 +266,7 @@ int main(void)
         WA_Left,   (IPTR)60,
         WA_Top,    (IPTR)40,
         WA_Width,  (IPTR)560,
-        WA_Height, (IPTR)210,
+        WA_Height, (IPTR)226,
         WA_Title,  (IPTR)"Keymap Editor",
         WA_IDCMP,  (IPTR)(IDCMP_CLOSEWINDOW | IDCMP_REFRESHWINDOW |
                           IDCMP_MOUSEBUTTONS | IDCMP_VANILLAKEY),
@@ -261,11 +307,13 @@ int main(void)
                 }
                 break;
             case IDCMP_VANILLAKEY:
-                if (code == 0x1B)           /* Esc: cancel - deselect, no remap */
+                gLastCode = code;
+                if (code == 0x1B)           /* Esc */
                 {
-                    if (gSel >= 0) { gSel = -1; drawall(win); }
+                    if (gSel >= 0) gSel = -1;   /* cancel this key's selection */
+                    else revertall();           /* nothing selected: undo all edits */
                 }
-                else if (gSel >= 0 && code >= 32 && code < 127)
+                else if (gSel >= 0 && code >= 32 && code <= 255 && code != 127)
                 {
                     int r = gSel >> 8, k = gSel & 0xFF;
                     UBYTE rk = rows[r].keys[k];
@@ -273,8 +321,8 @@ int main(void)
                         setkey(rk, IEQUALIFIER_LSHIFT, (UBYTE)code);
                     else
                         setbase(rk, (UBYTE)code);
-                    drawall(win);
                 }
+                drawall(win);               /* always redraw so the status updates */
                 break;
             }
         }

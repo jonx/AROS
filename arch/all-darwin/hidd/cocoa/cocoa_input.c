@@ -77,6 +77,10 @@ static const UWORD cocoa_keymap[128] =
     [0x38] = RAWKEY_LSHIFT,
     [0x39] = RAWKEY_CAPSLOCK, [0x3A] = RAWKEY_LALT,     [0x3B] = RAWKEY_CONTROL,
     [0x3C] = RAWKEY_RSHIFT,   [0x3D] = RAWKEY_RALT,     [0x3E] = RAWKEY_CONTROL,
+    /* Navigation cluster (kVK_Home/PageUp/ForwardDelete/End/PageDown), per
+       docs/features/cocoa-metal-display/keycode2rawkey.table. */
+    [0x73] = RAWKEY_HOME,     [0x74] = RAWKEY_PAGEUP,   [0x75] = RAWKEY_DELETE,
+    [0x77] = RAWKEY_END,      [0x79] = RAWKEY_PAGEDOWN,
     [0x7B] = RAWKEY_LEFT,     [0x7C] = RAWKEY_RIGHT,    [0x7D] = RAWKEY_DOWN,
     [0x7E] = RAWKEY_UP,
 };

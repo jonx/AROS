@@ -24,6 +24,22 @@
 #include <string.h>
 #include <stddef.h>
 
+/*
+ * Stack for each emul-handler process. The old 16384 (well under the platform
+ * default AROS_STACKSIZE) overflowed on darwin: one ExamineNext packet stacks
+ * several KB of path/name/sidecar buffers (DoExamineNext + NameToAros/hv_to_nfc
+ * + MetaRead) plus host libc frames, and hosted interrupt delivery (the SIGALRM
+ * scheduler tick, core_IRQ and any softints) runs on the interrupted task's
+ * stack too -- there is no sigaltstack. Under sustained directory-walk load the
+ * handler is almost always the current task, so ticks land on the deepest
+ * frames and push SP below tc_SPLower: core_Switch then logs "Task EMU went
+ * out of stack limits" and the spill corrupts whatever sits below the stack
+ * (the wild NULL-offset faults seen in DoExamineNext). 64 KB gives the host
+ * call path comfortable headroom; one handler process per mounted volume, so
+ * the cost is negligible.
+ */
+#define EMUL_HANDLER_STACKSIZE 65536
+
 static LONG startup(struct emulbase *emulbase)
 {
     APTR ExpansionBase;
@@ -65,7 +81,7 @@ static LONG startup(struct emulbase *emulbase)
         {
             dn->dn_SegList = CreateSegList(EmulHandlerMain);
             dn->dn_Handler = AROS_CONST_BSTR("emul-handler");
-            dn->dn_StackSize = 16384;
+            dn->dn_StackSize = EMUL_HANDLER_STACKSIZE;
             dn->dn_GlobalVec = (BPTR)-1;
 
             AddDosNode(0, ADNF_STARTPROC, dn);
@@ -122,7 +138,7 @@ static void mount_one_hostvol(APTR ExpansionBase, char *spec)
     {
         dn->dn_SegList   = CreateSegList(EmulHandlerMain);
         dn->dn_Handler   = AROS_CONST_BSTR("emul-handler");
-        dn->dn_StackSize = 16384;
+        dn->dn_StackSize = EMUL_HANDLER_STACKSIZE;
         dn->dn_GlobalVec = (BPTR)-1;
 
         AddDosNode(0, ADNF_STARTPROC, dn);

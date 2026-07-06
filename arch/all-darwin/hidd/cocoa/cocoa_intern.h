@@ -47,6 +47,7 @@ struct CMEvent                           /* INTERFACE.md §5 */
 #define CM_EV_CLOSE      4
 #define CM_EV_RESIZE     5
 #define CM_EV_SETTING    6
+#define CM_EV_WHEEL      7   /* x = horiz steps (+ = right), y = vert steps (+ = down) */
 /* CMEvent.mods bits */
 #define CM_MOD_SHIFT     (1u << 0)
 #define CM_MOD_CONTROL   (1u << 1)

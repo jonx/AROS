@@ -264,6 +264,39 @@ static void cocoa_send_mouse_position(LONG x, LONG y)
     cocoa_send_input_event(&ie);
 }
 
+/* NewMouse wheel delivery: one IECLASS_RAWKEY press per step with the NM wheel
+   rawkey (0x7A..0x7D), then a single matching release. This mirrors the in-tree
+   USB HID class (rom/usb/classes/hid) and lands on the exact path the gameport
+   wheel takes after input.device's NEWMOUSE->RAWKEY rewrite (processevents.c),
+   so Intuition delivers IDCMP_RAWKEY RAWKEY_NM_WHEEL_* to the active window --
+   what NewMouse-aware apps (and the console handler) consume. */
+static void cocoa_send_wheel_rawkey(UWORD code)
+{
+    struct InputEvent ie;
+
+    memset(&ie, 0, sizeof ie);
+    ie.ie_Class     = IECLASS_RAWKEY;
+    ie.ie_Code      = code;
+    ie.ie_Qualifier = g_keyqual | g_mousequal;
+    cocoa_send_input_event(&ie);
+}
+
+static void cocoa_send_wheel_axis(LONG steps, UWORD negcode, UWORD poscode)
+{
+    UWORD code = (steps < 0) ? negcode : poscode;
+    LONG  n    = (steps < 0) ? -steps : steps;
+
+    if (!n)
+        return;
+
+    if (n > 16)     /* cap a host burst; each step is a full input event */
+        n = 16;
+
+    while (n--)
+        cocoa_send_wheel_rawkey(code);
+    cocoa_send_wheel_rawkey(code | IECODE_UP_PREFIX);
+}
+
 static void cocoa_defer_rmb_menu_pulse(LONG x, LONG y)
 {
     g_defer_rmb_pulses = 6;
@@ -454,6 +487,17 @@ static void cocoa_dispatch(struct CMEvent *e)
                active state. */
             if (e->pressed && code == IECODE_RBUTTON)
                 cocoa_defer_rmb_menu_pulse(e->x, e->y);
+        }
+        break;
+
+    case CM_EV_WHEEL:
+        if (g_inputio)
+        {
+            /* CM_EV_WHEEL packs line steps, not a pointer position:
+               y > 0 = wheel down, x > 0 = wheel right (the gameport /
+               NewMouse sign convention -- see cocoametal.h). */
+            cocoa_send_wheel_axis(e->y, RAWKEY_NM_WHEEL_UP,   RAWKEY_NM_WHEEL_DOWN);
+            cocoa_send_wheel_axis(e->x, RAWKEY_NM_WHEEL_LEFT, RAWKEY_NM_WHEEL_RIGHT);
         }
         break;
 

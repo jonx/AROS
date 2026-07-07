@@ -9,7 +9,9 @@
     keyboard switches live, without rebooting and without injecting keystrokes
     (which would themselves be remapped by the active keymap).
 
-    Started at boot with `Run >NIL: C:KeymapWatch`.
+    Started at boot with `Run <NIL: >NIL: C:KeymapWatch`. Built with detach=yes
+    (detach.o): it loops forever, and a non-detached CLI child would keep the
+    boot console window open in front of the desktop after EndCLI.
 */
 
 #include <exec/types.h>

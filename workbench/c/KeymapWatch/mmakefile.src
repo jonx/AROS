@@ -12,8 +12,11 @@ USER_CFLAGS := -noposixc
 #MM- workbench-c : workbench-c-keymapwatch
 #MM workbench-c-keymapwatch : includes linklibs
 
+# detach=yes: KeymapWatch loops forever; without detach.o the Run'd CLI child
+# keeps the boot console referenced, so the boot console window never closes
+# after EndCLI and sits in front of the Wanderer desktop.
 %build_prog mmake=workbench-c-keymapwatch \
     progname=KeymapWatch targetdir=$(EXEDIR) \
-    files="$(FILES)"
+    files="$(FILES)" detach=yes
 
 %common

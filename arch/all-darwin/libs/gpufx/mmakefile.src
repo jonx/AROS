@@ -1,0 +1,20 @@
+#
+#   Generate gpufx.library -- explicit GPU 2D (scale, YUV->RGB) fronting the
+#   cocoametal shim's cm_gpu_* compute section, with a CPU fallback.
+#
+
+include $(SRCDIR)/config/aros.cfg
+
+#MM- workbench-darwin-$(CPU) : hostlibs-gpufx
+#MM hostlibs-gpufx : \
+#MM     kernel-exec-includes \
+#MM     includes-copy
+#MM- hostlibs-gpufx : linklibs
+
+USER_INCLUDES += -isystem $(GENINCDIR)
+
+%build_module mmake=hostlibs-gpufx \
+    modname=gpufx modtype=library \
+    files="gpufx_init gfxfx_available gfxfx_scale gfxfx_convertyuv420 gpufx_fallback"
+
+%common

@@ -3,11 +3,14 @@ include $(SRCDIR)/config/aros.cfg
 
 USER_LDFLAGS := -static
 
-FILES := kms_library parsekeymapseg
+FILES := kms_library parsekeymapseg akmdparse akmdload
 FUNCS := openkeymap
 
+#MM workbench-libs-kms : linklibs-romhack
+
+# romhack supplies setjmp/longjmp for the .akmd parser's error unwinding
 %build_module mmake=workbench-libs-kms \
     modname=kms modtype=library \
-    files="$(FILES) $(FUNCS)"
+    files="$(FILES) $(FUNCS)" uselibs="romhack"
 
 %common

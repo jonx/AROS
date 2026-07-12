@@ -1,8 +1,11 @@
 /*
-    Copyright (C) 2021-2025, The AROS Development Team. All rights reserved.
+    Copyright (C) 2021-2026, The AROS Development Team. All rights reserved.
 
-    Code to parse the command line options and the module config file for
-    the genmodule program
+    Desc: .akmd keymap descriptor parser for kms.library. This is the
+    mkamikeymap descriptor parser, ported to run in-library: readline()
+    hands out lines from an in-memory copy of the file (read via dos), and
+    the original exit() error paths longjmp back to akmd_ParseDescriptor().
+    Moved from workbench/c/LoadKeymap/parsedescriptor.c.
 */
 
 #include <string.h>
@@ -11,10 +14,7 @@
 #include <proto/dos.h>
 #include <dos/dosextens.h>
 
-#include "lkcompat.h"
-#include "mkamikeymap.h"
-#include "debug.h"
-
+#include "kms_akmd.h"
 typedef void FILE;   /* parser passes a dummy; readline() uses an in-memory buffer */
 
 static unsigned int     slen = 0; /* The allocation length pointed to be line */
@@ -24,12 +24,12 @@ static unsigned int     lineno = 0; /* The line number, will be increased by one
 #define TYPE_STRINGDESC (1 << 0)
 #define TYPE_DEADDESC   (1 << 1)
 
-/* The whole .akmd is read into g_data up front (see parseKeyDescriptor); this
+/* The whole .akmd is read into g_data up front (see akmd_ParseDescriptor); this
    hands out one NUL-terminated line at a time, EOL stripped. descf is ignored. */
-char    *g_data = NULL;
-IPTR     g_dlen = 0, g_dpos = 0;
+static char *g_data = NULL;
+static IPTR g_dlen = 0, g_dpos = 0;
 
-char *readline(FILE *descf)
+static char *readline(FILE *descf)
 {
     IPTR start, end, len;
     (void)descf;
@@ -60,7 +60,7 @@ char *readline(FILE *descf)
     return line;
 }
 
-BOOL processSectConfig(struct config *cfg, FILE *descf)
+static BOOL processSectConfig(struct akmd_config *cfg, FILE *descf)
 {
     char *s;
 
@@ -99,7 +99,7 @@ BOOL processSectConfig(struct config *cfg, FILE *descf)
     return FALSE;
 }
 
-void GetEncodedChar(char *s, UBYTE *dchar, ULONG *len)
+static void GetEncodedChar(char *s, UBYTE *dchar, ULONG *len)
 {
     *len = 0;
     if (s[0] == '\\')
@@ -169,7 +169,7 @@ void GetEncodedChar(char *s, UBYTE *dchar, ULONG *len)
     }
 }
 
-void GetEncodedBytes(char *s, UBYTE *strbuffer, ULONG *count)
+static void GetEncodedBytes(char *s, UBYTE *strbuffer, ULONG *count)
 {
     BOOL done = FALSE;
     char *ptr = s, *nxt, c;
@@ -221,7 +221,7 @@ void GetEncodedBytes(char *s, UBYTE *strbuffer, ULONG *count)
     }
 }
 
-BOOL processSectString(struct config *cfg, FILE *descf)
+static BOOL processSectString(struct akmd_config *cfg, FILE *descf)
 {
     UBYTE strbuffer[256], *buffptr;
     ULONG bcount, count = 0;
@@ -278,7 +278,7 @@ BOOL processSectString(struct config *cfg, FILE *descf)
         )
         tmp = (char *)((IPTR)strNode + sizeof(struct Node));
         strNode->ln_Name = tmp;
-        sprintf(strNode->ln_Name, "%s", id);
+        strcpy(strNode->ln_Name, id);
         tmp = (char *)((IPTR)strNode->ln_Name + strlen(strNode->ln_Name) + 1);
         memcpy(tmp, strbuffer, count);
         strNode->ln_Type = TYPE_STRINGDESC;
@@ -290,7 +290,7 @@ BOOL processSectString(struct config *cfg, FILE *descf)
     return retval;
 }
 
-BOOL processSectDeadkey(struct config *cfg, FILE *descf)
+static BOOL processSectDeadkey(struct akmd_config *cfg, FILE *descf)
 {
     UBYTE dkbuffer[256], *buffptr;
     ULONG bcount, count = 0;
@@ -347,7 +347,7 @@ BOOL processSectDeadkey(struct config *cfg, FILE *descf)
         )
         tmp = (char *)((IPTR)strNode + sizeof(struct Node));
         strNode->ln_Name = tmp;
-        sprintf(strNode->ln_Name, "%s", id);
+        strcpy(strNode->ln_Name, id);
         tmp = (char *)((IPTR)strNode->ln_Name + strlen(strNode->ln_Name) + 1);
         memcpy(tmp, dkbuffer, count);
         strNode->ln_Type = TYPE_DEADDESC;
@@ -359,7 +359,7 @@ BOOL processSectDeadkey(struct config *cfg, FILE *descf)
     return retval;
 }
 
-BOOL processSectTypes(struct config *cfg, FILE *descf, UBYTE *typesptr, UBYTE cnt)
+static BOOL processSectTypes(struct akmd_config *cfg, FILE *descf, UBYTE *typesptr, UBYTE cnt)
 {
     UBYTE keytypes, keyno = 0;
     char *s;
@@ -453,7 +453,7 @@ BOOL processSectTypes(struct config *cfg, FILE *descf, UBYTE *typesptr, UBYTE cn
     return FALSE;
 }
 
-IPTR FindListEntry(struct config *cfg, char *id)
+static IPTR FindListEntry(struct akmd_config *cfg, char *id)
 {
     struct Node *entry;
     ForeachNode(&cfg->KeyDesc, entry)
@@ -466,7 +466,7 @@ IPTR FindListEntry(struct config *cfg, char *id)
     return 0;
 }
 
-BOOL processSectMap(struct config *cfg, FILE *descf, IPTR *map, UBYTE *typesptr, UBYTE cnt)
+static BOOL processSectMap(struct akmd_config *cfg, FILE *descf, IPTR *map, UBYTE *typesptr, UBYTE cnt)
 {
     int i = 0;
     char *s;
@@ -529,7 +529,7 @@ BOOL processSectMap(struct config *cfg, FILE *descf, IPTR *map, UBYTE *typesptr,
     return FALSE;
 }
 
-BOOL processSectCapsRep(struct config *cfg, FILE *descf, UBYTE *flags, UBYTE cnt, BOOL ltr)
+static BOOL processSectCapsRep(struct akmd_config *cfg, FILE *descf, UBYTE *flags, UBYTE cnt, BOOL ltr)
 {
     UBYTE caps, keyno = 0, rowstart;
     char *s;
@@ -601,7 +601,7 @@ BOOL processSectCapsRep(struct config *cfg, FILE *descf, UBYTE *flags, UBYTE cnt
 
 /* Parse a keymap descriptor and populate the KeyMap structure.
  */
-BOOL processDescriptor(struct config *cfg, FILE *descf)
+static BOOL processDescriptor(struct akmd_config *cfg, FILE *descf)
 {
     char *s, *s2;
 
@@ -745,15 +745,15 @@ BOOL processDescriptor(struct config *cfg, FILE *descf)
     return TRUE;
 }
 
-jmp_buf lk_errjmp;   /* exit() in the parser longjmps here (graceful parse abort) */
+jmp_buf akmd_errjmp;   /* exit() in the parser longjmps here (graceful parse abort) */
 
-BOOL parseKeyDescriptor(struct config *cfg)
+BOOL akmd_ParseDescriptor(struct akmd_config *cfg)
 {
     BOOL retval = FALSE;
     BPTR fh;
     struct FileInfoBlock *fib;
 
-    if (setjmp(lk_errjmp) != 0)
+    if (setjmp(akmd_errjmp) != 0)
         return FALSE;                       /* a parse error called exit() */
 
     fh = Open((CONST_STRPTR)cfg->descriptor, MODE_OLDFILE);
@@ -778,4 +778,13 @@ BOOL parseKeyDescriptor(struct config *cfg)
         FreeDosObject(DOS_FIB, fib);
     Close(fh);
     return retval;
+}
+
+/* Free the parser's persistent line buffer (kept across readline() calls).
+   Call after a parse, under the same lock that serializes the parse. */
+void akmd_ParseCleanup(void)
+{
+    if (line) { free(line); line = NULL; }
+    slen = 0;
+    lineno = 0;
 }

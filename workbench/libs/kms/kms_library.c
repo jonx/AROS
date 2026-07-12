@@ -110,6 +110,8 @@ static ULONG KMS_Init(struct kms_base *KMSBase)
     struct IOStdReq *ioreq;
     LONG error = TRUE;
 
+    InitSemaphore(&KMSBase->akmd_lock);
+
     KMSBase->kmr = OpenResource("keymap.resource");
     if (!KMSBase->kmr)
 	return FALSE;

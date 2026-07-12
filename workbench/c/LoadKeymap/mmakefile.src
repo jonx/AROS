@@ -4,7 +4,7 @@
 
 include $(SRCDIR)/config/aros.cfg
 
-FILES   := loadkeymap parsedescriptor
+FILES   := loadkeymap
 
 EXEDIR  := $(AROS_C)
 

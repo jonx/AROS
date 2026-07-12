@@ -1,6 +1,7 @@
 
 
 #include <exec/interrupts.h>
+#include <exec/semaphores.h>
 #include <dos/bptr.h>
 
 #include <libraries/kms.h>
@@ -16,6 +17,7 @@ struct kms_base
     BOOL active;
     APTR rom_MapRawKey;
     APTR rom_MapANSI;
+    struct SignalSemaphore akmd_lock;   /* serializes the .akmd parser */
 };
 
 /* routine to expand the keymap into le/64bit usable data */

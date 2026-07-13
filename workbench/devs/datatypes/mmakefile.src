@@ -20,6 +20,7 @@ AUDIODESCRIPTORS  := \
 PICDESCRIPTORS    := \
 			 AVIF \
 			 Degas \
+			 FFmpeg \
 			 GEMImage \
 			 HEIC \
 			 Lunapaint \

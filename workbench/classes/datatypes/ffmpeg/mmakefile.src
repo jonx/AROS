@@ -1,0 +1,26 @@
+
+include $(SRCDIR)/config/aros.cfg
+
+# libavcodec-backed picture datatype. Unlike the in-tree codec datatypes
+# (png/webp fetch+build their decoder), libavcodec is cross-built out-of-tree
+# by the host graft (aros-aarch64/hosted/ffmpeg/build-video.sh) into a sysroot;
+# point FFMPEG_SYSROOT at it. The host driver
+# aros-aarch64/hosted/ffmpeg/build-datatype.sh sets FFMPEG_SYSROOT and runs
+# `make workbench-datatypes-ffmpeg`. Default matches build-video.sh's output.
+FFMPEG_SYSROOT ?= $(TOP)/../aros-aarch64/build/ffmpeg/sysroot-video
+
+#MM- workbench-datatypes-complete: workbench-datatypes-ffmpeg
+#MM workbench-datatypes-ffmpeg : includes linklibs
+
+USER_INCLUDES := -I$(FFMPEG_SYSROOT)/include
+# -lpthread: libavutil takes a global mutex. The ffmpeg libs and stdc.static go
+# in one --start-group: libavutil references stdc math internals (e.g. tan ->
+# __ieee754_tan, which live in different stdc.static members), a circular
+# dependency the default single-pass module link order does not resolve.
+USER_LDFLAGS := -L$(FFMPEG_SYSROOT)/lib -Wl,--start-group -lavformat -lavcodec -lswscale -lswresample -lavutil -lstdc.static -Wl,--end-group -lpthread
+
+FILES := ffmpegclass mathshim
+
+%build_module mmake=workbench-datatypes-ffmpeg \
+    modname=ffmpeg modtype=datatype \
+    files=$(FILES)

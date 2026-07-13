@@ -1,0 +1,16 @@
+# DataType Description for libavcodec-decoded video shown as a still picture
+# (first frame). Routes RIFF-AVI containers to ffmpeg.datatype in the picture
+# group, so MultiView / the desktop can preview media the built-in image
+# datatypes do not cover. Priority 1 beats the movi-group AVI descriptor
+# (priority 0) so the previewable picture form wins; if ffmpeg.datatype finds
+# no video stream (e.g. a RIFF-WAVE misfile) it fails cleanly and datatypes
+# falls through to the next match.
+Name=FFmpeg
+Version=$VER: FFmpeg 1.0 (13.07.2026)
+BaseName=ffmpeg
+Pattern=#?
+Mask='R' 'I' 'F' 'F' ANY ANY ANY ANY 'A' 'V' 'I' ' '
+GroupID=pict
+ID=ffmpeg
+Flags=DTF_BINARY,DTF_CASE
+Priority=1

@@ -77,6 +77,16 @@ void Exec_ExtAlert(ULONG alertNum, APTR location, APTR stack, UBYTE type, APTR d
 
     D(bug("[exec] Alert 0x%08X, supervisor %d\n", alertNum, supervisor));
 
+    /* Unconditional breadcrumb (crash-containment): a deadend alert's Guru
+       only renders on the guest display before ColdReboot(), which reads as
+       a silent reboot from the host side. Always leave the alert number,
+       task and location in the debug log so post-mortem is possible. */
+    bug("[exec] ALERT 0x%08X task 0x%p '%s' location 0x%p%s\n",
+        alertNum, task,
+        (task && task->tc_Node.ln_Name) ? task->tc_Node.ln_Name : "<none>",
+        location,
+        (alertNum & AT_DeadEnd) ? " (DEADEND)" : "");
+
     if (task && (task->tc_Flags & TF_ETASK) && (task->tc_State != TS_REMOVED))
     {
         iet = GetIntETask(task);

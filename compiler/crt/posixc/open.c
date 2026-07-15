@@ -90,6 +90,9 @@
         va_end(ap);
     }
     
-    return __open(__getfirstfd(0), pathname, flags, mode);
+    /* -1: let __open() find and claim the first free fd atomically —
+       a __getfirstfd() result computed here could be claimed by another
+       thread before __open() reserves it. */
+    return __open(-1, pathname, flags, mode);
 } /* open */
 

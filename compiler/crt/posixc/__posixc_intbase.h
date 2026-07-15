@@ -11,6 +11,7 @@
 
 #include <libraries/posixc.h>
 #include <exec/lists.h>
+#include <exec/semaphores.h>
 #include <dos/dos.h>
 #include <devices/timer.h>
 
@@ -68,6 +69,13 @@ struct PosixCIntBase
     /* __fdesc.c */
     int fd_slots;
     struct _fdesc **fd_array;
+    /* Guards fd_array/fd_slots and every AllocPooled/FreePooled on
+       internalpool (pools are not thread-safe). pthreads share the opener's
+       base, so all of this is reachable from many tasks at once. Readers
+       (__getfdesc) obtain shared; any mutation obtains exclusive. Nesting
+       exclusive->shared/exclusive by the same task is allowed (exec
+       semaphore semantics); never obtain exclusive while holding shared. */
+    struct SignalSemaphore fd_sem;
 
     /* __upath.c */
     char *upathbuf;  /* Buffer that holds intermediate converted paths */

@@ -100,21 +100,43 @@
         return -1;
     }
 
-    pipedes[0] = __getfdslot(__getfirstfd(0));
     rdesc->fdflags = 0;
     rdesc->fcb = rfcb;
     rdesc->fcb->handle    = reader;
     rdesc->fcb->flags     = O_RDONLY;
     rdesc->fcb->opencount = 1;
-    __setfdesc(pipedes[0], rdesc);
 
-    pipedes[1] = __getfdslot(__getfirstfd(pipedes[0]));
     wdesc->fdflags = 0;
     wdesc->fcb = wfcb;
     wdesc->fcb->handle    = writer;
     wdesc->fcb->flags     = O_WRONLY;
     wdesc->fcb->opencount = 1;
-    __setfdesc(pipedes[1], wdesc);
+
+    /* Claim both slots in one atomic section (descriptors initialized
+       above) so concurrent open()/opendir() can't be handed either fd. */
+    __fdesc_lock();
+    pipedes[0] = __getfdslot(__getfirstfd(0));
+    if (pipedes[0] != -1)
+    {
+        __setfdesc(pipedes[0], rdesc);
+        pipedes[1] = __getfdslot(__getfirstfd(pipedes[0]));
+        if (pipedes[1] != -1)
+            __setfdesc(pipedes[1], wdesc);
+        else
+            __setfdesc(pipedes[0], NULL);
+    }
+    __fdesc_unlock();
+
+    if (pipedes[0] == -1 || pipedes[1] == -1)
+    {
+        Close(reader);
+        Close(writer);
+        FreeVec(rfcb);
+        FreeVec(wfcb);
+        __free_fdesc(rdesc);
+        __free_fdesc(wdesc);
+        return -1;
+    }
 
     return 0;
 }

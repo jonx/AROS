@@ -48,15 +48,30 @@
 ******************************************************************************/
 {
     fdesc *fdesc;
+    fcb *cblock;
+    int lastclose;
 
+    /* Atomic bookkeeping: lookup, unhook the slot and drop the share
+       count in one section, so a concurrent close()/dup2() of the same
+       fd can't double-free, and no reader can fetch the fdesc after it
+       is on its way to the pool (the old code freed the fdesc *before*
+       clearing the slot). The blocking DOS Close()/UnLock() stays
+       outside the lock. */
+    __fdesc_lock();
     if (!(fdesc = __getfdesc(fd)))
     {
+        __fdesc_unlock();
         errno = EBADF;
 
         return -1;
     }
+    __setfdesc(fd, NULL);
+    cblock = fdesc->fcb;
+    lastclose = (--cblock->opencount == 0);
+    __fdesc_unlock();
+    __free_fdesc(fdesc);
 
-    if (--fdesc->fcb->opencount == 0)
+    if (lastclose)
     {
         /* Due to a *stupid* behaviour of the dos.library we cannot handle closing failures cleanly :-(
         if (
@@ -74,24 +89,21 @@
         /* Since the dos.library destroys the file handle anyway, even if the closing fails, we cannot
            report the error code correctly, so just close the file and get out of here */
 
-        if (!(fdesc->fcb->privflags & _FCB_DONTCLOSE_FH))
+        if (!(cblock->privflags & _FCB_DONTCLOSE_FH))
         {
             // don't close directories because we don't Open() them.
-            if (fdesc->fcb->privflags & _FCB_ISDIR)
+            if (cblock->privflags & _FCB_ISDIR)
             {
-                UnLock(fdesc->fcb->handle);
+                UnLock(cblock->handle);
             }
             else
             {
-                Close(fdesc->fcb->handle);
+                Close(cblock->handle);
             }
         }
 
-        FreeVec(fdesc->fcb);
+        FreeVec(cblock);
     }
-
-    __free_fdesc(fdesc);
-    __setfdesc(fd, NULL);
 
     return 0;
 } /* close */

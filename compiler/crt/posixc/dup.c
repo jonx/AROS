@@ -55,6 +55,14 @@
 
 ******************************************************************************/
 {
-    return dup2(oldfd, __getfirstfd(0));
+    int newfd;
+
+    /* Hold the fd lock across find + claim so another thread can't take
+       the slot in between (dup2's own locking nests under ours). */
+    __fdesc_lock();
+    newfd = dup2(oldfd, __getfirstfd(0));
+    __fdesc_unlock();
+
+    return newfd;
 }
 

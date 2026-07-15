@@ -47,13 +47,42 @@ static void __set_errno(struct PosixCIntBase *PosixCBase, int enval)
     }
 }
 
-/* TODO: Add locking to make filedesc usage thread safe
-   Using vfork()+exec*() filedescriptors may be shared between different
-   tasks. Only one DOS file handle is used between shared file descriptors.
-   DOS file handles are not thread safe so we should add it here to make it
-   thread safe.
-   Possible implementation should look carefully at performance impact.
-*/
+/* Thread safety (T-FDLOCK): pthreads are plain AROS processes sharing the
+   opener's PosixCIntBase, so fd_array/fd_slots and internalpool are hit
+   concurrently under multithreaded load. Unlocked, that corrupts in three
+   ways: a reader dereferences the old fd_array while a grow FreePooled()s
+   it (garbage fdesc -> garbage DOS filehandle inside a packet -> the
+   *handler* traps, e.g. emul-handler DoExamineNext+0 on hosted); two
+   openers claim the same slot (double close later); and concurrent
+   AllocPooled/FreePooled corrupt the pool free lists (wild faults in
+   unrelated DOS calls). fd_sem (in PosixCIntBase) fixes all three:
+   __getfdesc obtains it shared, every mutation obtains it exclusive, and
+   pool alloc/free for fd machinery goes through the same lock. Same-task
+   nesting exclusive->{exclusive,shared} is allowed; never obtain exclusive
+   while holding only shared. DOS I/O (Open/Close/packets) is kept outside
+   the lock on the hot paths so a slow volume can't stall every thread's
+   fd operations - the exception is the dup2-onto-occupied-slot close,
+   which is rare and correct over fast.
+
+   Still unprotected (pre-existing): errno crosstalk via the shared
+   StdCBase, and closing an fd while another thread is mid-I/O on it
+   (needs per-fcb refcounting of in-flight operations). */
+
+void __fdesc_lock(void)
+{
+    struct PosixCIntBase *PosixCBase =
+        (struct PosixCIntBase *)__aros_getbase_PosixCBase();
+
+    ObtainSemaphore(&PosixCBase->fd_sem);
+}
+
+void __fdesc_unlock(void)
+{
+    struct PosixCIntBase *PosixCBase =
+        (struct PosixCIntBase *)__aros_getbase_PosixCBase();
+
+    ReleaseSemaphore(&PosixCBase->fd_sem);
+}
 
 void __getfdarray(APTR *arrayptr, int *slotsptr)
 {
@@ -69,8 +98,10 @@ void __setfdarray(APTR array, int slots)
     struct PosixCIntBase *PosixCBase =
         (struct PosixCIntBase *)__aros_getbase_PosixCBase();
 
+    ObtainSemaphore(&PosixCBase->fd_sem);
     PosixCBase->fd_array = array;
     PosixCBase->fd_slots = slots;
+    ReleaseSemaphore(&PosixCBase->fd_sem);
 }
 
 void __setfdarraybase(struct PosixCIntBase *PosixCBase2)
@@ -78,8 +109,10 @@ void __setfdarraybase(struct PosixCIntBase *PosixCBase2)
     struct PosixCIntBase *PosixCBase =
         (struct PosixCIntBase *)__aros_getbase_PosixCBase();
 
+    ObtainSemaphore(&PosixCBase->fd_sem);
     PosixCBase->fd_array = PosixCBase2->fd_array;
     PosixCBase->fd_slots = PosixCBase2->fd_slots;
+    ReleaseSemaphore(&PosixCBase->fd_sem);
 }
 
 int __getfdslots(void)
@@ -94,8 +127,13 @@ fdesc *__getfdesc(register int fd)
 {
     struct PosixCIntBase *PosixCBase =
         (struct PosixCIntBase *)__aros_getbase_PosixCBase();
+    fdesc *desc;
 
-    return ((PosixCBase->fd_slots>fd) && (fd>=0))?PosixCBase->fd_array[fd]:NULL;
+    ObtainSemaphoreShared(&PosixCBase->fd_sem);
+    desc = ((PosixCBase->fd_slots>fd) && (fd>=0))?PosixCBase->fd_array[fd]:NULL;
+    ReleaseSemaphore(&PosixCBase->fd_sem);
+
+    return desc;
 }
 
 void __setfdesc(register int fd, fdesc *desc)
@@ -104,8 +142,11 @@ void __setfdesc(register int fd, fdesc *desc)
         (struct PosixCIntBase *)__aros_getbase_PosixCBase();
 
     /* FIXME: Check if fd is in valid range... */
+    ObtainSemaphore(&PosixCBase->fd_sem);
     PosixCBase->fd_array[fd] = desc;
+    ReleaseSemaphore(&PosixCBase->fd_sem);
 
+    /* fd.library keeps its own state; don't hold fd_sem across it. */
     if (__fdlib_available(PosixCBase)) {
         struct Library *FDBase = PosixCBase->PosixCFDBase;
         if (desc)
@@ -120,6 +161,10 @@ int __getfirstfd(register int startfd)
     struct PosixCIntBase *PosixCBase =
         (struct PosixCIntBase *)__aros_getbase_PosixCBase();
 
+    /* The result is only stable while the caller holds __fdesc_lock();
+       lock-free callers must treat it as a hint. */
+    ObtainSemaphoreShared(&PosixCBase->fd_sem);
+
     /* FIXME: Check if fd is in valid range... */
     if (!__fdlib_available(PosixCBase)) {
         for (
@@ -128,6 +173,7 @@ int __getfirstfd(register int startfd)
             startfd++
         );
 
+        ReleaseSemaphore(&PosixCBase->fd_sem);
         return startfd;
     }
 
@@ -137,8 +183,10 @@ int __getfirstfd(register int startfd)
             startfd++;
             continue;
         }
-        if (FD_Check(startfd) == 0)
+        if (FD_Check(startfd) == 0) {
+            ReleaseSemaphore(&PosixCBase->fd_sem);
             return startfd;
+        }
         startfd++;
     }
 }
@@ -149,18 +197,31 @@ int __getfdslot(int wanted_fd)
         (struct PosixCIntBase *)__aros_getbase_PosixCBase();
     LONG error;
 
+    ObtainSemaphore(&PosixCBase->fd_sem);
+
     if (wanted_fd>=PosixCBase->fd_slots)
     {
         void *tmp;
+        /* Grow geometrically: growing to exactly wanted_fd+1 made every
+           open() at the high-water mark realloc (and free) the whole
+           table - O(n^2) copying and a fresh grow for racing readers to
+           trip on. Under fd_sem the FreePooled of the old array is safe
+           (readers hold the semaphore shared). */
+        int newslots = PosixCBase->fd_slots > 0 ? PosixCBase->fd_slots : 8;
+        while (newslots <= wanted_fd)
+            newslots *= 2;
 
         /* Note: internalpool is created with MEMF_CLEAR (see __posixc_init.c),
            so AllocPooled() returns zeroed memory - the slots above the copied
            range are already NULL. Do not call memset()/other stdc helpers
            here: __getfdslot() runs during posixc OpenLib (via __init_stdfiles)
            before stdc.library's relbase is available. */
-        tmp = AllocPooled(PosixCBase->internalpool, (wanted_fd+1)*sizeof(fdesc *));
+        tmp = AllocPooled(PosixCBase->internalpool, newslots*sizeof(fdesc *));
 
-        if (!tmp) return -1;
+        if (!tmp) {
+            ReleaseSemaphore(&PosixCBase->fd_sem);
+            return -1;
+        }
 
         if (PosixCBase->fd_array)
         {
@@ -170,11 +231,12 @@ int __getfdslot(int wanted_fd)
         }
 
         PosixCBase->fd_array = tmp;
-        PosixCBase->fd_slots = wanted_fd+1;
+        PosixCBase->fd_slots = newslots;
     }
     else if (wanted_fd < 0)
     {
         __set_errno(PosixCBase, EINVAL);
+        ReleaseSemaphore(&PosixCBase->fd_sem);
         return -1;
     }
     else if (PosixCBase->fd_array[wanted_fd])
@@ -195,10 +257,12 @@ int __getfdslot(int wanted_fd)
         error = FD_Reserve(wanted_fd, FD_OWNER_POSIXC, NULL);
         if (error) {
             __set_errno(PosixCBase, error);
+            ReleaseSemaphore(&PosixCBase->fd_sem);
             return -1;
         }
     }
 
+    ReleaseSemaphore(&PosixCBase->fd_sem);
     return wanted_fd;
 }
 
@@ -280,7 +344,22 @@ int __open(int wanted_fd, const char *pathname, int flags, int mode)
     currdesc->fdflags = 0;
     currdesc->fcb = cblock;
 
+    /* Find + claim the slot atomically (wanted_fd == -1 means "first
+       free"), parking the still-empty fdesc in it, so a concurrent
+       open()/opendir() can never be handed the same fd. The claim
+       happens *before* the blocking DOS I/O below on purpose: holding
+       fd_sem across Lock()/Open() would let one slow volume stall every
+       thread's fd operations. Until the success path fills it in, the
+       claimed fcb reads as handle=BNULL (zeroed) - only reachable by an
+       application racing I/O on a not-yet-returned fd, which is
+       undefined anyway. */
+    __fdesc_lock();
+    if (wanted_fd == -1)
+        wanted_fd = __getfirstfd(0);
     wanted_fd = __getfdslot(wanted_fd);
+    if (wanted_fd != -1)
+        PosixCBase->fd_array[wanted_fd] = currdesc;
+    __fdesc_unlock();
     if (wanted_fd == -1) { D(bug("__open: no free fd\n")); goto err; }
     reserved_fd = 1;
 
@@ -454,11 +533,15 @@ fdesc *__alloc_fdesc(void)
     struct PosixCIntBase *PosixCBase =
         (struct PosixCIntBase *)__aros_getbase_PosixCBase();
     fdesc * desc;
-    
+
+    /* Exec pools are not thread-safe; serialize with the same lock that
+       guards the fd table (see T-FDLOCK above). */
+    ObtainSemaphore(&PosixCBase->fd_sem);
     desc = AllocPooled(PosixCBase->internalpool, sizeof(fdesc));
-    
+    ReleaseSemaphore(&PosixCBase->fd_sem);
+
     D(bug("Allocated fdesc %x from %x pool\n", desc, PosixCBase->internalpool));
-    
+
     return desc;
 }
 
@@ -468,7 +551,9 @@ void __free_fdesc(fdesc *desc)
         (struct PosixCIntBase *)__aros_getbase_PosixCBase();
 
     D(bug("Freeing fdesc %x from %x pool\n", desc, PosixCBase->internalpool));
+    ObtainSemaphore(&PosixCBase->fd_sem);
     FreePooled(PosixCBase->internalpool, desc, sizeof(fdesc));
+    ReleaseSemaphore(&PosixCBase->fd_sem);
 }
 
 static void stderrlogic(struct Process *me, fcb *fcb)

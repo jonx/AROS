@@ -9,6 +9,7 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include "__stdio.h"
+#include "__fdesc.h"
 
 #include "__posixc_intbase.h"
 
@@ -54,9 +55,13 @@
         return EOF;
 
     fn = FILE2FILENODE (stream);
-    Remove ((struct Node *)fn);
 
+    /* internalpool is shared with the fd machinery and exec pools are
+       not thread-safe; the stdio_files list is equally unguarded. */
+    __fdesc_lock();
+    Remove ((struct Node *)fn);
     FreePooled(PosixCBase->internalpool, fn, sizeof(FILENODE));
+    __fdesc_unlock();
 
     return 0;
 } /* fclose */

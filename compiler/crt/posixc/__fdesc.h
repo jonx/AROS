@@ -2,7 +2,7 @@
 #define ___FDESC_H
 
 /*
-    Copyright © 1995-2020, The AROS Development Team. All rights reserved.
+    Copyright ï¿½ 1995-2020, The AROS Development Team. All rights reserved.
     $Id$
 
     Desc: file descriptors handling internals - header file
@@ -44,6 +44,12 @@ typedef struct _fdesc
 } fdesc;
 
 struct PosixCIntBase;
+/* fd-table/pool lock (PosixCIntBase->fd_sem, exclusive). Nestable by the
+   same task; take it around find-a-free-slot + claim sequences so two
+   threads can never claim the same fd. All primitives below lock
+   internally; calling them with the lock already held is fine. */
+void __fdesc_lock(void);
+void __fdesc_unlock(void);
 int __getfdslots(void);
 void __getfdarray(APTR *arrayptr, int *slotsptr);
 void __setfdarray(APTR array, int slots);

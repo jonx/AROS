@@ -139,8 +139,18 @@
     desc->fcb->opencount = 1;
     desc->fcb->privflags |= _FCB_ISDIR;
 
+    /* Find + claim atomically so a concurrent open()/opendir() can't be
+       handed the same slot. desc is fully initialized above. */
+    __fdesc_lock();
     fd = __getfdslot(__getfirstfd(3));
-    __setfdesc(fd, desc);
+    if (fd != -1)
+        __setfdesc(fd, desc);
+    __fdesc_unlock();
+    if (fd == -1)
+    {
+        __free_fdesc(desc);
+        goto err5;
+    }
 
     dir->fd = fd;
     dir->pos = 0;

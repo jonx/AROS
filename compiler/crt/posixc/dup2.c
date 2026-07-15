@@ -68,22 +68,33 @@
 {
     fdesc *oldfdesc, *newfdesc;
 
+    /* One atomic section for lookup + claim: oldfd must not be closed
+       (and its fcb freed) between our lookup and the opencount bump, and
+       nobody may claim newfd between __getfdslot() and __setfdesc().
+       All the primitives nest under this lock. */
+    __fdesc_lock();
+
     /* Fail if old FD is invalid */
     oldfdesc = __getfdesc(oldfd);
     if (!oldfdesc)
     {
+        __fdesc_unlock();
         errno = EBADF;
         return -1;
     }
 
     /* Do nothing if FDs are identical */
     if (oldfd == newfd)
+    {
+        __fdesc_unlock();
         return newfd;
+    }
 
     /* Allocate new FD or fail */
     newfdesc = __alloc_fdesc();
     if (!newfdesc)
     {
+        __fdesc_unlock();
         errno = ENOMEM;
         return -1;
     }
@@ -99,12 +110,14 @@
         /* Reservation failed: release the descriptor we just allocated so it
            is not leaked. errno was set by __getfdslot(). */
         __free_fdesc(newfdesc);
+        __fdesc_unlock();
         return -1;
     }
 
     newfdesc->fcb->opencount++;
     __setfdesc(gotfd, newfdesc);
 
+    __fdesc_unlock();
     return gotfd;
 }
 

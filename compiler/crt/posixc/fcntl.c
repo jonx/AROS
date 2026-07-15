@@ -111,8 +111,15 @@
                 FIXME: FD_CLOEXEC must be off on the copy, once this flag
                        is supported (related to F_GETFD and F_SETFD).
             */
-            
-            return dup2(fd, __getfirstfd(arg));
+
+            /* Atomic find + claim, like dup() (dup2 nests under the lock). */
+            {
+                int newfd;
+                __fdesc_lock();
+                newfd = dup2(fd, __getfirstfd(arg));
+                __fdesc_unlock();
+                return newfd;
+            }
         }
         case F_GETFD:
             return desc->fdflags;

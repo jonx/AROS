@@ -25,6 +25,10 @@ static int __posixc_open(struct PosixCIntBase *PosixCBase)
 {
     D(bug("[posixc] %s(0x%p)\n", __func__, PosixCBase));
 
+    /* Must exist before anything touches fd_array or internalpool
+       (__init_fd runs later in the OPENLIB set). */
+    InitSemaphore(&PosixCBase->fd_sem);
+
     PosixCBase->internalpool = CreatePool(MEMF_PUBLIC|MEMF_CLEAR, 256, 256);
 
     return PosixCBase->internalpool != NULL;

@@ -39,6 +39,15 @@ AROS_LH1(ULONG, ShutdownA,
 
     Exec_DoResetCallbacks((struct IntExecBase *)SysBase, action);
 
+    /* Breadcrumb (crash-containment): a ColdReboot re-execs the bootstrap
+       and truncates the host log, so without this line a guest-initiated
+       reboot is indistinguishable from a host-level death. Log who asked. */
+    bug("[exec] ShutdownA(0x%x) task 0x%p '%s' caller %p -- host exit(0x%x)\n",
+        (unsigned)action, GET_THIS_TASK,
+        (GET_THIS_TASK && GET_THIS_TASK->tc_Node.ln_Name)
+            ? GET_THIS_TASK->tc_Node.ln_Name : "<none>",
+        __builtin_return_address(0), (unsigned)exitcode);
+
     PD(SysBase).SysIFace->exit(exitcode);
     AROS_HOST_BARRIER
 

@@ -120,12 +120,17 @@ Object *MakeCheck(STRPTR label, STRPTR help, ULONG check)
   return (obj);
 }
 
+/* Tag values must be full IPTRs: a bare int literal (e.g. String2(0,80))
+ * written to a stack-spilled vararg slot is a 32-bit store, and the tag walker
+ * reads the whole 64-bit slot -- the stale upper half then reads as a garbage
+ * pointer (crashes String__OM_NEW's strcmp on aarch64). Cast here so every
+ * caller is safe. */
 #define String2(contents,maxlen)\
   (void *)StringObject,\
     StringFrame,\
     MUIA_CycleChain, 1,\
-    MUIA_String_MaxLen  , maxlen,\
-    MUIA_String_Contents, contents,\
+    MUIA_String_MaxLen  , (IPTR)(maxlen),\
+    MUIA_String_Contents, (IPTR)(contents),\
     End
 
 #define LOAD_DATALONG(obj,attr,cfg_attr,defaultval) \

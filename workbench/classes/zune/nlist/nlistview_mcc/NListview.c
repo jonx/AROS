@@ -557,11 +557,16 @@ static IPTR mNLV_New(struct IClass *cl, Object *obj, struct opSet *msg)
     nlist = MUI_NewObject(MUIC_NList, MUIA_Dropable, dropable, TAG_MORE, msg->ops_AttrList);
   }
 
+  /* Tag values must be full IPTRs: NoFrame's MUIV_Frame_None (a plain int 0)
+   * lands in the first stack-spilled vararg slot here, where the compiler
+   * stores only 32 bits; the tag walker reads 64 and the stale upper half
+   * makes Area setup treat the frame as a spec string (strlen crash on
+   * aarch64). Spell the pair out with an IPTR-cast value. */
   obj = (Object *)DoSuperNew(cl, obj,
-    MUIA_Group_Horiz, TRUE,
-    MUIA_Group_Spacing, 0,
-    MUIA_CycleChain, cyclechain,
-    NoFrame,
+    MUIA_Group_Horiz, (IPTR)TRUE,
+    MUIA_Group_Spacing, (IPTR)0,
+    MUIA_CycleChain, (IPTR)cyclechain,
+    MUIA_Frame, (IPTR)MUIV_Frame_None,
     Child, vgroup = VGroup,
       MUIA_Group_Spacing, 0,
       Child, nlist,

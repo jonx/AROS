@@ -306,7 +306,11 @@ static int _obtain_sema_timed(struct SignalSemaphore *sema, const struct timespe
         // GetSysTime can't be used due to the timezone offset in abstime
         gettimeofday(&starttime, NULL);
         timersub(&tvabstime, &starttime, &tvabstime);
-        if (!timerisset(&tvabstime))
+        /* Negative (already past) as well as zero must report ETIMEDOUT --
+           timerisset() is true for tv_sec < 0, which would send timer.device a
+           negative tr_time. Same bug as pthread_cond_timedwait(); see the long
+           comment there. */
+        if (tvabstime.tv_sec < 0 || !timerisset(&tvabstime))
         {
             CloseTimerDevice((struct IORequest *)&timerio);
             return ETIMEDOUT;

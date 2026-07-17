@@ -54,15 +54,25 @@ int sched_yield(void)
 #endif
     Permit();
 #else
-    BYTE oldpri;
-    struct Task *task;
-
     D(bug("%s()\n", __FUNCTION__));
 
-    task = FindTask(NULL);
-    // changing the priority will trigger a reschedule
-    oldpri = SetTaskPri(task, -10);
-    SetTaskPri(task, oldpri);
+    /* Same cheap reschedule as the AmigaOS branch above: raise the pending
+     * task-switch flag and let Permit() act on it (rom/exec/permit.c calls
+     * KrnSchedule() when FLAG_SCHEDSWITCH_ISSET).
+     *
+     * This used to be a pair of SetTaskPri() calls ("changing the priority
+     * will trigger a reschedule"): SetTaskPri() is a heavyweight operation --
+     * it Forbid()s and pulls the task out of the scheduler's priority-sorted
+     * ready list and reinserts it -- and sched_yield() is *hot*. Rust's
+     * thread::yield_now() maps here, and crossbeam's Backoff::snooze() (used
+     * by every channel recv(), i.e. every idle thread-pool worker) calls it in
+     * a tight spin loop. Thousands of ready-list re-sorts per second per idle
+     * worker burned an entire CPU and churned kernel list state on a machine
+     * with one guest CPU. Setting the flag costs a few instructions and asks
+     * the scheduler the same question. */
+    Forbid();
+    SysBase->AttnResched |= ARF_AttnSwitch;
+    Permit();
 #endif
 
     return 0;

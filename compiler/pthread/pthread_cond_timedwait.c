@@ -67,7 +67,21 @@ int _pthread_cond_timedwait(pthread_cond_t *cond, pthread_mutex_t *mutex, const 
             // GetSysTime can't be used due to the timezone offset in abstime
             gettimeofday(&starttime, NULL);
             timersub(&tvabstime, &starttime, &tvabstime);
-            if (!timerisset(&tvabstime))
+            /* An already-expired deadline must report ETIMEDOUT here, and that
+               includes a NEGATIVE interval -- timerisset() only tests
+               "tv_sec || tv_usec", which is TRUE for tv_sec < 0, so the old
+               check let a past deadline through and handed timer.device a
+               SendIO with a negative tr_time.
+               This is not an edge case: the clock advances between the caller
+               computing abstime and this subtraction, so any short timeout can
+               land here. The consequences were severe -- the request fired
+               immediately, so pthread_cond_timedwait() returned instantly and
+               callers that re-wait in a loop (Rust's Thread::park_timeout(),
+               hence crossbeam recv_timeout() and any thread pool) spun at 100%
+               CPU; and feeding a negative time into timer.device's sorted
+               request list is a fine way to corrupt it, after which timers
+               stop firing system-wide and list walks fault on wild pointers. */
+            if (tvabstime.tv_sec < 0 || !timerisset(&tvabstime))
             {
                 CloseTimerDevice((struct IORequest *)&timerio);
                 return ETIMEDOUT;

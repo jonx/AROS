@@ -126,6 +126,26 @@ static int __m68k_sync_lock_test_and_set(int *v, int n)
 #define __sync_lock_release(v) __m68k_sync_lock_test_and_set(v, 0)
 #endif
 
+/* T-TIMERSHARE: timer.device is opened ONCE (in __pthread_Init_Func) and its
+ * device/unit cloned into every per-wait IORequest below -- mirroring what the
+ * __AMIGA__ branch already does with DOSBase->dl_TimeReq.
+ *
+ * The old AROS path called OpenDevice()/CloseDevice() on EVERY
+ * pthread_cond_timedwait(). That is ruinous here: Rust's
+ * Thread::park_timeout() maps onto this function, and crossbeam channel
+ * recv()/recv_timeout() -- i.e. every idle worker in a thread pool -- parks
+ * with a timeout in a backoff loop. Each Open/CloseDevice pair Forbid()s, so
+ * a handful of idle workers pinned the (single, hosted) guest CPU at ~100% in
+ * the scheduler, and the churn wedged timer.device for every other task: the
+ * UI process then blocked forever in Wait() on a timer reply that never came,
+ * with its input already queued. Reusing one open device removes both.
+ *
+ * Safe because timer.device is reentrant: each request carries its own
+ * ReplyPort, and io_Device/io_Unit are shared read-only state. */
+static struct timerequest timer_shared_io;
+static struct MsgPort     timer_shared_mp;
+static BOOL               timer_shared_ok;
+
 BOOL OpenTimerDevice(struct IORequest *io, struct MsgPort *mp, struct Task *task)
 {
     BYTE signal;
@@ -161,6 +181,15 @@ BOOL OpenTimerDevice(struct IORequest *io, struct MsgPort *mp, struct Task *task
     io->io_Error = 0;
     return TRUE;
 #else
+    /* Clone the shared open (see T-TIMERSHARE above); fall back to a private
+     * open only if the one-time open failed. */
+    if (timer_shared_ok)
+    {
+        io->io_Device = timer_shared_io.tr_node.io_Device;
+        io->io_Unit   = timer_shared_io.tr_node.io_Unit;
+        io->io_Error  = 0;
+        return TRUE;
+    }
     return !OpenDevice((STRPTR)TIMERNAME, UNIT_MICROHZ, io, 0);
 #endif
 }
@@ -180,7 +209,9 @@ void CloseTimerDevice(struct IORequest *io)
 #if defined(__AMIGA__) && !defined(__MORPHOS__)
     io->io_Device = (struct Device *)-1;
 #else
-    if (io->io_Device != NULL)
+    /* Only close a private open; the shared device (T-TIMERSHARE) is cloned
+     * into this request, not owned by it, and is closed at library exit. */
+    if (io->io_Device != NULL && !timer_shared_ok)
         CloseDevice(io);
 #endif
 
@@ -1183,6 +1214,25 @@ int __pthread_Init_Func(void)
     InitSemaphore(&thread_sem);
     InitSemaphore(&tls_sem);
 
+#if !defined(__AMIGA__) || defined(__MORPHOS__)
+    /* T-TIMERSHARE: open timer.device once for every cond-timedwait to clone.
+     * A plain reply port is enough -- we never SendIO on this request, it just
+     * carries io_Device/io_Unit. If it fails we fall back to per-call opens. */
+    memset(&timer_shared_mp, 0, sizeof(timer_shared_mp));
+    timer_shared_mp.mp_Node.ln_Type = NT_MSGPORT;
+    timer_shared_mp.mp_Flags        = PA_IGNORE;
+    timer_shared_mp.mp_SigTask      = GET_THIS_TASK;
+    NEWLIST(&timer_shared_mp.mp_MsgList);
+
+    memset(&timer_shared_io, 0, sizeof(timer_shared_io));
+    timer_shared_io.tr_node.io_Message.mn_Node.ln_Type = NT_MESSAGE;
+    timer_shared_io.tr_node.io_Message.mn_ReplyPort    = &timer_shared_mp;
+    timer_shared_io.tr_node.io_Message.mn_Length       = sizeof(timer_shared_io);
+
+    timer_shared_ok = !OpenDevice((STRPTR)TIMERNAME, UNIT_MICROHZ,
+                                  (struct IORequest *)&timer_shared_io, 0);
+#endif
+
     // reserve ID 0 for the main thread
     ThreadInfo *inf = &threads[0];
 
@@ -1215,6 +1265,16 @@ void __pthread_Exit_Func(void)
             pthread_join(i, NULL);
         }
     }
+
+#if !defined(__AMIGA__) || defined(__MORPHOS__)
+    /* T-TIMERSHARE: released only after every thread is joined above, so no
+     * cond-timedwait can still be cloning io_Device/io_Unit from it. */
+    if (timer_shared_ok)
+    {
+        CloseDevice((struct IORequest *)&timer_shared_io);
+        timer_shared_ok = FALSE;
+    }
+#endif
 }
 
 #if defined(__AROS__) || (defined(__AMIGA__) && !defined(__MORPHOS__))

@@ -256,6 +256,40 @@ void obtain_pen(Object *obj, IPTR *pen, struct MUI_PenSpec *ps)
   *pen = MUI_ObtainPen(muiRenderInfo(obj), ps, 0);
 }
 
+#if !defined(__MORPHOS__)
+#ifdef __AROS__
+/* Expand the tag list at the call site, same shape as DoSuperNewTags() in
+ * clib/alib_protos.h (spelled out here because this file builds with
+ * NO_INLINE_STDARG, which compiles that macro out): a full-width IPTR
+ * array passed to DoSuperMethodA(). The previous varargs helper went
+ * through GetTagsFromStack(), which reads every stack slot back as a
+ * 64-bit IPTR ti_Data; an int-typed tag value spilled to a stack slot is
+ * only a 32-bit store, so the slot's stale upper half turned
+ * MUIV_Frame_None into a bogus frame-spec pointer on 64-bit. */
+#include <aros/preprocessor/variadic/cast2iptr.hpp>
+#define DoSuperNew(cl, obj, ...)                                          \
+({                                                                        \
+    IPTR __args[] = { AROS_PP_VARIADIC_CAST2IPTR(__VA_ARGS__) };          \
+    struct opSet __ops = { OM_NEW, (struct TagItem *)__args, NULL };      \
+    (Object *)DoSuperMethodA((cl), (obj), (Msg)&__ops);                   \
+})
+#else
+static Object * VARARGS68K DoSuperNew(struct IClass *cl, Object *obj, ...)
+{
+  Object *rc;
+  VA_LIST args;
+
+  ENTER();
+
+  VA_START(args, obj);
+  rc = (Object *)DoSuperMethod(cl, obj, OM_NEW, VA_ARG(args, ULONG), NULL);
+  VA_END(args);
+
+  RETURN(rc);
+  return rc;
+}
+#endif
+#endif // !__MORPHOS__
 
 IPTR mNL_New(struct IClass *cl,Object *obj,struct opSet *msg)
 {
@@ -321,6 +355,9 @@ IPTR mNL_New(struct IClass *cl,Object *obj,struct opSet *msg)
   if(DragSortable)
     dropable = TRUE;
 
+  /* Created up front: nested builders (NewObject ... End) cannot sit inside
+   * the DoSuperNew() macro arguments, their parentheses are hidden inside
+   * the builder macros. */
   img_tr = MUI_NewObject(MUIC_Image,
     MUIA_FillArea,FALSE,
     MUIA_Image_Spec,img_name,
@@ -339,25 +376,13 @@ IPTR mNL_New(struct IClass *cl,Object *obj,struct opSet *msg)
     /*Child, HVSpace,*/
   End;
 
-  /* The superclass attr list is built as a real TagItem array: a varargs
-   * call cannot carry int-typed tag data on 64-bit targets (a stack-spilled
-   * int argument is a 32-bit store, but ti_Data is read back as a full
-   * IPTR, so the slot's stale upper half turns small values into garbage
-   * pointers -- MUIV_Frame_None here became a bogus frame-spec string). */
-  {
-    struct TagItem tags[] =
-    {
-      { MUIA_Group_LayoutHook, (IPTR)&NL_LayoutHookNList },
-      { MUIA_FillArea,         FALSE                     },
-      { MUIA_Dropable,         dropable                  },
-      { MUIA_Frame,            MUIV_Frame_None           },
-      { MUIA_Group_Child,      (IPTR)grp                 },
-      { TAG_MORE,              (IPTR)taglist             }
-    };
-    struct opSet method = { OM_NEW, tags, NULL };
-
-    obj = (Object *) DoSuperMethodA(cl, obj, (Msg)&method);
-  }
+  obj = (Object *) DoSuperNew(cl,obj,
+    MUIA_Group_LayoutHook, &NL_LayoutHookNList,
+    MUIA_FillArea, FALSE,
+    MUIA_Dropable, dropable,
+    NoFrame,
+    Child, grp,
+    TAG_MORE, taglist);
 
 
   if(obj == NULL || (data = INST_DATA(cl, obj)) == NULL)

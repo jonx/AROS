@@ -49,6 +49,40 @@ int _pthread_cond_timedwait(pthread_cond_t *cond, pthread_mutex_t *mutex, const 
     if (abstime)
     {
         struct timeval tvabstime;
+
+        /* Convert to a relative interval and validate it BEFORE opening the
+           timer. An already-expired deadline must report ETIMEDOUT, and that
+           includes a NEGATIVE interval -- timerisset() only tests
+           "tv_sec || tv_usec", which is TRUE for tv_sec < 0, so the old check
+           let a past deadline through and handed timer.device a SendIO with a
+           negative tr_time. This is not an edge case: the clock advances
+           between the caller computing abstime and the subtraction here, so
+           any short timeout can land expired. The consequences were severe --
+           the request fired immediately, so pthread_cond_timedwait() returned
+           instantly and callers that re-wait in a loop (Rust's
+           Thread::park_timeout(), hence crossbeam recv_timeout() and any
+           thread pool) spun at 100% CPU.
+
+           The check must come BEFORE OpenTimerDevice: the previous ordering
+           early-returned through CloseTimerDevice() with a request that was
+           never SendIO'd, and CheckIO() on a never-sent request reads as
+           "still pending" (ln_Type is NT_MESSAGE), so AbortIO() tried to
+           Remove() a node that was never linked into any list -- ln_Pred is
+           uninitialized/NULL -> bus fault in Exec Remove() (seen live under
+           load, where expired deadlines are routine). Expired now returns
+           with nothing to tear down. */
+        TIMESPEC_TO_TIMEVAL(&tvabstime, abstime);
+        if (!relative)
+        {
+            struct timeval starttime;
+            // absolute time has to be converted to relative
+            // GetSysTime can't be used due to the timezone offset in abstime
+            gettimeofday(&starttime, NULL);
+            timersub(&tvabstime, &starttime, &tvabstime);
+            if (tvabstime.tv_sec < 0 || !timerisset(&tvabstime))
+                return ETIMEDOUT;
+        }
+
         // open timer.device
         if (!OpenTimerDevice((struct IORequest *)&timerio, &timermp, task))
         {
@@ -59,34 +93,6 @@ int _pthread_cond_timedwait(pthread_cond_t *cond, pthread_mutex_t *mutex, const 
         // prepare the device command and send it
         timerio.tr_node.io_Command = TR_ADDREQUEST;
         timerio.tr_node.io_Flags = 0;
-        TIMESPEC_TO_TIMEVAL(&tvabstime, abstime);
-        if (!relative)
-        {
-            struct timeval starttime;
-            // absolute time has to be converted to relative
-            // GetSysTime can't be used due to the timezone offset in abstime
-            gettimeofday(&starttime, NULL);
-            timersub(&tvabstime, &starttime, &tvabstime);
-            /* An already-expired deadline must report ETIMEDOUT here, and that
-               includes a NEGATIVE interval -- timerisset() only tests
-               "tv_sec || tv_usec", which is TRUE for tv_sec < 0, so the old
-               check let a past deadline through and handed timer.device a
-               SendIO with a negative tr_time.
-               This is not an edge case: the clock advances between the caller
-               computing abstime and this subtraction, so any short timeout can
-               land here. The consequences were severe -- the request fired
-               immediately, so pthread_cond_timedwait() returned instantly and
-               callers that re-wait in a loop (Rust's Thread::park_timeout(),
-               hence crossbeam recv_timeout() and any thread pool) spun at 100%
-               CPU; and feeding a negative time into timer.device's sorted
-               request list is a fine way to corrupt it, after which timers
-               stop firing system-wide and list walks fault on wild pointers. */
-            if (tvabstime.tv_sec < 0 || !timerisset(&tvabstime))
-            {
-                CloseTimerDevice((struct IORequest *)&timerio);
-                return ETIMEDOUT;
-            }
-        }
         timerio.tr_time.tv_secs = tvabstime.tv_sec;
         timerio.tr_time.tv_micro = tvabstime.tv_usec;
         sigs |= (1 << timermp.mp_SigBit);

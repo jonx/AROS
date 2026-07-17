@@ -200,7 +200,22 @@ void CloseTimerDevice(struct IORequest *io)
 
     DB2(bug("%s(%p)\n", __FUNCTION__, io));
 
-    if (!CheckIO(io))
+    /* T-ABORTGUARD: a request that reaches teardown looking "pending"
+       (CheckIO false) but with unset/NULL list linkage was never actually
+       queued -- AbortIO() would Remove() through ln_Pred == NULL and bus
+       fault (seen live). Log the full state instead of crashing; the log
+       line is the diagnostic that decides where the real bug is. */
+    if (io->io_Message.mn_Node.ln_Pred == NULL
+        || io->io_Message.mn_Node.ln_Succ == NULL)
+    {
+        bug("[pthread] T-ABORTGUARD io=%p type=%d flags=%02x pred=%p succ=%p "
+            "cmd=%d err=%d -- skipping AbortIO on unlinked request\n",
+            io, (int)io->io_Message.mn_Node.ln_Type,
+            (unsigned)io->io_Flags,
+            io->io_Message.mn_Node.ln_Pred, io->io_Message.mn_Node.ln_Succ,
+            (int)io->io_Command, (int)io->io_Error);
+    }
+    else if (!CheckIO(io))
     {
         AbortIO(io);
         WaitIO(io);
@@ -290,6 +305,25 @@ static int _obtain_sema_timed(struct SignalSemaphore *sema, const struct timespe
 
     task = GET_THIS_TASK;
 
+    /* Validate the deadline BEFORE opening the timer. Negative (already past)
+       as well as zero must report ETIMEDOUT -- timerisset() is true for
+       tv_sec < 0, which would send timer.device a negative tr_time. And the
+       check must precede OpenTimerDevice: early-returning through
+       CloseTimerDevice() with a never-SendIO'd request runs AbortIO() on a
+       node that was never linked (CheckIO reads unsent as pending) -> Remove()
+       on uninitialized ln_Pred -> bus fault. Same bug pair as
+       pthread_cond_timedwait(); see the long comment there. */
+    TIMESPEC_TO_TIMEVAL(&tvabstime, abstime);
+    {
+        struct timeval starttime;
+        // absolute time has to be converted to relative
+        // GetSysTime can't be used due to the timezone offset in abstime
+        gettimeofday(&starttime, NULL);
+        timersub(&tvabstime, &starttime, &tvabstime);
+        if (tvabstime.tv_sec < 0 || !timerisset(&tvabstime))
+            return ETIMEDOUT;
+    }
+
     if (!OpenTimerDevice((struct IORequest *)&timerio, &msgport, task))
     {
         CloseTimerDevice((struct IORequest *)&timerio);
@@ -298,24 +332,6 @@ static int _obtain_sema_timed(struct SignalSemaphore *sema, const struct timespe
 
     timerio.tr_node.io_Command = TR_ADDREQUEST;
     timerio.tr_node.io_Flags = 0;
-    TIMESPEC_TO_TIMEVAL(&tvabstime, abstime);
-    //if (!relative)
-    {
-        struct timeval starttime;
-        // absolute time has to be converted to relative
-        // GetSysTime can't be used due to the timezone offset in abstime
-        gettimeofday(&starttime, NULL);
-        timersub(&tvabstime, &starttime, &tvabstime);
-        /* Negative (already past) as well as zero must report ETIMEDOUT --
-           timerisset() is true for tv_sec < 0, which would send timer.device a
-           negative tr_time. Same bug as pthread_cond_timedwait(); see the long
-           comment there. */
-        if (tvabstime.tv_sec < 0 || !timerisset(&tvabstime))
-        {
-            CloseTimerDevice((struct IORequest *)&timerio);
-            return ETIMEDOUT;
-        }
-    }
     timerio.tr_time.tv_secs = tvabstime.tv_sec;
     timerio.tr_time.tv_micro = tvabstime.tv_usec;
     SendIO((struct IORequest *)&timerio);

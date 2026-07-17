@@ -120,11 +120,8 @@ Object *MakeCheck(STRPTR label, STRPTR help, ULONG check)
   return (obj);
 }
 
-/* MUIA_String_Contents carries a pointer, so pass it with pointer width:
- * callers use String2(0,80) and a bare int 0 in a stack-spilled vararg slot
- * is a 32-bit store read back as a 64-bit ti_Data -- the stale upper half
- * turned NULL into a garbage pointer and crashed String__OM_NEW's strcmp
- * on aarch64. Same rule as passing (char *)NULL as an execl() sentinel. */
+/* MUIA_String_Contents carries a pointer; a bare int 0 vararg is not
+   pointer-sized on 64-bit targets, so cast it here */
 #define String2(contents,maxlen)\
   (void *)StringObject,\
     StringFrame,\

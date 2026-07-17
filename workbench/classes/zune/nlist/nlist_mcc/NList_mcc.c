@@ -258,14 +258,8 @@ void obtain_pen(Object *obj, IPTR *pen, struct MUI_PenSpec *ps)
 
 #if !defined(__MORPHOS__)
 #ifdef __AROS__
-/* Expand the tag list at the call site, same shape as DoSuperNewTags() in
- * clib/alib_protos.h (spelled out here because this file builds with
- * NO_INLINE_STDARG, which compiles that macro out): a full-width IPTR
- * array passed to DoSuperMethodA(). The previous varargs helper went
- * through GetTagsFromStack(), which reads every stack slot back as a
- * 64-bit IPTR ti_Data; an int-typed tag value spilled to a stack slot is
- * only a 32-bit store, so the slot's stale upper half turned
- * MUIV_Frame_None into a bogus frame-spec pointer on 64-bit. */
+/* varargs cannot carry int-typed tag data on 64-bit targets; expand the
+   tag list into a full-width IPTR array at the call site instead */
 #include <aros/preprocessor/variadic/cast2iptr.hpp>
 #define DoSuperNew(cl, obj, ...)                                          \
 ({                                                                        \
@@ -355,9 +349,6 @@ IPTR mNL_New(struct IClass *cl,Object *obj,struct opSet *msg)
   if(DragSortable)
     dropable = TRUE;
 
-  /* Created up front: nested builders (NewObject ... End) cannot sit inside
-   * the DoSuperNew() macro arguments, their parentheses are hidden inside
-   * the builder macros. */
   img_tr = MUI_NewObject(MUIC_Image,
     MUIA_FillArea,FALSE,
     MUIA_Image_Spec,img_name,

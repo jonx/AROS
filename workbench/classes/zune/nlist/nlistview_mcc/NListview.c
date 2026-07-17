@@ -452,13 +452,8 @@ static void NLV_Scrollers(Object *obj, struct NLVData *data, LONG vert, LONG hor
 
 #if !defined(__MORPHOS__)
 #ifdef __AROS__
-/* Expand the tag list at the call site (same pattern as Wanderer's
- * iconwindow.c): DoSuperNewTags() builds a full-width IPTR array from the
- * arguments and passes it to DoSuperMethodA(). The previous varargs helper
- * went through GetTagsFromStack(), which reads every stack slot back as a
- * 64-bit IPTR ti_Data; an int-typed tag value spilled to a stack slot is
- * only a 32-bit store, so the slot's stale upper half turned
- * MUIV_Frame_None into a bogus frame-spec pointer on 64-bit. */
+/* varargs cannot carry int-typed tag data on 64-bit targets; expand the
+   tag list into a full-width IPTR array at the call site instead */
 #define DoSuperNew(cl, obj, ...) DoSuperNewTags((cl), (obj), NULL, __VA_ARGS__)
 #else
 static Object * VARARGS68K DoSuperNew(struct IClass *cl, Object *obj, ...)
@@ -559,9 +554,6 @@ static IPTR mNLV_New(struct IClass *cl, Object *obj, struct opSet *msg)
     nlist = MUI_NewObject(MUIC_NList, MUIA_Dropable, dropable, TAG_MORE, msg->ops_AttrList);
   }
 
-  /* Created up front: a nested builder (VGroup ... End) cannot sit inside
-   * the DoSuperNew() macro arguments, its parentheses are hidden inside
-   * the builder macros. */
   vgroup = VGroup,
     MUIA_Group_Spacing, 0,
     Child, nlist,

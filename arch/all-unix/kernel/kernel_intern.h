@@ -51,6 +51,9 @@ struct KernelInterface
     /* Used by core_IRQ to tell whether a process-directed SIGALRM was delivered
      * to AROS's own host thread or to a foreign (libdispatch/Metal) worker. */
     void *  (*pthread_self)(void);
+    /* Used by core_IRQ to FORWARD a mis-delivered tick to AROS's thread
+     * (thread-directed signal). Async-signal-safe per POSIX. */
+    int     (*pthread_kill)(void *thread, int sig);
 #endif
 };
 

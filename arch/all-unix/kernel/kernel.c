@@ -303,6 +303,16 @@ static void core_TrapHandler(int sig, regs_t *regs)
     SUPERVISOR_LEAVE;
 }
 
+/* T-TICKPROBE: diagnostic counters for interrupt delivery. The preemption
+ * model depends on the ITIMER_REAL SIGALRM tick reaching AROS's host thread;
+ * on darwin a process-directed signal can land on any thread and the guard
+ * below drops off-thread ones on the theory that "the next tick will hit the
+ * right thread". These counters measure whether that theory holds under a
+ * CPU-bound guest task (see ClockTest / UPSTREAM-NOTES item 38). Plain
+ * volatile increments: async-signal-safe enough for a diagnostic ratio. */
+static volatile unsigned long core_irq_handled;    /* ran on AROS's thread */
+static volatile unsigned long core_irq_dropped;    /* landed elsewhere, dropped */
+
 #ifdef SIGINFO
 /*
  * Out-of-band guest diagnostics. Delivered by a host signal (SIGINFO) that the
@@ -464,6 +474,8 @@ static void core_DiagHandler(int sig, regs_t *regs)
     bug("[KRN-DIAG] ===== task dump (signal %d) =====\n", sig);
     bug("[KRN-DIAG] IDNestCnt=%d TDNestCnt=%d SysFlags=%04x\n",
         (int)SysBase->IDNestCnt, (int)SysBase->TDNestCnt, (unsigned)SysBase->SysFlags);
+    bug("[KRN-DIAG] irq ticks: handled-on-aros-thread=%lu dropped-off-thread=%lu\n",
+        core_irq_handled, core_irq_dropped);
 
     if (cur)
     {
@@ -491,19 +503,34 @@ static void core_IRQ(int sig, regs_t *sc)
 
 #ifdef HOST_OS_darwin
     /* If this process-directed signal landed on a host thread that is NOT
-     * AROS's (a libdispatch/Metal/AppKit worker), drop it: running the
-     * scheduler / touching the global SupervisorCount off AROS's thread races
-     * the real AROS task and shows up as "ObtainSemaphore called in supervisor
-     * mode!!! -> Privilege violation". The next VBlank tick (~10-20ms) is
-     * delivered to AROS's thread, so dropping this one is harmless.
-     * pthread_self() is async-signal-safe. */
+     * AROS's (a libdispatch/Metal/AppKit worker), we must not run the
+     * scheduler here: touching the global SupervisorCount off AROS's thread
+     * races the real AROS task ("ObtainSemaphore called in supervisor
+     * mode!!! -> Privilege violation").
+     *
+     * But DROPPING the tick outright broke preemption entirely: under a
+     * CPU-bound guest task, darwin delivered essentially every ITIMER_REAL
+     * SIGALRM to some other thread (measured: 0 ticks reached AROS's thread
+     * in 10s while ~237/s landed elsewhere -- T-TICKPROBE, UPSTREAM-NOTES
+     * item 38), so a task that never blocks was never preempted and wedged
+     * the whole guest (ClockTest 'pure'/'clock' hang; every "Feraille
+     * freezes" report). FORWARD the signal thread-directed instead:
+     * pthread_kill is async-signal-safe (POSIX), a pending classic signal
+     * coalesces (no storm), and if the AROS thread has it masked (guest
+     * Disable()) it stays pending and lands on the next Enable(). */
     {
         struct PlatformData *pd = KernelBase->kb_PlatformData;
         if (pd->aros_host_thread && pd->iface->pthread_self
             && pd->iface->pthread_self() != pd->aros_host_thread)
+        {
+            core_irq_dropped++;   /* T-TICKPROBE: now counts forwards */
+            if (pd->iface->pthread_kill)
+                pd->iface->pthread_kill(pd->aros_host_thread, sig);
             return;
+        }
     }
 #endif
+    core_irq_handled++;
 
     SUPERVISOR_ENTER;
 
@@ -564,6 +591,7 @@ static const char *kernel_functions[] =
 #endif
 #ifdef HOST_OS_darwin
     "pthread_self",
+    "pthread_kill",
 #endif
     NULL
 };

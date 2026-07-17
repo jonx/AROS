@@ -32,9 +32,11 @@ ACPICA_INCLUDES     := $(ACPICASRCDIR)/source/include
 
 #MM kernel-acpica-sharedlib : acpica-fetch
 # aarch64-darwin graft: ACPICA is native-x86 ACPI, not used by a hosted aarch64
-# build, and its upstream download URL is dead. Don't make the global includes
-# step depend on fetching it. (Re-enable for native PC targets.)
-# disabled: includes-copy : acpica-fetch
+# build, and its upstream download URL is dead. Don't make the includes step
+# depend on fetching it. For native PC targets, re-enable the upstream form
+# (drop the '-' so mmake activates both metatarget rules):
+#MM- ports-includes : acpica-includes-copy
+#MM- acpica-includes-copy : acpica-fetch
 
 ACPICA_BASESOURCES = \
        $(call WILDCARD, $(ACPICASRCDIR)/source/components/executer/*.c) \
@@ -98,6 +100,6 @@ INCLUDE_FILES := $(call WILDCARD, include/*.h)
 
 INCLUDE_FILES = $(call WILDCARD, $(ACPICA_INCLUDES)/*.h)
 
-%copy_includes path=acpica dir=$(ACPICA_INCLUDES)
+%copy_includes mmake=acpica-includes-copy path=acpica dir=$(ACPICA_INCLUDES)
 
 %common

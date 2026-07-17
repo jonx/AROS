@@ -450,31 +450,6 @@ static void NLV_Scrollers(Object *obj, struct NLVData *data, LONG vert, LONG hor
   LEAVE();
 }
 
-#if !defined(__MORPHOS__)
-#ifdef __AROS__
-static __attribute__ ((noinline)) Object * VARARGS68K DoSuperNew(struct IClass *cl, Object *obj, Tag tag1, ...)
-{
-    AROS_SLOWSTACKTAGS_PRE_AS(tag1, Object *)
-    retval = (Object *)DoSuperMethod(cl, obj, OM_NEW, AROS_SLOWSTACKTAGS_ARG(tag1), NULL);
-    AROS_SLOWSTACKTAGS_POST
-}
-#else
-static Object * VARARGS68K DoSuperNew(struct IClass *cl, Object *obj, ...)
-{
-  Object *rc;
-  VA_LIST args;
-
-  ENTER();
-
-  VA_START(args, obj);
-  rc = (Object *)DoSuperMethod(cl, obj, OM_NEW, VA_ARG(args, ULONG), NULL);
-  VA_END(args);
-
-  RETURN(rc);
-  return rc;
-}
-#endif
-#endif // !__MORPHOS__
 
 /* static ULONG mNLV_New(struct IClass *cl,Object *obj,Msg msg) */
 static IPTR mNLV_New(struct IClass *cl, Object *obj, struct opSet *msg)
@@ -557,22 +532,30 @@ static IPTR mNLV_New(struct IClass *cl, Object *obj, struct opSet *msg)
     nlist = MUI_NewObject(MUIC_NList, MUIA_Dropable, dropable, TAG_MORE, msg->ops_AttrList);
   }
 
-  /* Tag values must be full IPTRs: NoFrame's MUIV_Frame_None (a plain int 0)
-   * lands in the first stack-spilled vararg slot here, where the compiler
-   * stores only 32 bits; the tag walker reads 64 and the stale upper half
-   * makes Area setup treat the frame as a spec string (strlen crash on
-   * aarch64). Spell the pair out with an IPTR-cast value. */
-  obj = (Object *)DoSuperNew(cl, obj,
-    MUIA_Group_Horiz, (IPTR)TRUE,
-    MUIA_Group_Spacing, (IPTR)0,
-    MUIA_CycleChain, (IPTR)cyclechain,
-    MUIA_Frame, (IPTR)MUIV_Frame_None,
-    Child, vgroup = VGroup,
-      MUIA_Group_Spacing, 0,
-      Child, nlist,
-    TAG_DONE),
-    TAG_MORE, msg->ops_AttrList
-  );
+  vgroup = VGroup,
+    MUIA_Group_Spacing, 0,
+    Child, nlist,
+  TAG_DONE);
+
+  /* The superclass attr list is built as a real TagItem array: a varargs
+   * call cannot carry int-typed tag data on 64-bit targets (a stack-spilled
+   * int argument is a 32-bit store, but ti_Data is read back as a full
+   * IPTR, so the slot's stale upper half turns small values into garbage
+   * pointers -- MUIV_Frame_None here became a bogus frame-spec string). */
+  {
+    struct TagItem tags[] =
+    {
+      { MUIA_Group_Horiz,   TRUE                    },
+      { MUIA_Group_Spacing, 0                       },
+      { MUIA_CycleChain,    cyclechain              },
+      { MUIA_Frame,         MUIV_Frame_None         },
+      { MUIA_Group_Child,   (IPTR)vgroup            },
+      { TAG_MORE,           (IPTR)msg->ops_AttrList }
+    };
+    struct opSet method = { OM_NEW, tags, NULL };
+
+    obj = (Object *)DoSuperMethodA(cl, obj, (Msg)&method);
+  }
 
   if(obj)
   {

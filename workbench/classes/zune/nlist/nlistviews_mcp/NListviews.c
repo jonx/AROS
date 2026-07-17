@@ -120,17 +120,17 @@ Object *MakeCheck(STRPTR label, STRPTR help, ULONG check)
   return (obj);
 }
 
-/* Tag values must be full IPTRs: a bare int literal (e.g. String2(0,80))
- * written to a stack-spilled vararg slot is a 32-bit store, and the tag walker
- * reads the whole 64-bit slot -- the stale upper half then reads as a garbage
- * pointer (crashes String__OM_NEW's strcmp on aarch64). Cast here so every
- * caller is safe. */
+/* MUIA_String_Contents carries a pointer, so pass it with pointer width:
+ * callers use String2(0,80) and a bare int 0 in a stack-spilled vararg slot
+ * is a 32-bit store read back as a 64-bit ti_Data -- the stale upper half
+ * turned NULL into a garbage pointer and crashed String__OM_NEW's strcmp
+ * on aarch64. Same rule as passing (char *)NULL as an execl() sentinel. */
 #define String2(contents,maxlen)\
   (void *)StringObject,\
     StringFrame,\
     MUIA_CycleChain, 1,\
-    MUIA_String_MaxLen  , (IPTR)(maxlen),\
-    MUIA_String_Contents, (IPTR)(contents),\
+    MUIA_String_MaxLen  , maxlen,\
+    MUIA_String_Contents, (STRPTR)(contents),\
     End
 
 #define LOAD_DATALONG(obj,attr,cfg_attr,defaultval) \

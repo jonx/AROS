@@ -256,31 +256,6 @@ void obtain_pen(Object *obj, IPTR *pen, struct MUI_PenSpec *ps)
   *pen = MUI_ObtainPen(muiRenderInfo(obj), ps, 0);
 }
 
-#if !defined(__MORPHOS__)
-#ifdef __AROS__
-static __attribute__ ((noinline)) Object * VARARGS68K DoSuperNew(struct IClass *cl, Object *obj, Tag tag1, ...)
-{
-    AROS_SLOWSTACKTAGS_PRE_AS(tag1, Object *)
-    retval = (Object *)DoSuperMethod(cl, obj, OM_NEW, AROS_SLOWSTACKTAGS_ARG(tag1), NULL);
-    AROS_SLOWSTACKTAGS_POST
-}
-#else
-static Object * VARARGS68K DoSuperNew(struct IClass *cl, Object *obj, ...)
-{
-  Object *rc;
-  VA_LIST args;
-
-  ENTER();
-
-  VA_START(args, obj);
-  rc = (Object *)DoSuperMethod(cl, obj, OM_NEW, VA_ARG(args, ULONG), NULL);
-  VA_END(args);
-
-  RETURN(rc);
-  return rc;
-}
-#endif
-#endif // !__MORPHOS__
 
 IPTR mNL_New(struct IClass *cl,Object *obj,struct opSet *msg)
 {
@@ -346,33 +321,43 @@ IPTR mNL_New(struct IClass *cl,Object *obj,struct opSet *msg)
   if(DragSortable)
     dropable = TRUE;
 
-  /* Every tag and value here must be a full IPTR: past the 8th vararg the
-   * arguments spill to stack slots, where a plain int (tag constants like
-   * MUIA_Frame/Child included) is stored as 32 bits but read back as 64 --
-   * the stale upper half yields garbage tags/values (frame 0 became the
-   * "string spec" 0x100000000 and crashed Area setup on aarch64). */
-  obj = (Object *) DoSuperNew(cl,obj,
-    (IPTR)MUIA_Group_LayoutHook, (IPTR)&NL_LayoutHookNList,
-    (IPTR)MUIA_FillArea, (IPTR)FALSE,
-    (IPTR)MUIA_Dropable, (IPTR)dropable,
-    (IPTR)MUIA_Frame, (IPTR)MUIV_Frame_None,
-      (IPTR)Child, (IPTR)(grp = NewObject(NGR_Class->mcc_Class,NULL,
-        (IPTR)MUIA_Group_LayoutHook, (IPTR)&NL_LayoutHookGroup,
-        (IPTR)MUIA_FillArea, (IPTR)FALSE,
-        (IPTR)MUIA_Frame, (IPTR)MUIV_Frame_None,
-        (IPTR)Child, (IPTR)(img_tr = MUI_NewObject(MUIC_Image,
-          MUIA_FillArea,FALSE,
-          MUIA_Image_Spec,img_name,
+  img_tr = MUI_NewObject(MUIC_Image,
+    MUIA_FillArea,FALSE,
+    MUIA_Image_Spec,img_name,
 /*
- *         MUIA_Image_FontMatch, TRUE,
- *         MUIA_Font, Topaz_8,
- *         MUIA_Image_State, IDS_NORMAL,
+ *   MUIA_Image_FontMatch, TRUE,
+ *   MUIA_Font, Topaz_8,
+ *   MUIA_Image_State, IDS_NORMAL,
  */
-        End),
-        /*Child, HVSpace,*/
-      (IPTR)TAG_DONE)),
-    (IPTR)TAG_MORE, (IPTR)taglist
-  );
+  End;
+
+  grp = NewObject(NGR_Class->mcc_Class,NULL,
+    MUIA_Group_LayoutHook, &NL_LayoutHookGroup,
+    MUIA_FillArea, FALSE,
+    NoFrame,
+    Child, img_tr,
+    /*Child, HVSpace,*/
+  End;
+
+  /* The superclass attr list is built as a real TagItem array: a varargs
+   * call cannot carry int-typed tag data on 64-bit targets (a stack-spilled
+   * int argument is a 32-bit store, but ti_Data is read back as a full
+   * IPTR, so the slot's stale upper half turns small values into garbage
+   * pointers -- MUIV_Frame_None here became a bogus frame-spec string). */
+  {
+    struct TagItem tags[] =
+    {
+      { MUIA_Group_LayoutHook, (IPTR)&NL_LayoutHookNList },
+      { MUIA_FillArea,         FALSE                     },
+      { MUIA_Dropable,         dropable                  },
+      { MUIA_Frame,            MUIV_Frame_None           },
+      { MUIA_Group_Child,      (IPTR)grp                 },
+      { TAG_MORE,              (IPTR)taglist             }
+    };
+    struct opSet method = { OM_NEW, tags, NULL };
+
+    obj = (Object *) DoSuperMethodA(cl, obj, (Msg)&method);
+  }
 
 
   if(obj == NULL || (data = INST_DATA(cl, obj)) == NULL)

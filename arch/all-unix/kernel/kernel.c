@@ -339,10 +339,13 @@ static const char *core_TaskState(UBYTE s)
     }
 }
 
-/* TRUE if p looks dereferenceable: inside one of exec's managed RAM regions.
- * (Module .data/.bss lives outside these mmaps and is missed -- acceptable for
- * a best-effort diagnostic.) */
-static BOOL core_DiagValidPtr(APTR p)
+/* TRUE if [p, p+len) is fully dereferenceable: inside ONE of exec's managed
+ * RAM regions. (Module .data/.bss lives outside these mmaps and is missed --
+ * acceptable for a best-effort diagnostic.) Every pointer this dump follows
+ * is a guess about a task it did not stop; when a guess fails this check the
+ * dump must skip it, never fault -- a diagnostic that kills the task it is
+ * inspecting is worse than no diagnostic. */
+static BOOL core_DiagValidRange(APTR p, size_t len)
 {
     struct Node *n;
     if (!p || ((IPTR)p & 3))
@@ -350,10 +353,15 @@ static BOOL core_DiagValidPtr(APTR p)
     for (n = SysBase->MemList.lh_Head; n->ln_Succ; n = n->ln_Succ)
     {
         struct MemHeader *mh = (struct MemHeader *)n;
-        if (p >= (APTR)mh->mh_Lower && p < mh->mh_Upper)
+        if (p >= (APTR)mh->mh_Lower && (APTR)((UBYTE *)p + len) <= mh->mh_Upper)
             return TRUE;
     }
     return FALSE;
+}
+
+static BOOL core_DiagValidPtr(APTR p)
+{
+    return core_DiagValidRange(p, sizeof(IPTR));
 }
 
 /* Print cand if it is a valid NT_SIGNALSEM node not yet in seen[].
@@ -367,7 +375,7 @@ static void core_DiagSemReport(const char *tag, unsigned long num,
     const char *sname, *oname;
     int j;
 
-    if (!core_DiagValidPtr(ss))
+    if (!core_DiagValidRange(ss, sizeof(*ss)))
         return;
     if (ss->ss_Link.ln_Type != NT_SIGNALSEM)
         return;
@@ -380,7 +388,7 @@ static void core_DiagSemReport(const char *tag, unsigned long num,
     sname = (ss->ss_Link.ln_Name && core_DiagValidPtr(ss->ss_Link.ln_Name))
             ? ss->ss_Link.ln_Name : "(unnamed)";
     owner = ss->ss_Owner;
-    oname = (owner && core_DiagValidPtr(owner)
+    oname = (owner && core_DiagValidRange(owner, sizeof(struct Task))
              && owner->tc_Node.ln_Name && core_DiagValidPtr(owner->tc_Node.ln_Name))
             ? owner->tc_Node.ln_Name : (owner ? "(?)" : "none/shared");
 
@@ -404,6 +412,15 @@ static void core_DiagSemCandidates(struct Task *t, struct ExceptionContext *regs
     int nseen = 0;
     int i;
 
+    /* regs is a guess (a saved frame that may never have been filled in, or
+     * may be mid-write while this SIGINFO runs). Verify the whole structure
+     * is readable before touching any field. */
+    if (!core_DiagValidRange(regs, sizeof(*regs)))
+    {
+        bug("[KRN-DIAG]     (sem scan skipped: reg frame %p unreadable)\n", regs);
+        return;
+    }
+
     for (i = 19; i <= 28; i++)
         core_DiagSemReport("x", i, (struct SignalSemaphore *)(IPTR)regs->x[i],
                            seen, &nseen);
@@ -415,6 +432,14 @@ static void core_DiagSemCandidates(struct Task *t, struct ExceptionContext *regs
         IPTR *top = (IPTR *)t->tc_SPUpper;
         if (top - sp > 2048)  /* cap the scan at 16 KB above SP */
             top = sp + 2048;
+        /* tc_SPLower/Upper came from the (already-validated) Task, but the
+         * window itself must still be mapped exec RAM. */
+        if (!core_DiagValidRange(sp, (size_t)((UBYTE *)top - (UBYTE *)sp)))
+        {
+            bug("[KRN-DIAG]     (sem scan skipped: stack window %p..%p unreadable)\n",
+                sp, top);
+            return;
+        }
         for (; sp < top; sp++)
             core_DiagSemReport("sp+", (unsigned long)((IPTR)sp - regs->sp),
                                (struct SignalSemaphore *)*sp, seen, &nseen);
@@ -432,14 +457,24 @@ static void core_DiagBacktrace(IPTR pc, IPTR fp)
     }
     for (i = 0; i < 16 && fp; i++)
     {
-        IPTR saved_fp = ((IPTR *)fp)[0];
-        IPTR ret      = ((IPTR *)fp)[1];
+        IPTR saved_fp, ret;
+        /* Both words of the frame record must be readable. The first fp can
+         * legitimately point outside exec RAM (e.g. the boot task runs on the
+         * host stack) -- report and stop rather than dereference. */
+        if ((fp & 0xF) || !core_DiagValidRange((APTR)fp, 2 * sizeof(IPTR)))
+        {
+            bug("[KRN-DIAG]     <- (fp %p unreadable; backtrace unavailable)\n",
+                (APTR)fp);
+            break;
+        }
+        saved_fp = ((IPTR *)fp)[0];
+        ret      = ((IPTR *)fp)[1];
         if (!ret)
             break;
         bug("[KRN-DIAG]     <- %p", (APTR)ret);
         krnSymbolize(ret);
         bug("\n");
-        if (saved_fp <= fp || (saved_fp & 0xF))
+        if (saved_fp <= fp)
             break;
         fp = saved_fp;
     }
@@ -447,8 +482,15 @@ static void core_DiagBacktrace(IPTR pc, IPTR fp)
 
 static void core_DiagTask(struct Task *t, regs_t *live)
 {
+    if (!core_DiagValidRange(t, sizeof(struct Task)))
+    {
+        bug("[KRN-DIAG] task %p (unreadable; skipped)\n", t);
+        return;
+    }
+
     bug("[KRN-DIAG] task %p '%s' state=%s pri=%d sigWait=%08x sigRecvd=%08x\n",
-        t, t->tc_Node.ln_Name ? t->tc_Node.ln_Name : "(unnamed)",
+        t, (t->tc_Node.ln_Name && core_DiagValidPtr(t->tc_Node.ln_Name))
+           ? t->tc_Node.ln_Name : "(unnamed)",
         core_TaskState(t->tc_State), (int)(BYTE)t->tc_Node.ln_Pri,
         (unsigned)t->tc_SigWait, (unsigned)t->tc_SigRecvd);
 
@@ -457,12 +499,19 @@ static void core_DiagTask(struct Task *t, regs_t *live)
         /* the running task: use the live signal frame */
         core_DiagBacktrace(PC(live), (IPTR)FP(live));
     }
-    else if ((t->tc_Flags & TF_ETASK) && t->tc_UnionETask.tc_ETask
-             && t->tc_UnionETask.tc_ETask->et_RegFrame)
+    else if ((t->tc_Flags & TF_ETASK)
+             && core_DiagValidRange(t->tc_UnionETask.tc_ETask,
+                                    sizeof(struct ETask))
+             && core_DiagValidRange(t->tc_UnionETask.tc_ETask->et_RegFrame,
+                                    sizeof(struct AROSCPUContext)))
     {
         struct AROSCPUContext *ctx = t->tc_UnionETask.tc_ETask->et_RegFrame;
         core_DiagBacktrace((IPTR)ctx->regs.pc, (IPTR)ctx->regs.fp);
         core_DiagSemCandidates(t, &ctx->regs);
+    }
+    else if (!live)
+    {
+        bug("[KRN-DIAG]     (no readable saved frame)\n");
     }
 }
 
@@ -483,15 +532,28 @@ static void core_DiagHandler(int sig, regs_t *regs)
         core_DiagTask(cur, regs);
     }
 
+    /* SIGINFO is async: a list can be mid-Remove/AddTail right now. Validate
+     * each node before reading its ln_Succ, and bound the walk in case a
+     * torn link forms a cycle. */
     bug("[KRN-DIAG] -- ready --\n");
-    for (t = (struct Task *)SysBase->TaskReady.lh_Head;
-         t->tc_Node.ln_Succ; t = (struct Task *)t->tc_Node.ln_Succ)
-        core_DiagTask(t, NULL);
+    {
+        int guard = 0;
+        for (t = (struct Task *)SysBase->TaskReady.lh_Head;
+             core_DiagValidRange(t, sizeof(struct Task)) && t->tc_Node.ln_Succ
+             && guard++ < 256;
+             t = (struct Task *)t->tc_Node.ln_Succ)
+            core_DiagTask(t, NULL);
+    }
 
     bug("[KRN-DIAG] -- waiting --\n");
-    for (t = (struct Task *)SysBase->TaskWait.lh_Head;
-         t->tc_Node.ln_Succ; t = (struct Task *)t->tc_Node.ln_Succ)
-        core_DiagTask(t, NULL);
+    {
+        int guard = 0;
+        for (t = (struct Task *)SysBase->TaskWait.lh_Head;
+             core_DiagValidRange(t, sizeof(struct Task)) && t->tc_Node.ln_Succ
+             && guard++ < 256;
+             t = (struct Task *)t->tc_Node.ln_Succ)
+            core_DiagTask(t, NULL);
+    }
 
     bug("[KRN-DIAG] ===== end task dump =====\n");
 }

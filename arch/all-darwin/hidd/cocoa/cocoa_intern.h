@@ -5,7 +5,7 @@
 
     The AROS side of the cocoametal display driver. It loads the host shim
     cocoametal.dylib via hostlib.resource and drives it through the frozen flat-C
-    cm_* ABI (v2, 13 symbols) documented in
+    cm_* ABI (v3, 14 symbols) documented in
     docs/features/cocoa-metal-display/INTERFACE.md. AROS owns the framebuffer
     (BGRA8); the shim shows it in an NSWindow via Metal.
 */
@@ -78,7 +78,7 @@ static inline BOOL cocoa_can_lock_hostlib(void)
     return FALSE;
 }
 
-/* The 13 cm_* host functions, in cocoametal.dylib symbol order (ABI v2,
+/* The 14 cm_* host functions, in cocoametal.dylib symbol order (ABI v3,
    INTERFACE.md §1a). Order is the HostLib_GetInterface contract: append-only. */
 struct CMInterface
 {
@@ -95,9 +95,10 @@ struct CMInterface
     int        (*cm_set_option)(CMContext *, int key, long value);
     int        (*cm_get_option)(CMContext *, int key, long *value);
     int        (*cm_open_settings)(CMContext *);
+    int        (*cm_set_mode)(CMContext *, int w, int h);
 };
 
-#define CM_ABI_VERSION 2                 /* INTERFACE.md §7 (host reports 2) */
+#define CM_ABI_VERSION 3                 /* INTERFACE.md §7 (host reports 3) */
 #define CM_DYLIB_NAME  "cocoametal.dylib"
 
 /* ---- libpasteboard.dylib ABI (the clipboard bridge, cocoa_clipboard.c). The 6
@@ -133,6 +134,7 @@ struct cocoahidd
     APTR                cmHandle;        /* dlopen handle for cocoametal.dylib  */
     struct CMInterface *cm;              /* resolved cm_* interface             */
     CMContext          *ctx;             /* host window (lazy, opened on Show)  */
+    LONG                ctx_w, ctx_h;    /* current host framebuffer mode        */
     OOP_Object         *visible;         /* currently shown bitmap              */
     BOOL                dirty;           /* visible bitmap has pending damage    */
     WORD                dirty_x1, dirty_y1, dirty_x2, dirty_y2; /* x2/y2 exclusive */
@@ -147,6 +149,11 @@ struct cocoahidd
     VOID              (*mouse_callback)(APTR, APTR);  /* mouse.hidd IrqHandler    */
     APTR                mouse_callbackdata;
     struct Task        *eventtask;       /* polls cm_pump_events every VBlank   */
+
+    /* ---- dynamic display modes: host resize/settings -> screenmode.prefs --- */
+    struct Task        *modetask;        /* prefs-writer process (DOS context)   */
+    LONG                modereq_w;       /* latest requested mode, 0 = none      */
+    LONG                modereq_h;
 
     /* ---- clipboard bridge (cocoa_clipboard.c): NSPasteboard <-> PRIMARY_CLIP --- */
     APTR                pbHandle;        /* dlopen handle for libpasteboard.dylib */

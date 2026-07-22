@@ -12,7 +12,7 @@
 
 #include "cocoa_intern.h"
 
-/* The frozen symbol list (INTERFACE.md §1a, v2). HostLib_GetInterface resolves
+/* The frozen symbol list (INTERFACE.md §1a, v3). HostLib_GetInterface resolves
  * these in order into struct CMInterface (same order = the contract). */
 static const char *const cm_symbols[] =
 {
@@ -29,6 +29,7 @@ static const char *const cm_symbols[] =
     "cm_set_option",
     "cm_get_option",
     "cm_open_settings",
+    "cm_set_mode",
     NULL
 };
 

@@ -58,22 +58,42 @@ OOP_Object *CocoaGfx__Root__New(OOP_Class *cl, OOP_Object *o, struct pRoot_New *
         { aHidd_PixFmt_BitMapType,   vHidd_BitMapType_Chunky    },
         { TAG_DONE,                  0                          }
     };
-    struct TagItem sync_mode[] =
+    /* The display mode ladder. The FIRST entry is the default monitor sync,
+       which intuition uses for the Workbench screen when no screenmode.prefs
+       exists, so 800x600 stays the boot mode. */
+    static const UWORD modes[][2] =
     {
-        { aHidd_Sync_PixelClock, 60UL * COCOA_WIDTH * COCOA_HEIGHT },
-        { aHidd_Sync_HDisp,      COCOA_WIDTH                       },
-        { aHidd_Sync_VDisp,      COCOA_HEIGHT                      },
-        { aHidd_Sync_HTotal,     COCOA_WIDTH                       },
-        { aHidd_Sync_VTotal,     COCOA_HEIGHT                      },
-        { aHidd_Sync_Description,(IPTR)"Cocoa:%hx%v"               },
-        { TAG_DONE,              0                                 }
+        {  800,  600 }, {  640,  480 }, { 1024,  768 }, { 1152,  864 },
+        { 1280,  720 }, { 1280,  800 }, { 1280, 1024 }, { 1366,  768 },
+        { 1440,  900 }, { 1600,  900 }, { 1600, 1200 }, { 1680, 1050 },
+        { 1920, 1080 }, { 1920, 1200 }, { 2560, 1440 }, { 2560, 1600 },
     };
-    struct TagItem modetags[] =
+#define COCOA_NMODES (sizeof(modes) / sizeof(modes[0]))
+    static struct TagItem sync_mode[COCOA_NMODES][7];
+    static struct TagItem modetags[COCOA_NMODES + 2];
+    ULONG i;
+
+    for (i = 0; i < COCOA_NMODES; i++)
     {
-        { aHidd_DMEnum_PixFmtTags, (IPTR)pftags    },
-        { aHidd_DMEnum_SyncTags,   (IPTR)sync_mode },
-        { TAG_DONE,                0               }
-    };
+        ULONG w = modes[i][0], h = modes[i][1];
+        struct TagItem st[7] =
+        {
+            { aHidd_Sync_PixelClock, 60UL * w * h        },
+            { aHidd_Sync_HDisp,      w                   },
+            { aHidd_Sync_VDisp,      h                   },
+            { aHidd_Sync_HTotal,     w                   },
+            { aHidd_Sync_VTotal,     h                   },
+            { aHidd_Sync_Description,(IPTR)"Cocoa:%hx%v" },
+            { TAG_DONE,              0                   }
+        };
+        CopyMem(st, sync_mode[i], sizeof(st));
+        modetags[i + 1].ti_Tag  = aHidd_DMEnum_SyncTags;
+        modetags[i + 1].ti_Data = (IPTR)sync_mode[i];
+    }
+    modetags[0].ti_Tag  = aHidd_DMEnum_PixFmtTags;
+    modetags[0].ti_Data = (IPTR)pftags;
+    modetags[COCOA_NMODES + 1].ti_Tag  = TAG_DONE;
+    modetags[COCOA_NMODES + 1].ti_Data = 0;
     struct TagItem msgtags[] =
     {
         { aHidd_Name,         (IPTR)"cocoa.hidd"                   },
@@ -186,7 +206,7 @@ OOP_Object *CocoaGfx__Hidd_Display__Show(OOP_Class *cl, OOP_Object *o, struct pH
 
     D(bug("[Cocoa] CocoaGfx::Show(0x%p)\n", msg->bitMap));
 
-    if (msg->bitMap && !xsd.ctx && xsd.cm)
+    if (msg->bitMap && xsd.cm)
     {
         IPTR w = COCOA_WIDTH, h = COCOA_HEIGHT;
         BOOL lockHost = cocoa_can_lock_hostlib();
@@ -200,19 +220,50 @@ OOP_Object *CocoaGfx__Hidd_Display__Show(OOP_Class *cl, OOP_Object *o, struct pH
          * semaphore, so without Forbid the preemptive scheduler can switch a
          * task at the syscall boundary and save its SP on the host stack ->
          * "out of stack limits" when restored. */
-        if (lockHost)
+        if (!xsd.ctx)
         {
-            Forbid();
-            HostLib_Lock();
+            if (lockHost)
+            {
+                Forbid();
+                HostLib_Lock();
+            }
+            xsd.ctx = xsd.cm->cm_open((int)w, (int)h, &cocoa_fmt, "AROS");
+            AROS_HOST_BARRIER
+            if (lockHost)
+            {
+                HostLib_Unlock();
+                Permit();
+            }
+            if (xsd.ctx)
+            {
+                xsd.ctx_w = (LONG)w;
+                xsd.ctx_h = (LONG)h;
+            }
+            D(bug("[Cocoa] cm_open(%ld,%ld) -> 0x%p\n", w, h, xsd.ctx));
         }
-        xsd.ctx = xsd.cm->cm_open((int)w, (int)h, &cocoa_fmt, "AROS");
-        AROS_HOST_BARRIER
-        if (lockHost)
+        else if ((LONG)w != xsd.ctx_w || (LONG)h != xsd.ctx_h)
         {
-            HostLib_Unlock();
-            Permit();
+            int r;
+
+            if (lockHost)
+            {
+                Forbid();
+                HostLib_Lock();
+            }
+            r = xsd.cm->cm_set_mode(xsd.ctx, (int)w, (int)h);
+            AROS_HOST_BARRIER
+            if (lockHost)
+            {
+                HostLib_Unlock();
+                Permit();
+            }
+            if (r == 0)
+            {
+                xsd.ctx_w = (LONG)w;
+                xsd.ctx_h = (LONG)h;
+            }
+            D(bug("[Cocoa] cm_set_mode(%ld,%ld) -> %d\n", w, h, r));
         }
-        D(bug("[Cocoa] cm_open(%ld,%ld) -> 0x%p\n", w, h, xsd.ctx));
     }
 
     shown = (OOP_Object *)OOP_DoSuperMethod(cl, o, (OOP_Msg)&mymsg);

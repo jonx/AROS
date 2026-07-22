@@ -28,6 +28,12 @@
 #include <proto/oop.h>
 #include <proto/utility.h>
 #include <proto/hostlib.h>
+#include <proto/dos.h>
+#include <proto/graphics.h>
+#include <dos/dos.h>
+#include <dos/dostags.h>
+#include <graphics/modeid.h>
+#include <graphics/displayinfo.h>
 
 #include "cocoa_intern.h"
 
@@ -358,15 +364,151 @@ static void cocoa_handle_power_setting(LONG request)
     }
 }
 
+/* ---- dynamic display modes ------------------------------------------------
+ *
+ * A host mode request (Settings panel or end of a window drag) arrives as the
+ * CM_OPT_REQUEST_MODE_W/_H CM_EV_SETTING pair. The event task cannot do DOS
+ * file I/O, so it hands the request to a small Process that snaps it to the
+ * nearest database mode (BestModeIDA) and writes ENV:SYS/screenmode.prefs.
+ * IPrefs is notified of the file and asks intuition to reopen the Workbench
+ * screen at the new mode; the driver's Show() then reconfigures the host
+ * window (cm_set_mode). */
+
+static void be32(UBYTE *p, ULONG v)
+{
+    p[0] = v >> 24; p[1] = v >> 16; p[2] = v >> 8; p[3] = v;
+}
+
+static void be16(UBYTE *p, UWORD v)
+{
+    p[0] = v >> 8; p[1] = v;
+}
+
+/* FORM PREF { PRHD(6) SCRM(28) }, all fields big-endian (IFF) */
+static void cocoa_write_screenmode_prefs(APTR DOSBase, ULONG modeid,
+    UWORD w, UWORD h, UWORD depth)
+{
+    UBYTE buf[62];
+    BPTR fh;
+
+    CopyMem("FORM", buf, 4);       be32(buf + 4, 54);
+    CopyMem("PREF", buf + 8, 4);
+    CopyMem("PRHD", buf + 12, 4);  be32(buf + 16, 6);
+    buf[20] = 0; buf[21] = 0;      be32(buf + 22, 0);
+    CopyMem("SCRM", buf + 26, 4);  be32(buf + 30, 28);
+    be32(buf + 34, 0); be32(buf + 38, 0); be32(buf + 42, 0); be32(buf + 46, 0);
+    be32(buf + 50, modeid);
+    be16(buf + 54, w);
+    be16(buf + 56, h);
+    be16(buf + 58, depth);
+    be16(buf + 60, 0);
+
+    fh = Open("ENV:SYS/screenmode.prefs", MODE_NEWFILE);
+    if (!fh)
+    {
+        BPTR dir = CreateDir("ENV:SYS");
+        if (dir)
+            UnLock(dir);
+        fh = Open("ENV:SYS/screenmode.prefs", MODE_NEWFILE);
+    }
+    if (fh)
+    {
+        Write(fh, buf, sizeof(buf));
+        Close(fh);
+        D(bug("[Cocoa:Modes] wrote screenmode.prefs: mode 0x%08lx %ux%ux%u\n",
+              (unsigned long)modeid, w, h, depth));
+    }
+    else
+        D(bug("[Cocoa:Modes] cannot write ENV:SYS/screenmode.prefs (err %ld)\n",
+              (long)IoErr()));
+}
+
+static void cocoa_mode_task(void)
+{
+    APTR DOSBase, GfxBase;
+
+    DOSBase = OpenLibrary("dos.library", 0);
+    GfxBase = OpenLibrary("graphics.library", 0);
+    if (!DOSBase || !GfxBase)
+    {
+        if (GfxBase) CloseLibrary(GfxBase);
+        if (DOSBase) CloseLibrary(DOSBase);
+        return;
+    }
+
+    for (;;)
+    {
+        ULONG sigs = Wait(SIGBREAKF_CTRL_F | SIGBREAKF_CTRL_C);
+        LONG w, h;
+        ULONG modeid;
+
+        if (sigs & SIGBREAKF_CTRL_C)
+            break;
+
+        Forbid();
+        w = xsd.modereq_w;
+        h = xsd.modereq_h;
+        xsd.modereq_w = xsd.modereq_h = 0;
+        Permit();
+
+        if (w < 320 || h < 200)
+            continue;
+
+        {
+            struct TagItem bidtags[] =
+            {
+                { BIDTAG_DesiredWidth,  (IPTR)w },
+                { BIDTAG_DesiredHeight, (IPTR)h },
+                { BIDTAG_Depth,         24      },
+                { TAG_DONE,             0       }
+            };
+            struct DimensionInfo dims;
+
+            modeid = BestModeIDA(bidtags);
+            if (modeid == INVALID_ID)
+                continue;
+
+            if (GetDisplayInfoData(NULL, (UBYTE *)&dims, sizeof(dims),
+                                   DTAG_DIMS, modeid))
+            {
+                w = dims.Nominal.MaxX - dims.Nominal.MinX + 1;
+                h = dims.Nominal.MaxY - dims.Nominal.MinY + 1;
+            }
+        }
+
+        /* Snapped to the mode already on screen: nothing to change */
+        if (w == xsd.ctx_w && h == xsd.ctx_h)
+            continue;
+
+        D(bug("[Cocoa:Modes] request %ldx%ld -> mode 0x%08lx\n",
+              (long)w, (long)h, (unsigned long)modeid));
+        cocoa_write_screenmode_prefs(DOSBase, modeid, (UWORD)w, (UWORD)h, 24);
+    }
+
+    CloseLibrary(GfxBase);
+    CloseLibrary(DOSBase);
+}
+
 static void cocoa_handle_setting_event(struct CMEvent *e)
 {
     switch (e->code)
     {
     case CM_OPT_REQUEST_MODE_W:
-    case CM_OPT_REQUEST_MODE_H:
-        D(bug("[Cocoa:Settings] display mode request key=0x%lx value=%ld partner=%ld (dynamic modes not wired yet)\n",
-              (IPTR)e->code, (IPTR)e->x, (IPTR)e->y));
+        /* First half of the request pair; the H event completes it */
         break;
+
+    case CM_OPT_REQUEST_MODE_H:
+    {
+        LONG h = e->x, w = e->y;
+
+        if (w >= 320 && h >= 200 && w <= 8192 && h <= 8192 && xsd.modetask)
+        {
+            xsd.modereq_w = w;
+            xsd.modereq_h = h;
+            Signal(xsd.modetask, SIGBREAKF_CTRL_F);
+        }
+        break;
+    }
 
     case CM_OPT_KEYMAP:
         D(bug("[Cocoa:Settings] keymap request id=%ld (keymap switching not wired yet)\n",
@@ -745,11 +887,25 @@ BOOL cocoa_input_init(struct cocoahidd *xsd_)
     xsd_->eventtask = task;
     D(bug("[Cocoa:Input] poll task up (0x%p)\n", task));
 
+    /* A PROCESS (DOS context) for the screenmode.prefs writer; non-fatal. */
+    xsd_->modetask = (struct Task *)CreateNewProcTags(
+        NP_Entry,     (IPTR)cocoa_mode_task,
+        NP_Name,      (IPTR)"cocoa.hidd modes",
+        NP_Priority,  0,
+        NP_StackSize, 64 * 1024,
+        TAG_DONE);
+    D(bug("[Cocoa:Input] mode task 0x%p\n", xsd_->modetask));
+
     return TRUE;
 }
 
 void cocoa_input_expunge(struct cocoahidd *xsd_)
 {
+    if (xsd_->modetask)
+    {
+        Signal(xsd_->modetask, SIGBREAKF_CTRL_C);
+        xsd_->modetask = NULL;
+    }
     if (xsd_->eventtask)
     {
         RemTask(xsd_->eventtask);

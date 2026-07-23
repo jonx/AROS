@@ -32,6 +32,14 @@ struct fds { long w; };
 #define FISSET(n,p) ((p)->w &  (1L << (n)))
 struct tvl { long sec, usec; };
 
+/* FIONBIO request code (matches the library's socket_intern.h) and the two Errno()
+   values a non-blocking op reports (errno_xlate.c maps them identically). */
+#ifndef FIONBIO
+#define FIONBIO        0x8004667EUL
+#endif
+#define NB_EWOULDBLOCK 35
+#define NB_EINPROGRESS 36
+
 static int connect_to(unsigned addr_net, unsigned short port_net)
 {
     struct sockaddr_in sa;
@@ -74,6 +82,44 @@ int main(void)
             }
             else
                 Printf("[WS] FAIL: WaitSelect rc=%ld, errno %ld\n", (LONG)rc, (LONG)Errno());
+            CloseSocket(s);
+        }
+    }
+
+    /* ---- [NB] non-blocking: FIONBIO reports would-block instead of parking - */
+    {
+        int nb = 1, s = socket(AF_INET, SOCK_STREAM, 0);
+        if (s < 0)
+            Printf("[NB] FAIL: socket, errno %ld\n", (LONG)Errno());
+        else if (IoctlSocket(s, FIONBIO, (char *)&nb) != 0)
+            Printf("[NB] FAIL: IoctlSocket FIONBIO, errno %ld\n", (LONG)Errno());
+        else
+        {
+            struct sockaddr_in sa;
+            int cr, e1;
+            memset(&sa, 0, sizeof sa);
+            sa.sin_len = sizeof sa; sa.sin_family = AF_INET;
+            sa.sin_port = 0x3930; sa.sin_addr.s_addr = 0x0100007f;  /* 127.0.0.1:12345 */
+            cr = connect(s, (struct sockaddr *)&sa, sizeof sa);
+            e1 = (int)Errno();
+            /* A non-blocking connect returns immediately: 0, or -1/EINPROGRESS. */
+            if (cr < 0 && e1 != NB_EINPROGRESS)
+                Printf("[NB] FAIL: connect cr=%ld errno %ld (want 0 or EINPROGRESS)\n",
+                       (LONG)cr, (LONG)e1);
+            else
+            {
+                struct fds w; struct tvl t; char b[4]; int rc, rr, e2;
+                FZERO(&w); FSET(s, &w); t.sec = 3; t.usec = 0;
+                rc = WaitSelect(s + 1, (fd_set *)0, (fd_set *)&w, (fd_set *)0,
+                                (struct timeval *)&t, (ULONG *)0);
+                rr = recv(s, b, sizeof b, 0);   /* connected, nothing queued -> would-block */
+                e2 = (int)Errno();
+                if (rc >= 1 && rr < 0 && e2 == NB_EWOULDBLOCK)
+                    Printf("[NB] PASS: connect immediate, write-ready, recv EWOULDBLOCK (no park)\n");
+                else
+                    Printf("[NB] FAIL: rc=%ld rr=%ld e2=%ld (want write-ready + EWOULDBLOCK)\n",
+                           (LONG)rc, (LONG)rr, (LONG)e2);
+            }
             CloseSocket(s);
         }
     }

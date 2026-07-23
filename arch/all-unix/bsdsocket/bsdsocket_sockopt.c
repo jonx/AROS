@@ -93,9 +93,10 @@ AROS_LH3(int, getpeername,
     AROS_LIBFUNC_EXIT
 }
 
-/* IoctlSocket — our sockets are always O_NONBLOCK, and the library hides blocking
-   behind the timer-poll park, so FIONBIO is a no-op success. FIONREAD and other
-   request codes are a TODO (would need a varargs-safe host ioctl helper). */
+/* IoctlSocket — the host fd is always O_NONBLOCK; FIONBIO selects whether the
+   library parks on a would-block (blocking emulation) or reports it to the caller
+   (SOF_USER_NBIO), which is what an async reactor needs. FIONREAD and other request
+   codes are a TODO (would need a varargs-safe host ioctl helper). */
 AROS_LH3(int, IoctlSocket,
     AROS_LHA(int, s,                   D0),
     AROS_LHA(unsigned long, request,   D1),
@@ -104,8 +105,18 @@ AROS_LH3(int, IoctlSocket,
 {
     AROS_LIBFUNC_INIT
     struct Socket *sd = GetSocket(s, taskBase);
-    (void)request; (void)argp;
     if (!sd) return -1;
-    return 0;
+    switch (request)
+    {
+    case FIONBIO:
+        if (argp && *(int *)argp)
+            sd->flags |= SOF_USER_NBIO;
+        else
+            sd->flags &= ~SOF_USER_NBIO;
+        return 0;
+    default:
+        (void)argp;
+        return 0;
+    }
     AROS_LIBFUNC_EXIT
 }

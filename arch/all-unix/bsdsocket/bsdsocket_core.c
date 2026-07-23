@@ -20,6 +20,30 @@
 /* proto/hostlib.h's stubs use HostLibBase; every LVO body here has `gb` in scope. */
 #define HostLibBase (gb->hostlib)
 
+/* Park on socket readiness, unless the caller put the socket in non-blocking mode
+   (FIONBIO / SOF_USER_NBIO): then report the would-block condition immediately
+   instead of parking, so an async reactor can drive the socket itself. `inprogress`
+   selects EINPROGRESS (an async connect) over EWOULDBLOCK. Returns 0 when ready,
+   -1 (errno set) on a non-blocking would-block or an interrupting signal. */
+static int park_or_wouldblock(struct TaskBase *taskBase, struct Socket *sd,
+                              unsigned want, int inprogress)
+{
+    ULONG hit = 0;
+
+    if (sd->flags & SOF_USER_NBIO)
+    {
+        SetError(bsdsock_errno_h2a(inprogress ? HOST_EINPROGRESS : HOST_EWOULDBLOCK),
+                 taskBase);
+        return -1;
+    }
+    if (PollFd(taskBase, sd->s, want, 0, -1, &hit) < 0)
+    {
+        SetError(EINTR, taskBase);
+        return -1;
+    }
+    return 0;
+}
+
 /* ---- socket (LVO 5) ----------------------------------------------------- */
 AROS_LH3(int, socket,
     AROS_LHA(int, domain,   D0),
@@ -122,11 +146,8 @@ AROS_LH3(int, accept,
             break;
         if (he != HOST_EWOULDBLOCK && he != HOST_EAGAIN)
         { SetError(bsdsock_errno_h2a(he), taskBase); return -1; }
-        {
-            ULONG hit = 0;
-            if (PollFd(taskBase, sd->s, PS_WANT_READ, 0, -1, &hit) < 0)
-            { SetError(EINTR, taskBase); return -1; }
-        }
+        if (park_or_wouldblock(taskBase, sd, PS_WANT_READ, 0) < 0)
+            return -1;
     }
 
     /* allocate an AROS fd + Socket for the accepted connection (non-blocking). */
@@ -169,12 +190,10 @@ AROS_LH3(int, connect,
     if (he != HOST_EINPROGRESS && he != HOST_EWOULDBLOCK)
     { SetError(bsdsock_errno_h2a(he), taskBase); return -1; }
 
-    /* async connect: park on write-readiness, then read SO_ERROR (the result). */
-    {
-        ULONG hit = 0;
-        if (PollFd(taskBase, sd->s, PS_WANT_WRITE, 0, -1, &hit) < 0)
-        { SetError(EINTR, taskBase); return -1; }
-    }
+    /* async connect: a non-blocking caller gets EINPROGRESS now and waits for
+       write-readiness itself; a blocking caller parks here, then reads SO_ERROR. */
+    if (park_or_wouldblock(taskBase, sd, PS_WANT_WRITE, 1) < 0)
+        return -1;
     soerr = 0; slen = sizeof(soerr);
     HOSTSOCK(gb, ret, gb->sys->getsockopt(sd->s, SOL_SOCKET, SO_ERROR, &soerr, &slen), ret < 0, he);
     if (ret < 0)   { SetError(bsdsock_errno_h2a(he), taskBase); return -1; }
@@ -202,11 +221,8 @@ AROS_LH4(int, send,
         if (ret >= 0) return (int)ret;          /* one logical send; may be partial */
         if (he != HOST_EWOULDBLOCK && he != HOST_EAGAIN)
         { SetError(bsdsock_errno_h2a(he), taskBase); return -1; }
-        {
-            ULONG hit = 0;
-            if (PollFd(taskBase, sd->s, PS_WANT_WRITE, 0, -1, &hit) < 0)
-            { SetError(EINTR, taskBase); return -1; }
-        }
+        if (park_or_wouldblock(taskBase, sd, PS_WANT_WRITE, 0) < 0)
+            return -1;
     }
     AROS_LIBFUNC_EXIT
 }
@@ -234,11 +250,8 @@ AROS_LH6(int, sendto,
         if (ret >= 0) return (int)ret;
         if (he != HOST_EWOULDBLOCK && he != HOST_EAGAIN)
         { SetError(bsdsock_errno_h2a(he), taskBase); return -1; }
-        {
-            ULONG hit = 0;
-            if (PollFd(taskBase, sd->s, PS_WANT_WRITE, 0, -1, &hit) < 0)
-            { SetError(EINTR, taskBase); return -1; }
-        }
+        if (park_or_wouldblock(taskBase, sd, PS_WANT_WRITE, 0) < 0)
+            return -1;
     }
     AROS_LIBFUNC_EXIT
 }
@@ -262,11 +275,8 @@ AROS_LH4(int, recv,
         if (ret >= 0) return (int)ret;          /* 0 = peer closed */
         if (he != HOST_EWOULDBLOCK && he != HOST_EAGAIN)
         { SetError(bsdsock_errno_h2a(he), taskBase); return -1; }
-        {
-            ULONG hit = 0;
-            if (PollFd(taskBase, sd->s, PS_WANT_READ, 0, -1, &hit) < 0)
-            { SetError(EINTR, taskBase); return -1; }
-        }
+        if (park_or_wouldblock(taskBase, sd, PS_WANT_READ, 0) < 0)
+            return -1;
     }
     AROS_LIBFUNC_EXIT
 }
@@ -295,11 +305,8 @@ AROS_LH6(int, recvfrom,
         if (ret >= 0) return (int)ret;
         if (he != HOST_EWOULDBLOCK && he != HOST_EAGAIN)
         { SetError(bsdsock_errno_h2a(he), taskBase); return -1; }
-        {
-            ULONG hit = 0;
-            if (PollFd(taskBase, sd->s, PS_WANT_READ, 0, -1, &hit) < 0)
-            { SetError(EINTR, taskBase); return -1; }
-        }
+        if (park_or_wouldblock(taskBase, sd, PS_WANT_READ, 0) < 0)
+            return -1;
     }
     AROS_LIBFUNC_EXIT
 }

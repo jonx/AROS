@@ -16,6 +16,13 @@ struct Socket
     ULONG          flags;   /* SOF_*                         */
 };
 
-#define SOF_NBIO 0x0001     /* non-blocking (always set on darwin) */
+#define SOF_NBIO      0x0001     /* host fd is O_NONBLOCK (always set on darwin)  */
+#define SOF_USER_NBIO 0x0002     /* caller asked for non-blocking (FIONBIO true)  */
+
+/* FIONBIO request code for IoctlSocket. The host fd is always O_NONBLOCK; this
+   flag only decides whether the library parks on a would-block or reports it. */
+#ifndef FIONBIO
+#define FIONBIO 0x8004667EUL
+#endif
 
 #endif /* SOCKET_INTERN_H */

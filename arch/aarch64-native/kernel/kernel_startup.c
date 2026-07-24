@@ -4,7 +4,7 @@
     AArch64 kernel startup.
 */
 
-#define DEBUG 1
+#define DEBUG 0
 
 #include <aros/kernel.h>
 #include <aros/symbolsets.h>
@@ -128,10 +128,10 @@ static void __attribute__((used)) __clear_bss(struct TagItem *msg)
     }
 }
 
-/* PL011 base for the early bring-up prints. The Pi 2/3 puts it at
+/* PL011 base for the low-level debug prints. The Pi 2/3 puts it at
    0x3f201000, the Pi 4 (BCM2711) at 0xfe201000; it is selected from the
-   platform id before the first character goes out. */
-static uintptr_t dbg_uart = 0x3f201000;
+   platform id before the first character goes out. Shared with krnPutC. */
+uintptr_t dbg_uart = 0x3f201000;
 
 static inline void uart_putc(char c)
 {
@@ -305,6 +305,17 @@ void __attribute__((used)) kernel_cstart(struct TagItem *msg)
         if (memlower < protlower)
         {
             ((struct MemHeaderExt *)mh)->mhe_AllocAbs((struct MemHeaderExt *)mh, protupper-protlower, (void *)protlower);
+        }
+
+        /*
+         * Reserve the RAM-resident boot filesystem image (loaded by the host at
+         * a fixed physical address) so the memory pool never overwrites it.
+         */
+        #define SYS_IMG_BASE 0x30000000UL
+        #define SYS_IMG_SIZE 0x08000000UL
+        if (((IPTR)memlower <= SYS_IMG_BASE) && (SYS_IMG_BASE + SYS_IMG_SIZE <= (IPTR)memupper))
+        {
+            ((struct MemHeaderExt *)mh)->mhe_AllocAbs((struct MemHeaderExt *)mh, SYS_IMG_SIZE, (void *)SYS_IMG_BASE);
         }
     }
 

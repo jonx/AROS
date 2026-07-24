@@ -886,6 +886,25 @@ static int relocate
                 break;
             }
 
+            /*
+             * GOT relaxation: all symbols are resolved to absolute addresses
+             * here, so the GOT indirection is unnecessary. Rewrite the ADRP to
+             * address the symbol page directly, and turn the paired LDR-from-GOT
+             * into an ADD that computes the low 12 bits.
+             */
+            case R_AARCH64_ADR_GOT_PAGE:
+            {
+                IPTR x = (((s + rel->addend) & ~(IPTR)0xfff) - ((IPTR)p & ~(IPTR)0xfff)) >> 12;
+                *p = (*p & 0x9f00001fu) | ((x & 0x3) << 29) | (((x >> 2) & 0x7ffff) << 5);
+                break;
+            }
+            case R_AARCH64_LD64_GOT_LO12_NC:
+            {
+                ULONG rd_rn = *p & 0x3ffu; /* preserve Rt/Rd (0-4) and Rn (5-9) */
+                *p = 0x91000000u | rd_rn | (((ULONG)((s + rel->addend) & 0xfff)) << 10);
+                break;
+            }
+
             case R_AARCH64_NONE:
                 break;
             #elif defined(__riscv)

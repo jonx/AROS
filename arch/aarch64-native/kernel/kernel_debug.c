@@ -18,6 +18,9 @@
  * as a fallback so output works even before/without ARMI_PutChar. The UART
  * device mapping is accessible at EL1.
  */
+/* PL011 base selected at kernel_cstart from the platform id (Pi 3 vs Pi 4). */
+extern uintptr_t dbg_uart;
+
 int krnPutC(int chr, struct KernelBase *KernelBase)
 {
     if (chr == 0x03)
@@ -33,7 +36,7 @@ int krnPutC(int chr, struct KernelBase *KernelBase)
      * the same raw UART the early markers use. The device page is EL1-mapped.
      */
     {
-        volatile uint32_t *uart = (volatile uint32_t *)0x3f201000;
+        volatile uint32_t *uart = (volatile uint32_t *)dbg_uart;
         if (chr == '\n')
         {
             while (uart[0x18 / 4] & (1 << 5)) ; /* wait for TXFF to clear */

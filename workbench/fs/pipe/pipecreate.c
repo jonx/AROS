@@ -200,6 +200,8 @@ OPENMEMERR1:
       InitList (&pipe->writerlist);
 
       pipe->tapfh= tapfh;
+      pipe->rdnotify_task= NULL;
+      pipe->rdnotify_sig=  0;
 
 #if PIPEDIR
       pipe->lockct= 0;
@@ -338,7 +340,9 @@ struct DosPacket  *pkt;
   pipe= pipekey->pipe;
 
   if ((pipekey->iotype == PIPEREAD) || (pipekey->iotype == PIPERW))
-    pipe->flags &= ~OPEN_FOR_READ;
+    { pipe->flags &= ~OPEN_FOR_READ;
+      pipe->rdnotify_task= NULL;     /* the reader is gone; drop its notify */
+    }
 
   if ((pipekey->iotype == PIPEWRITE) || (pipekey->iotype == PIPERW))
     pipe->flags &= ~OPEN_FOR_WRITE;

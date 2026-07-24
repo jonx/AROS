@@ -84,6 +84,8 @@ typedef struct pipedata
     PIPELISTHEADER    readerlist;            /* list of waiting read requests */
     PIPELISTHEADER    writerlist;            /* list of waiting write requests */
     BPTR              tapfh;                 /* file handle of tap, 0 if none */
+    struct Task       *rdnotify_task;        /* signal on read-readiness, 0 = none */
+    ULONG             rdnotify_sig;          /* the signal mask to send */
 #if    PIPEDIR
     ULONG             lockct;                /* number of extant locks */
     struct FileLock   *lock;                 /* this pipe's lock - see note above */
@@ -137,8 +139,15 @@ extern struct MsgPort     *TapReplyPort;
 
 #define   QuickReplyPkt(pkt)       PutMsg ((pkt)->dp_Port, (pkt)->dp_Link)
 
-extern void      handler   ( struct DosPacket *StartPkt );
-extern PIPEDATA  *FindPipe ( char *name );
+/* Register a signal to receive when a pipe becomes readable (level-triggered:
+   also fires now if already readable). Arg1 = PIPEKEY (the read fh's fh_Arg1),
+   Arg2 = signal mask, Arg3 = struct Task * to signal (0 in Arg2 deregisters). */
+#define   ACTION_PIPE_READ_NOTIFY   0x50524E31L      /* 'PRN1' */
+
+extern void      handler       ( struct DosPacket *StartPkt );
+extern PIPEDATA  *FindPipe     ( char *name );
+extern int       PipeReadable  ( PIPEDATA *pipe );
+extern void      PipeReadNotify( struct DosPacket *pkt );
 
 
 

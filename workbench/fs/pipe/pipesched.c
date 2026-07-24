@@ -138,6 +138,55 @@ SPIOEXIT:
 ** will be discarded.
 */
 
+/*---------------------------------------------------------------------------
+** TRUE if a new reader could make progress right now: the buffer holds data,
+** or the pipe is at EOF (empty, no writer, not open for write) so a read would
+** return 0 immediately. This is the readiness the notify signal reports.
+*/
+
+int  PipeReadable (pipe)
+
+PIPEDATA  *pipe;
+
+{
+  return (! PipebufEmpty (pipe->buf)) ||
+         ((! (pipe->flags & OPEN_FOR_WRITE)) && (FirstItem (&pipe->writerlist) == NULL));
+}
+
+
+
+/*---------------------------------------------------------------------------
+** ACTION_PIPE_READ_NOTIFY: register (or clear) the signal a reader wants when
+** the pipe becomes readable. Level-triggered, so if the pipe is already readable
+** the signal is sent at once (no lost wakeup for data that arrived first).
+*/
+
+void  PipeReadNotify (pkt)
+
+struct DosPacket  *pkt;
+
+{ PIPEKEY   *pipekey;
+  PIPEDATA  *pipe;
+
+  pkt->dp_Res1= 0;
+  pkt->dp_Res2= ERROR_INVALID_LOCK;
+
+  if ((pipekey= (PIPEKEY *) pkt->dp_Arg1) != NULL && (pipe= pipekey->pipe) != NULL)
+    { pipe->rdnotify_sig  = (ULONG) pkt->dp_Arg2;
+      pipe->rdnotify_task = (struct Task *) pkt->dp_Arg3;
+
+      pkt->dp_Res1= 1;
+      pkt->dp_Res2= 0;
+
+      if (pipe->rdnotify_task && PipeReadable (pipe))
+        Signal (pipe->rdnotify_task, pipe->rdnotify_sig);
+    }
+
+  QuickReplyPkt (pkt);
+}
+
+
+
 void  CheckWaiting (pipe)
 
 PIPEDATA  *pipe;
@@ -182,6 +231,13 @@ PIPEDATA  *pipe;
             EndPipeIO (pipe, wd);
         }     /* end of writerlist loop */
     }
+
+
+  /* Read-readiness notify (level-triggered): if a reader registered a signal and
+     a would-be reader could make progress now -- data buffered, or EOF -- send it.
+     Done here so it fires after any write, open or close that changes the state. */
+  if (pipe->rdnotify_task && PipeReadable (pipe))
+    Signal (pipe->rdnotify_task, pipe->rdnotify_sig);
 
 
   if ( PipebufEmpty (pipe->buf)                &&

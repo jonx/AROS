@@ -11,6 +11,6 @@ USER_INCLUDES := -I$(SRCDIR)/workbench/network/common/include
 
 %build_progs mmake=workbench-libs-bsdsocket-test \
     targetdir=$(EXEDIR) \
-    files="socktest nettest"
+    files="socktest nettest reactortest"
 
 %common

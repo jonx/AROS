@@ -271,6 +271,10 @@ LOOP:
             StartPipeIO (pkt, PIPEWRITE);
             break;
 
+          case ACTION_PIPE_READ_NOTIFY:
+            PipeReadNotify (pkt);
+            break;
+
 #if PIPEDIR
           case ACTION_LOCATE_OBJECT:
 #  ifdef DEBUG

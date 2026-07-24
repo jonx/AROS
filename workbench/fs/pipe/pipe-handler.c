@@ -275,6 +275,10 @@ LOOP:
             PipeReadNotify (pkt);
             break;
 
+          case ACTION_PIPE_SET_NONBLOCK:
+            PipeSetNonblock (pkt);
+            break;
+
 #if PIPEDIR
           case ACTION_LOCATE_OBJECT:
 #  ifdef DEBUG

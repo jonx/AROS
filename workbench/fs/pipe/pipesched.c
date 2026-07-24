@@ -103,6 +103,18 @@ SPIOEXIT:
     { if ((pipekey->iotype != PIPEREAD) && (pipekey->iotype != PIPERW))
         goto SPIOEXIT;
 
+      /* Non-blocking read on an empty pipe that still has a writer returns
+         would-block at once instead of waiting. (Empty with no writer is EOF,
+         handled by CheckWaiting, which returns 0.) */
+      if (pipekey->nonblock && PipebufEmpty (pipe->buf) &&
+          ((pipe->flags & OPEN_FOR_WRITE) || (FirstItem (&pipe->writerlist) != NULL)))
+        { FreeMem (wd, sizeof (WAITINGDATA));
+          pkt->dp_Res1= -1;
+          pkt->dp_Res2= ERROR_PIPE_WOULD_BLOCK;
+          QuickReplyPkt (pkt);
+          return;
+        }
+
       InsertTail (&pipe->readerlist, (PIPELISTNODE *)wd);
     }
   else     /* PIPEWRITE */
@@ -187,6 +199,31 @@ struct DosPacket  *pkt;
 
 
 
+/*---------------------------------------------------------------------------
+** ACTION_PIPE_SET_NONBLOCK: set (Arg2 != 0) or clear non-blocking mode on a
+** pipe handle -- the pipe analogue of IoctlSocket(FIONBIO).
+*/
+
+void  PipeSetNonblock (pkt)
+
+struct DosPacket  *pkt;
+
+{ PIPEKEY  *pipekey;
+
+  pkt->dp_Res1= 0;
+  pkt->dp_Res2= ERROR_INVALID_LOCK;
+
+  if ((pipekey= (PIPEKEY *) pkt->dp_Arg1) != NULL)
+    { pipekey->nonblock= (pkt->dp_Arg2 != 0);
+      pkt->dp_Res1= 1;
+      pkt->dp_Res2= 0;
+    }
+
+  QuickReplyPkt (pkt);
+}
+
+
+
 void  CheckWaiting (pipe)
 
 PIPEDATA  *pipe;
@@ -212,7 +249,10 @@ PIPEDATA  *pipe;
               change= TRUE;
             }
 
-          if (wd->pktinfo.pipewait.len == 0L)     /* then finished with request */
+          /* Return as soon as any data was read (POSIX/stream semantics): the
+             request finishes when it is full OR the buffer has drained, rather
+             than blocking until the whole requested length is available. */
+          if ((wd->pktinfo.pipewait.len == 0L) || PipebufEmpty (pipe->buf))
             EndPipeIO (pipe, wd);
         }     /* end of readerlist loop */
 

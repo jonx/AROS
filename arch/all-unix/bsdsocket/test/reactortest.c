@@ -28,7 +28,9 @@ typedef struct fd_set fd_set;            /* opaque, for the WaitSelect macro */
 
 /* Must match pipe-handler.h. Arg1 = read fh's fh_Arg1, Arg2 = signal mask,
    Arg3 = task to signal (Arg2 = 0 deregisters). */
-#define ACTION_PIPE_READ_NOTIFY 0x50524E31L
+#define ACTION_PIPE_READ_NOTIFY  0x50524E31L
+#define ACTION_PIPE_SET_NONBLOCK 0x50534E42L
+#define ERROR_PIPE_WOULD_BLOCK   0x50574F42L
 
 struct Library *SocketBase;
 
@@ -84,6 +86,19 @@ int main(void)
     if (rc != 1) { Printf("[RCT] FAIL: register notify rc=%ld err=%ld\n", (long)rc, (long)IoErr()); fail = 1; }
     else           Printf("[RCT] PASS: registered pipe read-readiness notify\n");
 
+    /* Put the read handle in non-blocking mode (the pipe FIONBIO). */
+    rc = DoPkt(rh->fh_Type, ACTION_PIPE_SET_NONBLOCK, (SIPTR)rh->fh_Arg1, 1, 0, 0, 0);
+    if (rc != 1) { Printf("[RCT] FAIL: set nonblock rc=%ld\n", (long)rc); fail = 1; }
+
+    /* A non-blocking read on the (empty) pipe must return would-block, not hang. */
+    {
+        char b[8];
+        LONG n = Read(rfh, b, sizeof b);
+        if (n == -1 && IoErr() == ERROR_PIPE_WOULD_BLOCK)
+            Printf("[RCT] PASS: non-blocking read on empty pipe returns would-block\n");
+        else { Printf("[RCT] FAIL: nonblock empty read n=%ld err=%ld\n", (long)n, (long)IoErr()); fail = 1; }
+    }
+
     sock = connect_echo();
     if (sock < 0) { Printf("[RCT] FAIL: connect echo, errno %ld\n", (long)Errno()); Close(rfh); Close(wfh); return 20; }
 
@@ -98,9 +113,10 @@ int main(void)
                         (struct timeval *)&t, &sigs);
         if ((sigs & pipeSig) && !FISSET(sock, &r))
         {
-            n = Read(rfh, b, 1);                            /* read the 1 byte we wrote */
+            n = Read(rfh, b, sizeof b);                     /* return-available: gets the 1 byte, no hang */
             if (n == 1 && b[0] == 'P')
-                Printf("[RCT] PASS: WaitSelect woke on PIPE readiness (rc=%ld), read 'P'\n", (long)rc);
+                Printf("[RCT] PASS: WaitSelect woke on PIPE readiness (rc=%ld), read 'P' (n=%ld<=buf)\n",
+                       (long)rc, (long)n);
             else { Printf("[RCT] FAIL: pipe read n=%ld\n", (long)n); fail = 1; }
         }
         else { Printf("[RCT] FAIL: A woke wrong (sigs=%lx sockready=%ld)\n",

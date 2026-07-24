@@ -111,6 +111,7 @@ typedef struct pipekey
   { PIPEDATA  *pipe;
     int       openmode;     /* Type field of original open request */
     IOTYPE    iotype;       /* (somewhat redundant) see pipesched.h */
+    int       nonblock;     /* read returns at once instead of waiting */
   }
 PIPEKEY;
 
@@ -144,10 +145,19 @@ extern struct MsgPort     *TapReplyPort;
    Arg2 = signal mask, Arg3 = struct Task * to signal (0 in Arg2 deregisters). */
 #define   ACTION_PIPE_READ_NOTIFY   0x50524E31L      /* 'PRN1' */
 
-extern void      handler       ( struct DosPacket *StartPkt );
-extern PIPEDATA  *FindPipe     ( char *name );
-extern int       PipeReadable  ( PIPEDATA *pipe );
-extern void      PipeReadNotify( struct DosPacket *pkt );
+/* Set/clear non-blocking mode on a pipe handle (the pipe analogue of
+   IoctlSocket(FIONBIO)). Arg1 = PIPEKEY (the fh's fh_Arg1), Arg2 = 1/0. */
+#define   ACTION_PIPE_SET_NONBLOCK  0x50534E42L      /* 'PSNB' */
+
+/* A non-blocking read on an empty-but-not-EOF pipe fails with this in IoErr(),
+   the pipe analogue of EWOULDBLOCK; a reactor/std pal maps it to WouldBlock. */
+#define   ERROR_PIPE_WOULD_BLOCK    0x50574F42L      /* 'PWOB' */
+
+extern void      handler        ( struct DosPacket *StartPkt );
+extern PIPEDATA  *FindPipe      ( char *name );
+extern int       PipeReadable   ( PIPEDATA *pipe );
+extern void      PipeReadNotify ( struct DosPacket *pkt );
+extern void      PipeSetNonblock( struct DosPacket *pkt );
 
 
 

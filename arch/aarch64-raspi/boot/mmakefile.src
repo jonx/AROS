@@ -117,14 +117,10 @@ ARM_BSP := aros-$(AROS_TARGET_CPU)-bsp.rom
 #MM kernel-hidd-bus \
 #MM hidd-i2c \
 #MM hidd-i2c-bcm2708 \
-#MM hidd-vc4gfx \
 #MM kernel-hidd-gfx \
 #MM kernel-hidd-input \
 #MM kernel-hidd-kbd \
 #MM kernel-hidd-mouse \
-#MM kernel-usb-nopci \
-#MM kernel-usb-usb2otg \
-#MM kernel-usb-romstrap-raspi \
 #MM kernel-econsole
 
 #MM kernel-package-raspi-aarch64-missing: \
@@ -138,15 +134,15 @@ RASPIFW_BRANCH    := 1.20260521
 RASPIFW_URI       := https://github.com/raspberrypi/firmware/raw/$(RASPIFW_BRANCH)/boot
 RASPIFW_FILES     := LICENCE.broadcom bootcode.bin fixup.dat start.elf bcm2710-rpi-3-b-plus.dtb bcm2710-rpi-3-b.dtb
 
-PKG_LIBS      := aros partition utility oop graphics layers intuition keymap dos poseidon cgxbootpic gadtools lowlevel
+PKG_LIBS      := aros partition utility oop graphics layers intuition keymap dos cgxbootpic gadtools lowlevel
 PKG_LIBS_ARCH := expansion
-PKG_RSRC      := openfirmware misc bootloader dosboot lddemon usbromstartup FileSystem shell shellcommands mbox dma
+PKG_RSRC      := openfirmware misc bootloader dosboot lddemon FileSystem shell shellcommands mbox dma
 PKG_RSRC_ARCH := processor
-PKG_DEVS      := input gameport keyboard console sdcard USBHardware/usb2otg
+PKG_DEVS      := input gameport keyboard console sdcard
 PKG_DEVS_ARCH := timer
 PKG_HANDLERS  := con ram cdrom sfs fat afs
-PKG_HIDDS     := hiddclass inputclass gfx keyboard mouse bus i2c i2c-bcm2708 vc4gfx
-PKG_CLASSES   := USB/hub USB/massstorage
+PKG_HIDDS     := hiddclass inputclass gfx keyboard mouse bus i2c i2c-bcm2708
+PKG_CLASSES   :=
 
 %make_package mmake=kernel-package-raspi-aarch64 file=$(AROSDIR)/$(ARM_BSP) \
     libs=$(PKG_LIBS) arch_libs=$(PKG_LIBS_ARCH) res=$(PKG_RSRC) \

@@ -155,6 +155,9 @@ int pthread_create(pthread_t *thread, const pthread_attr_t *attr, void *(*start)
 
     D(bug("%s(%p, %p, %p, %p)\n", __FUNCTION__, thread, attr, start, arg));
 
+    /* Route stdc's errno through per-thread storage before any worker runs. */
+    _pthread_init_errno();
+
     if (thread == NULL || start == NULL)
         return EINVAL;
 

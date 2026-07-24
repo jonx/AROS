@@ -95,6 +95,29 @@ pthread_t GetThreadId(struct Task *task)
     return i;
 }
 
+/* stdc's optional per-task errno hook (compiler/crt/stdc/__stdc_geterrnoptr.c). */
+extern int *(*__stdc_errnoptr_hook)(void);
+
+/* The calling thread's private errno slot, or NULL when the current task is not a
+   registered pthread -- stdc then falls back to the per-process errno. */
+static int *pthread_errnoptr(void)
+{
+    struct Task *task = GET_THIS_TASK;
+    pthread_t id = GetThreadId(task);
+
+    if (id < PTHREAD_THREADS_MAX && threads[id].task == task)
+        return &threads[id].thread_errno;
+
+    return NULL;
+}
+
+/* Arm the per-task errno hook. Idempotent; pthread_create() calls it before any
+   worker runs, so rustix and std see a private errno per thread. */
+void _pthread_init_errno(void)
+{
+    __stdc_errnoptr_hook = pthread_errnoptr;
+}
+
 #if defined __mc68000__
 /* No CAS instruction on m68k */
 static int __m68k_sync_val_compare_and_swap(int *v, int o, int n)

@@ -23,6 +23,7 @@ FILES := \
     mathtest \
     partition \
     pthreadtest \
+    pthreaderrno \
     simplepng \
     versionlib
 

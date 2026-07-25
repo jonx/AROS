@@ -119,6 +119,7 @@ ARM_BSP := aros-$(AROS_TARGET_CPU)-bsp.rom
 #MM hidd-i2c \
 #MM hidd-i2c-bcm2708 \
 #MM kernel-hidd-gfx \
+#MM kernel-hidd-vcgfx \
 #MM kernel-hidd-input \
 #MM kernel-hidd-kbd \
 #MM kernel-hidd-mouse \
@@ -142,7 +143,7 @@ PKG_RSRC_ARCH := processor
 PKG_DEVS      := input gameport keyboard console sdcard memdisk
 PKG_DEVS_ARCH := timer
 PKG_HANDLERS  := con ram cdrom sfs fat afs
-PKG_HIDDS     := hiddclass inputclass gfx keyboard mouse bus i2c i2c-bcm2708
+PKG_HIDDS     := hiddclass inputclass gfx vcgfx keyboard mouse bus i2c i2c-bcm2708
 PKG_CLASSES   :=
 
 %make_package mmake=kernel-package-raspi-aarch64 file=$(AROSDIR)/$(ARM_BSP) \

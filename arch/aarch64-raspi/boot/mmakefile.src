@@ -72,6 +72,10 @@ ARM_BSP := aros-$(AROS_TARGET_CPU)-bsp.rom
 #MM kernel-usb-nopci-quick \
 #MM kernel-usb-usb2otg-quick \
 #MM kernel-usb-romstrap-raspi-quick \
+#MM kernel-hidd-pci-quick \
+#MM kernel-pcie-bcm2711-quick \
+#MM kernel-usb-pcixhci-quick \
+#MM kernel-usb-usbromstartup-quick \
 #MM kernel-econsole-quick
 
 #MM kernel-package-raspi-aarch64: \
@@ -123,6 +127,17 @@ ARM_BSP := aros-$(AROS_TARGET_CPU)-bsp.rom
 #MM kernel-hidd-input \
 #MM kernel-hidd-kbd \
 #MM kernel-hidd-mouse \
+#MM kernel-hidd-pci \
+#MM kernel-pcie-bcm2711 \
+#MM kernel-usb-poseidon \
+#MM kernel-usb-classes-hub \
+#MM kernel-usb-classes-hubss \
+#MM kernel-usb-classes-hid \
+#MM kernel-usb-classes-bootkeyboard \
+#MM kernel-usb-classes-bootmouse \
+#MM kernel-usb-classes-massstorage \
+#MM kernel-usb-pcixhci \
+#MM kernel-usb-usbromstartup \
 #MM kernel-econsole
 
 #MM kernel-package-raspi-aarch64-missing: \
@@ -143,7 +158,10 @@ PKG_RSRC_ARCH := processor
 PKG_DEVS      := input gameport keyboard console sdcard memdisk
 PKG_DEVS_ARCH := timer
 PKG_HANDLERS  := con ram cdrom sfs fat afs
-PKG_HIDDS     := hiddclass inputclass gfx vcgfx keyboard mouse bus i2c i2c-bcm2708
+# Poseidon (library, classes, HCD) lives on disk and is started from the
+# Startup-Sequence: its library init needs intuition, which comes up
+# after the ROM resident pass.
+PKG_HIDDS     := hiddclass inputclass gfx vcgfx keyboard mouse bus i2c i2c-bcm2708 pci pcibcm2711
 PKG_CLASSES   :=
 
 %make_package mmake=kernel-package-raspi-aarch64 file=$(AROSDIR)/$(ARM_BSP) \

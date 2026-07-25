@@ -35,6 +35,35 @@
 
 uintptr_t __arm_periiobase = 0;
 
+/*
+ * Bring-up aid: flash the activity LED a given number of times. On a board
+ * with no serial console attached this is the only way to see how far the
+ * bootstrap got, so each stage flashes a different count.
+ */
+static void boot_led_mark(int count)
+{
+    const uint32_t gpio = 42;               /* activity LED on this board */
+    const uint32_t sel  = gpio / 10, soff = 3 * (gpio % 10);
+    volatile uint32_t d;
+    uint32_t tmp;
+    int n;
+
+    tmp = rd32le(GPFSEL0 + 4 * sel);
+    tmp &= ~(7 << soff);
+    tmp |= (1 << soff);                     /* output */
+    wr32le(GPFSEL0 + 4 * sel, tmp);
+
+    for (n = 0; n < count; n++)
+    {
+        wr32le(GPSET0 + 4 * (gpio / 32), 1 << (gpio % 32));
+        for (d = 0; d < 4000000; d++) { }
+        wr32le(GPCLR0 + 4 * (gpio / 32), 1 << (gpio % 32));
+        for (d = 0; d < 4000000; d++) { }
+    }
+
+    for (d = 0; d < 16000000; d++) { }      /* gap between groups */
+}
+
 extern void mem_init(void);
 extern unsigned int uartclock;
 extern unsigned int uartdivint;
@@ -309,6 +338,7 @@ void query_memory()
 {
     of_node_t *mem = dt_find_node("/memory");
 
+    boot_led_mark(1);
     kprintf("[BOOT] Query system memory\n");
     if (mem)
     {
@@ -358,6 +388,7 @@ void query_memory()
         }
     }
 }
+
 
 void boot(uintptr_t dtb_addr, uintptr_t arch, uintptr_t dummy2, uintptr_t dummy3)
 {
@@ -437,6 +468,52 @@ void boot(uintptr_t dtb_addr, uintptr_t arch, uintptr_t dummy2, uintptr_t dummy3
     }
     else
         while(1) asm volatile("wfe");
+
+    /*
+     * The Pi 4 describes additional MMIO windows on the /scb bus: the full
+     * 0xFC000000 peripheral block (which contains the PCIe host bridge
+     * registers at 0xFD500000) and the 1GB PCIe outbound window at
+     * 0x6_0000_0000. Map the MMIO entries as device memory and skip the
+     * RAM alias. Pi 2/3 device trees have no /scb node.
+     */
+    e = dt_find_node("/scb");
+    if (e)
+    {
+        of_property_t *p = dt_find_property(e, "ranges");
+        if (p)
+        {
+            of_node_t *rootn = dt_find_node("/");
+            of_property_t *cacp = dt_find_property(e, "#address-cells");
+            of_property_t *cscp = dt_find_property(e, "#size-cells");
+            of_property_t *pacp = dt_find_property(rootn, "#address-cells");
+            uint32_t child_ac = cacp ? AROS_BE2LONG(*(uint32_t *)cacp->op_value) : 1;
+            uint32_t child_sc = cscp ? AROS_BE2LONG(*(uint32_t *)cscp->op_value) : 1;
+            uint32_t parent_ac = pacp ? AROS_BE2LONG(*(uint32_t *)pacp->op_value) : 1;
+            uint32_t entry_cells = child_ac + parent_ac + child_sc;
+
+            volatile uint32_t *ranges = p->op_value;
+            int32_t cells = p->op_length / 4;
+
+            while (cells >= (int32_t)entry_cells)
+            {
+                uint64_t addr_bus = 0, addr_cpu = 0, addr_len = 0;
+
+                for (uint32_t i = 0; i < child_ac; i++)
+                    addr_bus = (addr_bus << 32) | AROS_BE2LONG(*ranges++);
+                for (uint32_t i = 0; i < parent_ac; i++)
+                    addr_cpu = (addr_cpu << 32) | AROS_BE2LONG(*ranges++);
+                for (uint32_t i = 0; i < child_sc; i++)
+                    addr_len = (addr_len << 32) | AROS_BE2LONG(*ranges++);
+
+                (void)addr_bus;
+
+                if (addr_cpu >= 0xFC000000UL)
+                    mmu_map_section(addr_cpu, addr_cpu, addr_len, 0, 0, 3, 0);
+
+                cells -= entry_cells;
+            }
+        }
+    }
 
     serInit();
 
@@ -865,6 +942,7 @@ void boot(uintptr_t dtb_addr, uintptr_t arch, uintptr_t dummy2, uintptr_t dummy3
             }
         }
 
+        boot_led_mark(2);
         kprintf("[BOOT] Flushing cache...\n");
         aarch64_flush_cache(kernel_phys, total_size_ro + total_size_rw);
         aarch64_icache_invalidate(kernel_phys, total_size_ro + total_size_rw);
@@ -878,6 +956,7 @@ void boot(uintptr_t dtb_addr, uintptr_t arch, uintptr_t dummy2, uintptr_t dummy3
     kprintf("[BOOT] Loading MMU tables...\n");
     mmu_load();
     kprintf("[BOOT] MMU loaded\n");
+    boot_led_mark(3);
 
     int memory_used = mem_used();
 

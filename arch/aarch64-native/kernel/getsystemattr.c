@@ -16,6 +16,7 @@
 
 #include "kernel_intern.h"
 #include "kernel_fb.h"
+#include "kernel_ucmem.h"
 
 #include <proto/kernel.h>
 
@@ -50,6 +51,12 @@ AROS_LH1(intptr_t, KrnGetSystemAttr,
 
     case KATTR_FrameBufferPitch:
         return (intptr_t)krn_fb_pitch();
+
+    case KATTR_UncachedMemBase:
+        return (intptr_t)krn_ucmem_base();
+
+    case KATTR_UncachedMemSize:
+        return (intptr_t)krn_ucmem_size();
 
     default:
         return -1;

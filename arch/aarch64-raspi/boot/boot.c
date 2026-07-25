@@ -372,6 +372,18 @@ void query_memory()
                 while(1) asm volatile("wfi");
             }
 
+            /*
+             * Reserve the topmost 2MB block as uncached RAM. PCIe bus
+             * masters on the BCM2711 are not cache coherent, and the
+             * kernel cannot change memory attributes at runtime, so DMA
+             * descriptor memory is set aside and mapped Normal
+             * Non-Cacheable here. The block is kept out of the system
+             * memory range.
+             */
+            uint32_t nc_base = (upper - (2 << 20)) & ~((2 << 20) - 1);
+            uint32_t nc_size = upper - nc_base;
+            upper = nc_base;
+
             boottag->ti_Tag = KRN_MEMLower;
             if ((boottag->ti_Data = lower) < sizeof(struct bcm2708bootmem))
                 boottag->ti_Data = sizeof(struct bcm2708bootmem);
@@ -384,7 +396,15 @@ void query_memory()
 
             boottag++;
 
+            boottag->ti_Tag = KRN_UncachedMemBase;
+            boottag->ti_Data = nc_base;
+            boottag++;
+            boottag->ti_Tag = KRN_UncachedMemSize;
+            boottag->ti_Data = nc_size;
+            boottag++;
+
             mmu_map_section(lower, lower, upper - lower, 1, 1, 3, 1);
+            mmu_map_section(nc_base, nc_base, nc_size, 1, 0, 3, 0);
         }
     }
 }

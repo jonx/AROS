@@ -52,6 +52,7 @@ CFILES := \
         vars \
         screen_fb \
         kernel_fb \
+        kernel_ucmem \
         font8x14 \
         devicetree
 

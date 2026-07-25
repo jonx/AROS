@@ -75,6 +75,8 @@ typedef enum
 #define KRN_FrameBufferHeight   (KRN_Dummy + 35) /* Framebuffer height in pixels */
 #define KRN_FrameBufferDepth    (KRN_Dummy + 36) /* Framebuffer bits per pixel */
 #define KRN_FrameBufferPitch    (KRN_Dummy + 37) /* Framebuffer bytes per line */
+#define KRN_UncachedMemBase     (KRN_Dummy + 38) /* Uncached RAM block for non-coherent DMA */
+#define KRN_UncachedMemSize     (KRN_Dummy + 39) /* Size of the uncached RAM block */
 
 /* Magic value passed by the bootstrap as second parameter */
 #define AROS_BOOT_MAGIC AROS_MAKE_ID('A', 'R', 'O', 'S')
@@ -103,6 +105,8 @@ typedef void (*irqhandler_t)(void *data, void *data2);
 #define KATTR_FrameBufferHeight (KATTR_CPULoad_END + 4) /* [.G] (IPTR)    - Framebuffer height in pixels                                */
 #define KATTR_FrameBufferDepth  (KATTR_CPULoad_END + 5) /* [.G] (IPTR)    - Framebuffer bits per pixel                                  */
 #define KATTR_FrameBufferPitch  (KATTR_CPULoad_END + 6) /* [.G] (IPTR)    - Framebuffer bytes per line                                  */
+#define KATTR_UncachedMemBase   (KATTR_CPULoad_END + 7) /* [.G] (APTR)    - Uncached RAM block for non-coherent DMA (embedded targets)  */
+#define KATTR_UncachedMemSize   (KATTR_CPULoad_END + 8) /* [.G] (IPTR)    - Size of the uncached RAM block                              */
 
 /* Tag IDs for KrnStatMemory() */
 #define KMS_Free		(TAG_USER + 0x04000000)

@@ -58,9 +58,10 @@ OOP_Object *CocoaGfx__Root__New(OOP_Class *cl, OOP_Object *o, struct pRoot_New *
         { aHidd_PixFmt_BitMapType,   vHidd_BitMapType_Chunky    },
         { TAG_DONE,                  0                          }
     };
-    /* The display mode ladder. The FIRST entry is the default monitor sync,
-       which intuition uses for the Workbench screen when no screenmode.prefs
-       exists, so 800x600 stays the boot mode. */
+    /* The display mode ladder. The FIRST entry is the default monitor sync.
+       The boot mode is not taken from here: with no screenmode.prefs, intuition
+       opens the Workbench screen at AROS_NOMINAL_WIDTH x AROS_NOMINAL_HEIGHT
+       (a configure-time value), so that size must exist in this ladder. */
     static const UWORD modes[][2] =
     {
         {  800,  600 }, {  640,  480 }, { 1024,  768 }, { 1152,  864 },

@@ -2,6 +2,7 @@
     Copyright (C) 2026, The AROS Development Team. All rights reserved.
 */
 
+#define DEBUG 1
 #include <aros/debug.h>
 #include <proto/exec.h>
 #include <proto/timer.h>

@@ -26,6 +26,9 @@
    caller must provide ARM_PERIIOBASE
 */
 
+/* Peripheral window of the BCM2711, which differs from the earlier SoCs. */
+#define BCM2711_PERIIOBASE                              0xFE000000
+
 #define SYSTIMER_BASE                                   (ARM_PERIIOBASE + 0x003000)
 #define ARMTIMER_BASE                                   (ARM_PERIIOBASE + 0x00b000)
 #define IRQ_BASE                                        (ARM_PERIIOBASE + 0x00b200)

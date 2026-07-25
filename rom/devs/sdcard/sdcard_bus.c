@@ -896,7 +896,28 @@ ULONG FNAME_SDCBUS(WaitCmd)(ULONG mask, ULONG timeout, struct sdcard_Bus *bus)
 
     if (bus->sdcb_Task == FindTask(NULL))
     {
-        Wait(1L << bus->sdcb_CommandSig);
+        /*
+         * Sleep for the completion interrupt once the controller has shown
+         * that it delivers them. Until then, poll instead: a controller whose
+         * interrupt never arrives would otherwise wedge the boot here rather
+         * than report a timeout.
+         */
+        if (bus->sdcb_BusFlags & AF_Bus_IRQSeen)
+        {
+            Wait(1L << bus->sdcb_CommandSig);
+        }
+        else
+        {
+            ULONG waited = initialTimeout ? initialTimeout : 1000;
+
+            while (waited--)
+            {
+                if (SetSignal(0, 0) & (1L << bus->sdcb_CommandSig))
+                    break;
+                sdcard_Udelay(1000);
+            }
+            SetSignal(0, 1L << bus->sdcb_CommandSig);
+        }
     }
     else
     {
@@ -1068,6 +1089,8 @@ ULONG FNAME_SDCBUS(Rsp136Unpack)(ULONG *buf, ULONG offset, const ULONG len)
 
 void FNAME_SDCBUS(BusIRQ)(struct sdcard_Bus *bus, void *_unused)
 {
+    bus->sdcb_BusFlags |= AF_Bus_IRQSeen;
+
 #if defined(__AROSEXEC_SMP__)
     struct SDCardBase *SDCardBase = bus->sdcb_DeviceBase;
 #endif

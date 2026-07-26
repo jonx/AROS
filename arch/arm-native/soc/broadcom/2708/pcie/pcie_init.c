@@ -17,6 +17,9 @@
 #include <proto/oop.h>
 #include <proto/mbox.h>
 #include <proto/openfirmware.h>
+#include <proto/bootloader.h>
+
+#include <aros/bootloader.h>
 
 #define __NOLIBBASE__
 #include <proto/kernel.h>
@@ -38,6 +41,34 @@ IPTR __arm_periiobase __attribute__((used)) = 0;
 
 APTR MBoxBase;
 void *OpenFirmwareBase;
+APTR BootLoaderBase;
+
+/* "PCIE=disable" on the kernel command line keeps the bridge untouched. */
+static BOOL PCIeEnabled(void)
+{
+    struct List *list;
+    struct Node *node;
+
+    BootLoaderBase = OpenResource("bootloader.resource");
+    if (!BootLoaderBase)
+        return TRUE;
+
+    list = (struct List *)GetBootInfo(BL_Args);
+    if (!list)
+        return TRUE;
+
+    ForeachNode(list, node)
+    {
+        if (strncmp(node->ln_Name, "PCIE=", 5) == 0 &&
+            strstr(&node->ln_Name[5], "disable"))
+        {
+            D(bug("[PCIBcm2711] disabled on the command line\n"));
+            return FALSE;
+        }
+    }
+
+    return TRUE;
+}
 
 /*
  * The bridge registers raise an external abort when the block is absent
@@ -153,17 +184,21 @@ static BOOL BridgeInit(struct pci_staticdata *psd)
     uint32_t tmp;
     int i;
 
-    D(bug("[PCIBcm2711] bridge revision %08x\n", rd32(regs, PCIE_MISC_REVISION)));
-
-    /* Reset the bridge and assert PERST# */
-    tmp = rd32(regs, PCIE_RGR1_SW_INIT_1);
-    wr32(regs, PCIE_RGR1_SW_INIT_1, tmp | RGR1_PERST | RGR1_SW_INIT);
+    /*
+     * The register core may be held in SW_INIT out of power-on; while it
+     * is, everything but the reset block answers with a bus error. Only
+     * the RGR1 block may be touched before the core is released, and
+     * with a plain write, not a read-modify-write.
+     */
+    D(bug("[PCIBcm2711] resetting the bridge\n"));
+    wr32(regs, PCIE_RGR1_SW_INIT_1, RGR1_PERST | RGR1_SW_INIT);
     delay_us(200);
 
     /* Release the bridge core, keep PERST# asserted */
-    tmp = rd32(regs, PCIE_RGR1_SW_INIT_1);
-    wr32(regs, PCIE_RGR1_SW_INIT_1, tmp & ~RGR1_SW_INIT);
+    wr32(regs, PCIE_RGR1_SW_INIT_1, RGR1_PERST);
     delay_us(200);
+
+    D(bug("[PCIBcm2711] bridge revision %08x\n", rd32(regs, PCIE_MISC_REVISION)));
 
     /* Power up the PHY */
     tmp = rd32(regs, PCIE_MISC_HARD_PCIE_HARD_DEBUG);
@@ -194,8 +229,8 @@ static BOOL BridgeInit(struct pci_staticdata *psd)
     }
 
     /* Deassert PERST# and wait for the link */
-    tmp = rd32(regs, PCIE_RGR1_SW_INIT_1);
-    wr32(regs, PCIE_RGR1_SW_INIT_1, tmp & ~RGR1_PERST);
+    D(bug("[PCIBcm2711] releasing PERST#\n"));
+    wr32(regs, PCIE_RGR1_SW_INIT_1, 0);
 
     for (i = 0; i < 100; i++)
     {
@@ -281,7 +316,7 @@ static int PCIBcm2711_InitClass(LIBBASETYPEPTR LIBBASE)
     if (__arm_periiobase != BCM2711_PERIIOBASE)
         return TRUE;
 
-    if (!PCIeNodeUsable())
+    if (!PCIeEnabled() || !PCIeNodeUsable())
         return TRUE;
 
     psd->regs = (volatile uint8_t *)BCM2711_PCIE_REG_BASE;

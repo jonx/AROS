@@ -66,9 +66,10 @@
 /* HARD_DEBUG bits */
 #define HARD_DEBUG_SERDES_IDDQ          (1 << 27)
 
-/* RGR1_SW_INIT_1 bits */
-#define RGR1_SW_INIT                    (1 << 0)
-#define RGR1_PERST                      (1 << 1)
+/* RGR1_SW_INIT_1 bits. While SW_INIT is asserted the bridge core is held
+ * in reset and every register outside this block raises a bus error. */
+#define RGR1_PERST                      (1 << 0)
+#define RGR1_SW_INIT                    (1 << 1)
 
 /* External config index encoding */
 #define EXT_CFG_ADDR(bus, dev, func)    (((bus) << 20) | ((dev) << 15) | ((func) << 12))

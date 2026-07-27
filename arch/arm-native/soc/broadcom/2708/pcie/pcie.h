@@ -46,6 +46,21 @@
 #define PCIE_MISC_CPU_2_PCIE_MEM_WIN0_LIMIT_HI   0x4084
 #define PCIE_MISC_HARD_PCIE_HARD_DEBUG  0x4204
 
+/* Configuration header command register */
+#define PCI_CMD                         0x04
+#define PCI_CMD_MEMORY                  (1 << 1)
+#define PCI_CMD_MASTER                  (1 << 2)
+#define PCI_CMD_INTX_DISABLE            (1 << 10)
+
+/* Legacy interrupt block. The four INTx lines are masked out of reset and
+ * reach the interrupt controller only once unmasked here. */
+#define PCIE_INTR2_CPU_STATUS           0x4300
+#define PCIE_INTR2_CPU_CLR              0x4308
+#define PCIE_INTR2_CPU_MASK_STATUS      0x430c
+#define PCIE_INTR2_CPU_MASK_SET         0x4310
+#define PCIE_INTR2_CPU_MASK_CLR         0x4314
+#define PCIE_INTR2_INTX_MASK            0xf
+
 #define PCIE_EXT_CFG_DATA               0x8000
 #define PCIE_EXT_CFG_INDEX              0x9000
 #define PCIE_RGR1_SW_INIT_1             0x9210

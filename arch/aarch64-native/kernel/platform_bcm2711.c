@@ -78,6 +78,8 @@ static uint64_t gentimer_interval;
 
 /* -------------------------- GIC-400 driver -------------------------- */
 
+static void bcm2711_irq_enable(int irq);
+
 static void bcm2711_irq_init(void)
 {
     /* Distributor + CPU interface: mask everything, then enable, PMR open. */
@@ -86,6 +88,11 @@ static void bcm2711_irq_init(void)
     GICC(GICC_PMR) = 0xF0;
     GICD(GICD_CTLR) = 1;
     GICC(GICC_CTLR) = 1;
+
+    /* TEMPORARY: listen to the whole shared range so an interrupt nobody
+       registered for still announces itself. */
+    for (int i = GIC_FIRST_SPI; i < 224; i++)
+        bcm2711_irq_enable(i);
 }
 
 static void bcm2711_irq_enable(int irq)
@@ -122,6 +129,10 @@ static void bcm2711_irq_disable(int irq)
  */
 static uint32_t irq_last = GIC_SPURIOUS;
 static unsigned int irq_repeats;
+static uint64_t irq_last_ts;
+
+/* TEMPORARY: report the first arrival of each shared interrupt. */
+static uint8_t irq_seen[256];
 
 static void bcm2711_irq_process(void)
 {
@@ -133,6 +144,15 @@ static void bcm2711_irq_process(void)
         if (intid >= GIC_SPURIOUS)
             break;
 
+        /* TEMPORARY: name every shared interrupt the first time it fires.
+           Nothing is disabled here: a source with no handler is caught by
+           the run-length guard below instead, which also names it. */
+        if (intid >= GIC_FIRST_SPI && !irq_seen[intid])
+        {
+            irq_seen[intid] = 1;
+            bug("[Kernel] SPI %u fired\n", intid);
+        }
+
         krnRunIRQHandlers(KernelBase, intid);
 
         GICC(GICC_EOIR) = iar;
@@ -143,20 +163,29 @@ static void bcm2711_irq_process(void)
          * proved it is not being cleared. Any other interrupt arriving in
          * between, the timer included, clears the count.
          */
-        if (intid == irq_last)
         {
-            if (++irq_repeats > 10000)
-            {
-                bcm2711_irq_disable(intid);
-                bug("[Kernel] IRQ %u not cleared by its handler, masked\n", intid);
+            uint64_t now, freq;
+
+            __asm__ volatile("mrs %0, cntpct_el0" : "=r"(now));
+            __asm__ volatile("mrs %0, cntfrq_el0" : "=r"(freq));
+
+            /* Only a source re-presented immediately counts: a periodic
+               interrupt leaves a gap and must not be mistaken for a storm. */
+            if (intid == irq_last && (now - irq_last_ts) < (freq / 10000))
+                irq_repeats++;
+            else
                 irq_repeats = 0;
-                break;
-            }
-        }
-        else
-        {
+
             irq_last = intid;
+            irq_last_ts = now;
+        }
+
+        if (irq_repeats > 10000)
+        {
+            bcm2711_irq_disable(intid);
+            bug("[Kernel] IRQ %u not cleared by its handler, masked\n", intid);
             irq_repeats = 0;
+            break;
         }
     }
 }

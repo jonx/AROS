@@ -261,9 +261,15 @@ static BOOL BridgeInit(struct pci_staticdata *psd)
     wr32(regs, 0x20, ((BCM2711_PCIE_PCI_WIN + BCM2711_PCIE_WIN_SIZE - 0x100000) & 0xfff00000)
                      | (BCM2711_PCIE_PCI_WIN >> 16));
 
-    /* Enable memory decode and bus mastering on the root port */
-    tmp = rd32(regs, 0x04);
-    wr32(regs, 0x04, tmp | 0x0006);
+    /* Enable memory decode and bus mastering on the root port, and let it
+       pass legacy interrupts up */
+    tmp = rd32(regs, PCI_CMD);
+    wr32(regs, PCI_CMD, (tmp | PCI_CMD_MEMORY | PCI_CMD_MASTER) & ~PCI_CMD_INTX_DISABLE);
+
+    /* Let the legacy interrupt lines through to the interrupt controller. */
+    wr32(regs, PCIE_INTR2_CPU_MASK_CLR, PCIE_INTR2_INTX_MASK);
+    D(bug("[PCIBcm2711] INTx mask now %08x\n",
+          rd32(regs, PCIE_INTR2_CPU_MASK_STATUS)));
 
     return TRUE;
 }
@@ -291,9 +297,13 @@ static void SetupEndpoint(struct pci_staticdata *psd)
         tmp = rd32(regs, PCIE_EXT_CFG_DATA + 0x3c);
         wr32(regs, PCIE_EXT_CFG_DATA + 0x3c, (tmp & 0xffffff00) | BCM2711_PCIE_INTA);
 
-        /* Memory decode + bus mastering */
-        tmp = rd32(regs, PCIE_EXT_CFG_DATA + 0x04);
-        wr32(regs, PCIE_EXT_CFG_DATA + 0x04, tmp | 0x0006);
+        /* Memory decode + bus mastering, and let it raise its interrupt:
+           the firmware leaves legacy interrupts disabled. */
+        tmp = rd32(regs, PCIE_EXT_CFG_DATA + PCI_CMD);
+        tmp = (tmp | PCI_CMD_MEMORY | PCI_CMD_MASTER) & ~PCI_CMD_INTX_DISABLE;
+        wr32(regs, PCIE_EXT_CFG_DATA + PCI_CMD, tmp);
+        D(bug("[PCIBcm2711] endpoint command now %04x\n",
+              (unsigned)(rd32(regs, PCIE_EXT_CFG_DATA + PCI_CMD) & 0xffff)));
     }
     Enable();
 

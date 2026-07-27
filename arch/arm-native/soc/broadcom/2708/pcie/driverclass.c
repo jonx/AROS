@@ -186,8 +186,11 @@ APTR PCIBcm2711__Hidd_PCIDriver__AllocPCIMem(OOP_Class *cl, OOP_Object *o,
     uint32_t pages = (msg->Size + UCMEM_PAGESIZE - 1) / UCMEM_PAGESIZE;
     APTR result = NULL;
 
-    if (pages == 0 || pages > 254 || psd->ucmem_base == 0)
+    if (pages == 0 || pages >= UCMEM_CONT || psd->ucmem_base == 0)
+    {
+        bug("[PCIBcm2711] AllocPCIMem(%u): bad request\n", (unsigned int)msg->Size);
         return NULL;
+    }
 
     Disable();
     for (uint32_t i = 0; i + pages <= psd->ucmem_pages; i++)
@@ -202,18 +205,22 @@ APTR PCIBcm2711__Hidd_PCIDriver__AllocPCIMem(OOP_Class *cl, OOP_Object *o,
         {
             psd->ucmem_used[i] = pages;
             for (j = 1; j < pages; j++)
-                psd->ucmem_used[i + j] = 0xff;
+                psd->ucmem_used[i + j] = UCMEM_CONT;
             result = (APTR)(psd->ucmem_base + (uintptr_t)i * UCMEM_PAGESIZE);
             break;
         }
 
-        if (psd->ucmem_used[i + j] == 0xff || psd->ucmem_used[i + j] > 1)
+        if (psd->ucmem_used[i + j])
             i += j; /* skip the rest of that allocation */
     }
     Enable();
 
     if (result)
         memset(result, 0, (size_t)pages * UCMEM_PAGESIZE);
+    else
+        bug("[PCIBcm2711] AllocPCIMem(%u): out of uncached memory\n",
+            (unsigned int)msg->Size);
+
     D(bug("[PCIBcm2711] AllocPCIMem(%u) = %p\n", (unsigned int)msg->Size, result));
 
     return result;
@@ -231,7 +238,7 @@ VOID PCIBcm2711__Hidd_PCIDriver__FreePCIMem(OOP_Class *cl, OOP_Object *o,
     uint32_t idx = (addr - psd->ucmem_base) / UCMEM_PAGESIZE;
     uint32_t pages = psd->ucmem_used[idx];
 
-    if (pages == 0 || pages == 0xff)
+    if (pages == 0 || pages == UCMEM_CONT)
         return; /* not the head of an allocation */
 
     Disable();

@@ -78,9 +78,12 @@
 #define BCM2711_PCIE_INTA               175
 
 /* Uncached DMA memory allocator: page-granular bitmap over the block the
- * bootstrap reserved. */
+ * bootstrap reserved. xHCI controllers may use a 64KB page size and ask
+ * for scratchpad areas of a megabyte or more, so the block is sized in
+ * tens of megabytes and a single allocation is not artificially capped. */
 #define UCMEM_PAGESIZE                  4096
-#define UCMEM_MAXPAGES                  512     /* 2MB */
+#define UCMEM_MAXPAGES                  4096    /* 16MB */
+#define UCMEM_CONT                      0xffff  /* continuation slot marker */
 
 struct pci_staticdata {
     OOP_AttrBase    hiddPCIDriverAB;
@@ -93,7 +96,7 @@ struct pci_staticdata {
     uintptr_t       ucmem_base;
     uintptr_t       ucmem_size;
     uint32_t        ucmem_pages;
-    uint8_t         ucmem_used[UCMEM_MAXPAGES];  /* pages in an allocation, at its head */
+    uint16_t        ucmem_used[UCMEM_MAXPAGES];  /* pages in an allocation, at its head */
 };
 
 struct pcibcm2711base {

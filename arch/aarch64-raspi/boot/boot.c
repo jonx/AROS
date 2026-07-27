@@ -373,14 +373,15 @@ void query_memory()
             }
 
             /*
-             * Reserve the topmost 2MB block as uncached RAM. PCIe bus
-             * masters on the BCM2711 are not cache coherent, and the
-             * kernel cannot change memory attributes at runtime, so DMA
+             * Reserve the topmost 16MB as uncached RAM. PCIe bus masters
+             * on the BCM2711 are not cache coherent, and the kernel
+             * cannot change memory attributes at runtime, so DMA
              * descriptor memory is set aside and mapped Normal
              * Non-Cacheable here. The block is kept out of the system
-             * memory range.
+             * memory range. xHCI controllers with a 64KB page size ask
+             * for scratchpad areas of several megabytes, hence the size.
              */
-            uint32_t nc_base = (upper - (2 << 20)) & ~((2 << 20) - 1);
+            uint32_t nc_base = (upper - (16 << 20)) & ~((2 << 20) - 1);
             uint32_t nc_size = upper - nc_base;
             upper = nc_base;
 

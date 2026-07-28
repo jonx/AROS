@@ -106,6 +106,7 @@ struct pci_staticdata {
     OOP_Class       *driverClass;
 
     volatile uint8_t *regs;
+    BOOL            preinitialised;     /* firmware left the link trained */
 
     /* Uncached DMA memory block */
     uintptr_t       ucmem_base;

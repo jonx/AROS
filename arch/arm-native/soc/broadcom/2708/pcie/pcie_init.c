@@ -187,24 +187,46 @@ static BOOL BridgeInit(struct pci_staticdata *psd)
 
     /*
      * The register core may be held in SW_INIT out of power-on; while it
-     * is, everything but the reset block answers with a bus error. Only
-     * the RGR1 block may be touched before the core is released, and
-     * with a plain write, not a read-modify-write.
+     * is, everything but the reset block answers with a bus error, so the
+     * reset block is the only thing that may be read first.
+     *
+     * If the firmware has already trained the link, leave it alone. Taking
+     * the bus through reset costs the attached controller the firmware the
+     * bootloader loaded into it, and with it the power it supplies to the
+     * ports.
      */
-    D(bug("[PCIBcm2711] resetting the bridge\n"));
-    wr32(regs, PCIE_RGR1_SW_INIT_1, RGR1_PERST | RGR1_SW_INIT);
-    delay_us(200);
+    tmp = rd32(regs, PCIE_RGR1_SW_INIT_1);
+    if (!(tmp & RGR1_SW_INIT))
+    {
+        uint32_t status = rd32(regs, PCIE_MISC_PCIE_STATUS);
 
-    /* Release the bridge core, keep PERST# asserted */
-    wr32(regs, PCIE_RGR1_SW_INIT_1, RGR1_PERST);
-    delay_us(200);
+        D(bug("[PCIBcm2711] bridge is already running, status %08x\n", status));
 
-    D(bug("[PCIBcm2711] bridge revision %08x\n", rd32(regs, PCIE_MISC_REVISION)));
+        if ((status & (STATUS_PHYLINKUP | STATUS_DL_ACTIVE)) ==
+            (STATUS_PHYLINKUP | STATUS_DL_ACTIVE))
+        {
+            psd->preinitialised = TRUE;
+            D(bug("[PCIBcm2711] link already trained, keeping it\n"));
+        }
+    }
 
-    /* Power up the PHY */
-    tmp = rd32(regs, PCIE_MISC_HARD_PCIE_HARD_DEBUG);
-    wr32(regs, PCIE_MISC_HARD_PCIE_HARD_DEBUG, tmp & ~HARD_DEBUG_SERDES_IDDQ);
-    delay_us(200);
+    if (!psd->preinitialised)
+    {
+        D(bug("[PCIBcm2711] resetting the bridge\n"));
+        wr32(regs, PCIE_RGR1_SW_INIT_1, RGR1_PERST | RGR1_SW_INIT);
+        delay_us(200);
+
+        /* Release the bridge core, keep PERST# asserted */
+        wr32(regs, PCIE_RGR1_SW_INIT_1, RGR1_PERST);
+        delay_us(200);
+
+        D(bug("[PCIBcm2711] bridge revision %08x\n", rd32(regs, PCIE_MISC_REVISION)));
+
+        /* Power up the PHY */
+        tmp = rd32(regs, PCIE_MISC_HARD_PCIE_HARD_DEBUG);
+        wr32(regs, PCIE_MISC_HARD_PCIE_HARD_DEBUG, tmp & ~HARD_DEBUG_SERDES_IDDQ);
+        delay_us(200);
+    }
 
     /*
      * SCB/inbound setup: one region at PCI address 0 covering system
@@ -246,8 +268,11 @@ static BOOL BridgeInit(struct pci_staticdata *psd)
     }
 
     /* Deassert PERST# and wait for the link */
-    D(bug("[PCIBcm2711] releasing PERST#\n"));
-    wr32(regs, PCIE_RGR1_SW_INIT_1, 0);
+    if (!psd->preinitialised)
+    {
+        D(bug("[PCIBcm2711] releasing PERST#\n"));
+        wr32(regs, PCIE_RGR1_SW_INIT_1, 0);
+    }
 
     for (i = 0; i < 100; i++)
     {
@@ -306,9 +331,17 @@ static void SetupEndpoint(struct pci_staticdata *psd)
 
     if (id != 0xffffffff && id != 0)
     {
-        /* 64-bit memory BAR0 */
-        wr32(regs, PCIE_EXT_CFG_DATA + 0x10, BCM2711_PCIE_PCI_WIN);
-        wr32(regs, PCIE_EXT_CFG_DATA + 0x14, 0);
+        /* 64-bit memory BAR0. Keep whatever the firmware placed there:
+           moving a controller it has already set up loses us its work. */
+        uint32_t bar = rd32(regs, PCIE_EXT_CFG_DATA + 0x10) & ~0xfUL;
+
+        if (!psd->preinitialised || bar == 0)
+        {
+            wr32(regs, PCIE_EXT_CFG_DATA + 0x10, BCM2711_PCIE_PCI_WIN);
+            wr32(regs, PCIE_EXT_CFG_DATA + 0x14, 0);
+        }
+        else
+            D(bug("[PCIBcm2711] keeping firmware BAR0 %08x\n", bar));
 
         /* Interrupt line = GIC INTID of INTA */
         tmp = rd32(regs, PCIE_EXT_CFG_DATA + 0x3c);
@@ -367,8 +400,12 @@ static int PCIBcm2711_InitClass(LIBBASETYPEPTR LIBBASE)
      */
     SetupEndpoint(psd);
 
-    NotifyXHCIReset();
-    delay_us(200000);
+    /* Only worth asking when we are the ones who reset it. */
+    if (!psd->preinitialised)
+    {
+        NotifyXHCIReset();
+        delay_us(200000);
+    }
 
     psd->hiddPCIDriverAB = OOP_ObtainAttrBase(IID_Hidd_PCIDriver);
     psd->hiddAB = OOP_ObtainAttrBase(IID_Hidd);

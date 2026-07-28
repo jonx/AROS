@@ -161,6 +161,24 @@ LONG xhciCmdSubmit(struct PCIController *hc,
         pciusbError("xHCI",
                     DEBUGWARNCOLOR_SET "%s: command timed out waiting for completion" DEBUGCOLOR_RESET" \n",
                     __func__);
+        {
+            volatile struct xhci_hcopr *dbg_opr =
+                (volatile struct xhci_hcopr *)((IPTR)xhcic->xhc_XHCIOpR);
+            volatile ULONG *cmdring = (volatile ULONG *)xhcic->xhc_OPRp;
+            volatile ULONG *evtring = (volatile ULONG *)xhcic->xhc_ERSp;
+
+            bug("[xhci] usbcmd=%08x usbsts=%08x crcr=%08x:%08x\n",
+                (unsigned)AROS_LE2LONG(dbg_opr->usbcmd),
+                (unsigned)AROS_LE2LONG(dbg_opr->usbsts),
+                (unsigned)AROS_LE2LONG(dbg_opr->crcr.addr_hi),
+                (unsigned)AROS_LE2LONG(dbg_opr->crcr.addr_lo));
+            bug("[xhci] cmdring@%p: %08x %08x %08x %08x\n", cmdring,
+                (unsigned)cmdring[0], (unsigned)cmdring[1],
+                (unsigned)cmdring[2], (unsigned)cmdring[3]);
+            bug("[xhci] evtring@%p: %08x %08x %08x %08x\n", evtring,
+                (unsigned)evtring[0], (unsigned)evtring[1],
+                (unsigned)evtring[2], (unsigned)evtring[3]);
+        }
     }
     return -1;
 }

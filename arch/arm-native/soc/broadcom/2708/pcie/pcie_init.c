@@ -171,7 +171,8 @@ static void NotifyXHCIReset(void)
 
     MBoxWrite((APTR)VCMB_BASE, VCMB_PROPCHAN, msg);
     if (MBoxRead((APTR)VCMB_BASE, VCMB_PROPCHAN) == msg)
-        D(bug("[PCIBcm2711] VL805 firmware notify replied %08x\n", AROS_LE2LONG(msg[5])));
+        D(bug("[PCIBcm2711] VL805 firmware notify: status %08x, tag %08x, value %08x\n",
+              AROS_LE2LONG(msg[1]), AROS_LE2LONG(msg[4]), AROS_LE2LONG(msg[5])));
     else
         D(bug("[PCIBcm2711] VL805 firmware notify got no reply\n"));
 
@@ -358,10 +359,16 @@ static int PCIBcm2711_InitClass(LIBBASETYPEPTR LIBBASE)
     if (!BridgeInit(psd))
         return TRUE;    /* no link; nothing to drive, but do not stop boot */
 
-    NotifyXHCIReset();
-    delay_us(100000);
-
+    /*
+     * Give the controller its resources before asking the firmware to
+     * reload it: the upload travels over the bus and needs the endpoint
+     * decoding memory. Taking the bus through reset above cost it the
+     * firmware the bootloader had left running.
+     */
     SetupEndpoint(psd);
+
+    NotifyXHCIReset();
+    delay_us(200000);
 
     psd->hiddPCIDriverAB = OOP_ObtainAttrBase(IID_Hidd_PCIDriver);
     psd->hiddAB = OOP_ObtainAttrBase(IID_Hidd);

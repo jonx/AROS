@@ -151,6 +151,11 @@ LONG xhciCmdSubmit(struct PCIController *hc,
             }
 
             uhwDelayMS(1, timerreq);
+
+            /* Service the controller directly while waiting. On a host
+               whose interrupt never arrives this is what moves events
+               off the ring; where interrupts work it finds nothing. */
+            AROS_INTC1(hc->hc_PCIIntHandler.is_Code, hc->hc_PCIIntHandler.is_Data);
         }
 
         pciusbError("xHCI",

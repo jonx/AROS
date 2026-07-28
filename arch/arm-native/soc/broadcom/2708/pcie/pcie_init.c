@@ -205,13 +205,29 @@ static BOOL BridgeInit(struct pci_staticdata *psd)
     wr32(regs, PCIE_MISC_HARD_PCIE_HARD_DEBUG, tmp & ~HARD_DEBUG_SERDES_IDDQ);
     delay_us(200);
 
-    /* SCB/inbound setup: one 4GB region at PCI address 0 */
-    wr32(regs, PCIE_MISC_MISC_CTRL,
-         MISC_CTRL_SCB_ACCESS_EN | MISC_CTRL_CFG_READ_UR_MODE |
-         MISC_CTRL_MAX_BURST_SIZE_128 | MISC_CTRL_SCB0_SIZE(32));
+    /*
+     * SCB/inbound setup: one region at PCI address 0 covering system
+     * memory. The size is an exponent and has to describe the memory
+     * that is really fitted, not the largest a controller could take,
+     * or inbound addresses do not decode.
+     */
+    {
+        uint64_t ramtop = psd->ucmem_base + psd->ucmem_size;
+        unsigned int exp = 63 - __builtin_clzll(ramtop);
 
-    wr32(regs, PCIE_MISC_RC_BAR2_CONFIG_LO, RC_BAR_SIZE(32));
-    wr32(regs, PCIE_MISC_RC_BAR2_CONFIG_HI, 0);
+        if ((1ULL << exp) < ramtop)
+            exp++;              /* round up to the next power of two */
+
+        D(bug("[PCIBcm2711] system memory %uMB, inbound size exponent %u\n",
+              (unsigned)(ramtop >> 20), exp));
+
+        wr32(regs, PCIE_MISC_MISC_CTRL,
+             MISC_CTRL_SCB_ACCESS_EN | MISC_CTRL_CFG_READ_UR_MODE |
+             MISC_CTRL_MAX_BURST_SIZE_128 | MISC_CTRL_SCB0_SIZE(exp));
+
+        wr32(regs, PCIE_MISC_RC_BAR2_CONFIG_LO, RC_BAR_SIZE(exp));
+        wr32(regs, PCIE_MISC_RC_BAR2_CONFIG_HI, 0);
+    }
     wr32(regs, PCIE_MISC_RC_BAR1_CONFIG_LO, 0);
     wr32(regs, PCIE_MISC_RC_BAR3_CONFIG_LO, 0);
 

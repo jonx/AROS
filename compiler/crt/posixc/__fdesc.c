@@ -30,6 +30,13 @@
 #ifdef errno
 #undef errno
 #endif
+/* This writes the app's shared StdCBase errno cell, and that is the best this
+   library can do: __stdc_geterrnoptr() is a link-library function, so each
+   image has its own copy and its own errno-pointer hook. The pthread hook that
+   makes errno per-thread is installed in the application's copy; from inside
+   posixc.library it is unreachable, and calling this image's copy resolves a
+   different StdCBase altogether. The application's errno reader falls back to
+   this cell when its per-thread errno is unset. */
 #define errno (*(&((struct PosixCBase *)PosixCBase)->StdCBase->_errno))
 
 static int __fdlib_available(struct PosixCIntBase *PosixCBase)

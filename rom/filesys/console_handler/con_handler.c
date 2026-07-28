@@ -556,7 +556,7 @@ LONG CONMain(struct ExecBase *SysBase)
         ULONG conreadmask = 1L << fh->conreadmp->mp_SigBit;
         ULONG timermask = 1L << fh->timermp->mp_SigBit;
         ULONG packetmask = 1L << mp->mp_SigBit;
-        ULONG winmask = fh->window ? 1L << fh->window->UserPort->mp_SigBit : 0L;
+        ULONG winmask = 0;
         ULONG appwindowmask = fh->appmsgport ? 1L << fh->appmsgport->mp_SigBit : 0L;
         ULONG i, insertedlen;
         ULONG sigs;
@@ -566,6 +566,12 @@ LONG CONMain(struct ExecBase *SysBase)
         for (;;) {
             i = 0;
             insertedlen = 0;
+
+#if defined(CONSOLE_SHOW_MENU)
+            /* An AUTO console opens its window on first use and closes it
+               again at EOF, so re-read the port to listen on every time. */
+            winmask = fh->window ? 1L << fh->window->UserPort->mp_SigBit : 0L;
+#endif
             sigs = Wait(packetmask | conreadmask | timermask | winmask | appwindowmask);
 
             if ((appwindowmask) && (sigs & appwindowmask)) {
@@ -675,8 +681,14 @@ LONG CONMain(struct ExecBase *SysBase)
                                         case MEN_CONSOLE_PASTE:
                                             {
                                                 D(bug("[con:handler] %s: Menu: Paste\n", __func__));
-                                                do_paste(fh);
-                                                process_input(fh);
+                                                struct Library *ConsoleDevice = (struct Library *)fh->conreadio->io_Device;
+                                                struct InputEvent ie;
+                                                ie.ie_NextEvent = NULL;
+                                                ie.ie_Class     = IECLASS_RAWKEY;
+                                                ie.ie_Code      = RAWKEY_V;
+                                                ie.ie_Qualifier = IEQUALIFIER_RCOMMAND;
+                                                CDInputHandler(&ie, ConsoleDevice);
+                                                D(bug("[con:handler] %s: Menu: Paste sent\n", __func__));
                                             }
                                             break;
                                         case MEN_CONSOLE_CLIP0:

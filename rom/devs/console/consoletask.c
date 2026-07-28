@@ -291,17 +291,14 @@ VOID consoleTaskEntry(struct ConsoleBase *ConsoleDevice)
                                         switch (cdihmsg->ie.ie_Code)
                                         {
                                         case RAWKEY_C:
+                                            Console_Copy(cdihmsg->unit);
+                                            /* Swallow the translated char too:
+                                             * RawKeyConvert can still yield
+                                             * 'c'/'v' under some keymaps. */
+                                            actual = 0;
+                                            break;
                                         case RAWKEY_V:
-                                            /* Right-Amiga+C/V are the console
-                                             * window's menu shortcuts (the con-handler
-                                             * MEN_CONSOLE_COPY / MEN_CONSOLE_PASTE
-                                             * items use CommKeys "c"/"v"). Intuition's
-                                             * menu already delivers the copy/paste via
-                                             * do_paste(), so here we only swallow the
-                                             * translated char (RawKeyConvert can still
-                                             * yield 'c'/'v' under some keymaps) so it
-                                             * is not also typed. Doing Console_Copy/
-                                             * Console_Paste here too double-pasted. */
+                                            Console_Paste(cdihmsg->unit);
                                             actual = 0;
                                             break;
                                         }

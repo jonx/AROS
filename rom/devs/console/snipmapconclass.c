@@ -65,15 +65,6 @@ static VOID snipmapcon_copy(Class *cl, Object *o, Msg msg)
        extract.
      */
     DoSuperMethodA(cl, o, (Msg) msg);
-
-    /* FIXME: Handle ConClip here */
-    /*
-       if conclip running {
-       ObtainSemaphore(&ConsoleDevice->copyBufferLock);
-       .. create SGWork and send message to ConClip
-       ReleaseSemaphore(&ConsoleDevice->copyBufferLock);
-       }
-     */
 }
 
 static VOID snipmapcon_paste(Class *cl, Object *o, Msg msg)

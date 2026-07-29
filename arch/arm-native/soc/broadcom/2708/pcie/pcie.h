@@ -129,6 +129,7 @@ struct pci_staticdata {
 
     volatile uint8_t *regs;
     BOOL            preinitialised;     /* firmware left the link trained */
+    BOOL            fw_loaded;          /* endpoint firmware load already handled */
 
     /*
      * What a bus master must add to a system address to reach it. The
@@ -151,5 +152,8 @@ struct pcibcm2711base {
 
 #define BASE(lib) ((struct pcibcm2711base *)(lib))
 #define PSD(cl)   (&((struct pcibcm2711base *)cl->UserData)->psd)
+
+/* One-shot endpoint firmware load, called when its driver enables it. */
+void EnsureEndpointFirmware(struct pci_staticdata *psd);
 
 #endif

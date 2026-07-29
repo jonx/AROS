@@ -100,6 +100,11 @@ static void WriteConfigLong(struct pci_staticdata *psd, UBYTE bus, UBYTE dev, UB
     }
     else if (dev == 0)
     {
+        /* The endpoint runs no code until its driver enables it; that
+           enable is the agreed moment to have its firmware loaded. */
+        if ((reg & 0xffc) == PCI_CMD && (val & (PCI_CMD_MEMORY | PCI_CMD_MASTER)))
+            EnsureEndpointFirmware(psd);
+
         Disable();
         wr32(psd, PCIE_EXT_CFG_INDEX, EXT_CFG_ADDR(bus, dev, sub));
         wr32(psd, PCIE_EXT_CFG_DATA + (reg & 0xffc), val);

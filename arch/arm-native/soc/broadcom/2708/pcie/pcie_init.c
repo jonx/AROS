@@ -375,7 +375,7 @@ static BOOL BridgeInit(struct pci_staticdata *psd)
 
 /*
  * The endpoint has no firmware-assigned resources; place its BAR at
- * the bottom of the window, route its interrupt and enable it.
+ * the bottom of the window and route its interrupt.
  */
 static void SetupEndpoint(struct pci_staticdata *psd)
 {
@@ -408,37 +408,15 @@ static void SetupEndpoint(struct pci_staticdata *psd)
         tmp = rd32(regs, PCIE_EXT_CFG_DATA + 0x0c);
         wr32(regs, PCIE_EXT_CFG_DATA + 0x0c, (tmp & ~0xffUL) | 16);
 
-        /* Memory decode + bus mastering, and let it raise its interrupt:
-           the firmware leaves legacy interrupts disabled. */
-        tmp = rd32(regs, PCIE_EXT_CFG_DATA + PCI_CMD);
-        tmp = (tmp | PCI_CMD_MEMORY | PCI_CMD_MASTER | 0x0140) & ~PCI_CMD_INTX_DISABLE;
-        wr32(regs, PCIE_EXT_CFG_DATA + PCI_CMD, tmp);
-
-        D(bug("[PCIBcm2711] endpoint command now %04x\n",
-              (unsigned)(rd32(regs, PCIE_EXT_CFG_DATA + PCI_CMD) & 0xffff)));
+        /*
+         * The command register is left alone: the endpoint stays
+         * addressed but quiescent until its own driver enables it,
+         * which is the moment the firmware load happens.
+         */
     }
     Enable();
 
     D(bug("[PCIBcm2711] endpoint 1:0.0 id %08x\n", id));
-}
-
-/*
- * Give the endpoint its address and nothing else. The firmware loader
- * wants the device addressed but quiescent, the state it is in when the
- * reference implementation asks for the load.
- */
-static void AssignEndpointBAR(struct pci_staticdata *psd)
-{
-    volatile uint8_t *regs = psd->regs;
-
-    Disable();
-    wr32(regs, PCIE_EXT_CFG_INDEX, EXT_CFG_ADDR(1, 0, 0));
-    wr32(regs, PCIE_EXT_CFG_DATA + 0x10, BCM2711_PCIE_PCI_WIN);
-    wr32(regs, PCIE_EXT_CFG_DATA + 0x14, 0);
-    wr32(regs, PCIE_EXT_CFG_DATA + PCI_CMD,
-         rd32(regs, PCIE_EXT_CFG_DATA + PCI_CMD) &
-         ~(PCI_CMD_MEMORY | PCI_CMD_MASTER));
-    Enable();
 }
 
 /* Firmware revision of the attached controller, 0 if it is running none. */
@@ -452,6 +430,40 @@ static uint32_t EndpointFWVersion(struct pci_staticdata *psd)
     Enable();
 
     return (ver == 0xffffffff) ? 0 : ver;
+}
+
+/*
+ * Runs when the controller's driver first enables it, immediately
+ * before the driver initialises it. A controller that carries its own
+ * firmware store, or that survived a warm restart, is already running
+ * and is left alone: reloading a live controller leaves it inert.
+ */
+void EnsureEndpointFirmware(struct pci_staticdata *psd)
+{
+    int ms;
+
+    if (psd->fw_loaded)
+        return;
+    psd->fw_loaded = TRUE;
+
+    if (EndpointFWVersion(psd))
+    {
+        bug("[PCIBcm2711] controller firmware %08x, no load needed\n",
+            EndpointFWVersion(psd));
+        return;
+    }
+
+    NotifyXHCIReset();
+
+    for (ms = 0; ms < 1000; ms += 10)
+    {
+        if (EndpointFWVersion(psd))
+            break;
+        delay_us(10000);
+    }
+
+    bug("[PCIBcm2711] controller firmware %08x, %dms after load request\n",
+        EndpointFWVersion(psd), ms);
 }
 
 static int PCIBcm2711_InitClass(LIBBASETYPEPTR LIBBASE)
@@ -489,44 +501,10 @@ static int PCIBcm2711_InitClass(LIBBASETYPEPTR LIBBASE)
     if (!BridgeInit(psd))
         return TRUE;    /* no link; nothing to drive, but do not stop boot */
 
-    bug("[PCIBcm2711] controller firmware %08x before reload\n",
-        EndpointFWVersion(psd));
-
-    /*
-     * A controller that carries its own firmware store reloads itself
-     * after the reset above, and takes a moment over it. Give it that
-     * time and check, rather than reading it too early and asking the
-     * platform firmware for a reload it does not owe us: that request
-     * is only meant for boards without the store, and on a board that
-     * has one it leaves the controller running but inert.
-     */
-    if (!psd->preinitialised)
-    {
-        int ms;
-
-        for (ms = 0; ms < 600; ms += 50)
-        {
-            if (EndpointFWVersion(psd))
-                break;
-            delay_us(50000);
-        }
-
-        bug("[PCIBcm2711] controller firmware %08x after %dms\n",
-            EndpointFWVersion(psd), ms);
-
-        /* Only ask if it really cannot do it itself. */
-        if (!EndpointFWVersion(psd))
-        {
-            AssignEndpointBAR(psd);
-            NotifyXHCIReset();
-            delay_us(200000);
-            bug("[PCIBcm2711] controller firmware %08x after reload\n",
-                EndpointFWVersion(psd));
-        }
-    }
-
-    /* Now bring it up for use */
+    /* Address the endpoint; the firmware load waits for its driver. */
     SetupEndpoint(psd);
+    bug("[PCIBcm2711] controller firmware %08x at init\n",
+        EndpointFWVersion(psd));
 
     psd->hiddPCIDriverAB = OOP_ObtainAttrBase(IID_Hidd_PCIDriver);
     psd->hiddAB = OOP_ObtainAttrBase(IID_Hidd);

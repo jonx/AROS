@@ -1319,8 +1319,8 @@ xhciCreateDeviceCtx(struct PCIController *hc,
 
                 hubcc = xhciCmdEndpointConfigure(hc, parentCtx->dc_SlotID,
                                                  parentCtx->dc_IN.dmaa_Ptr, timerreq);
-                bug("[xhci] hub slot %u update cc=%ld\n",
-                    (unsigned)parentCtx->dc_SlotID, (long)hubcc);
+                pciusbXHCIDebug("xHCI", DEBUGCOLOR_SET "hub slot %u update cc=%ld" DEBUGCOLOR_RESET" \n",
+                                (unsigned)parentCtx->dc_SlotID, (long)hubcc);
                 if(hubcc == TRB_CC_SUCCESS)
                     parentCtx->dc_HubProgrammed = TRUE;
             }
@@ -1329,137 +1329,28 @@ xhciCreateDeviceCtx(struct PCIController *hc,
             islot->ctx[2] |= ((ULONG)parentCtx->dc_SlotID << SLOT_CTX_TT_SLOT_SHIFT) |
                              (ttport << SLOT_CTX_TT_PORT_SHIFT);
         } else
-            bug("[xhci] no parent hub context for route %05x port %u\n",
-                (unsigned)route, (unsigned)rootPortIndex);
+            pciusbWarn("xHCI", DEBUGWARNCOLOR_SET "no parent hub context for route %05x port %u"
+                       DEBUGCOLOR_RESET" \n", (unsigned)route, (unsigned)rootPortIndex);
     }
 
     CacheClearE((APTR)devCtx->dc_IN.dmaa_Ptr, inctx_size, CACRF_ClearD);
 
-    /* TEMPORARY: the exact context handed to Address Device */
-    bug("[xhci] ADDRDEV inctx dcf=%08x acf=%08x param=%08x:%08x\n",
-        (unsigned)AROS_LE2LONG(inctx->dcf), (unsigned)AROS_LE2LONG(inctx->acf),
-        (unsigned)((UQUAD)(IPTR)devCtx->dc_IN.dmaa_DMA >> 32),
-        (unsigned)((UQUAD)(IPTR)devCtx->dc_IN.dmaa_DMA & 0xffffffff));
-    bug("[xhci] ADDRDEV slot %08x %08x %08x %08x\n",
-        (unsigned)AROS_LE2LONG(islot->ctx[0]), (unsigned)AROS_LE2LONG(islot->ctx[1]),
-        (unsigned)AROS_LE2LONG(islot->ctx[2]), (unsigned)AROS_LE2LONG(islot->ctx[3]));
-    bug("[xhci] ADDRDEV ep0 %08x %08x deq=%08x:%08x len=%08x\n",
-        (unsigned)AROS_LE2LONG(iep0->ctx[0]), (unsigned)AROS_LE2LONG(iep0->ctx[1]),
-        (unsigned)AROS_LE2LONG(iep0->deq.addr_hi), (unsigned)AROS_LE2LONG(iep0->deq.addr_lo),
-        (unsigned)AROS_LE2LONG(iep0->length));
-    bug("[xhci] ADDRDEV dcbaa[%u]=%08x:%08x\n", (unsigned)slotid,
-        (unsigned)AROS_LE2LONG(deviceslots[slotid].addr_hi),
-        (unsigned)AROS_LE2LONG(deviceslots[slotid].addr_lo));
-    {
-        volatile struct xhci_hccapr *dbgcapr =
-            (volatile struct xhci_hccapr *)hc->hc_RegBase;
-        volatile struct xhci_pr *dbgports =
-            (volatile struct xhci_pr *)((IPTR)xhcic->xhc_XHCIPorts);
-        ULONG dbgport = (AROS_LE2LONG(islot->ctx[1]) >> 16) & 0xff;
-
-        bug("[xhci] ADDRDEV hccparams1=%08x hcsparams1=%08x portsc[%u]=%08x\n",
-            (unsigned)AROS_LE2LONG(dbgcapr->hccparams1),
-            (unsigned)AROS_LE2LONG(dbgcapr->hcsparams1),
-            (unsigned)dbgport,
-            dbgport ? (unsigned)AROS_LE2LONG(dbgports[dbgport - 1].portsc) : 0);
-    }
-
     /* ---- Address Device ----
      *
-     * BSR = 0 is needed on real hardware for the following GET_DESCRIPTORS
-     * to work (it won't execute on devaddr=0, it needs EP in state
-     * Addressed).
-     *
-     * TEMPORARY: on failure, scan the variants in one go: BSR=1 (context
-     * only, no SET_ADDRESS on the wire) and a 64-byte-stride copy of the
-     * input context, each logged with its completion code. A variant that
-     * succeeds lets the boot continue so the rest of the stack gets
-     * exercised in the same run.
+     * BSR = 0: the device must end up in the Addressed state, otherwise the
+     * GET_DESCRIPTOR that follows has no address to run against.
      */
-    {
-        LONG addr_cc;
+    if(TRB_CC_SUCCESS != xhciCmdDeviceAddress(hc, slotid, devCtx->dc_IN.dmaa_Ptr, 0, NULL,
+            timerreq)) {
+        pciusbError("xHCI",
+                    DEBUGWARNCOLOR_SET "Address Device failed" DEBUGCOLOR_RESET "\n");
 
-        addr_cc = xhciCmdDeviceAddress(hc, slotid, devCtx->dc_IN.dmaa_Ptr, 0, NULL, timerreq);
-        bug("[xhci] ADDRSCAN bsr0/ctx32 cc=%ld\n", (long)addr_cc);
+        xhciCmdSlotDisable(hc, slotid, timerreq);
+        xhciSetPointer(hc, deviceslots[slotid], 0);
 
-        if(addr_cc != TRB_CC_SUCCESS) {
-            addr_cc = xhciCmdDeviceAddress(hc, slotid, devCtx->dc_IN.dmaa_Ptr, 1, NULL, timerreq);
-            bug("[xhci] ADDRSCAN bsr1/ctx32 cc=%ld\n", (long)addr_cc);
-
-            if(addr_cc == TRB_CC_SUCCESS) {
-                /* Context accepted without the wire transaction; now do
-                   the real addressing on top of it. */
-                addr_cc = xhciCmdDeviceAddress(hc, slotid, devCtx->dc_IN.dmaa_Ptr, 0, NULL, timerreq);
-                bug("[xhci] ADDRSCAN bsr1-then-bsr0 cc=%ld\n", (long)addr_cc);
-            }
-        }
-
-        if(addr_cc != TRB_CC_SUCCESS) {
-            /* 64-byte-stride copies, submitted raw: the peek logic in the
-               normal submit path assumes the 32-byte layout. */
-            static struct MemEntry scan64entry;
-            static APTR scan64p = NULL;
-            if(!scan64p)
-                scan64p = pciAllocAligned(hc, &scan64entry, 3 * 64, 64, xhciPageSize(hc));
-
-            if(scan64p) {
-                UQUAD dma64;
-                ULONG bsr;
-
-                memset(scan64p, 0, 3 * 64);
-                ((volatile ULONG *)scan64p)[0] = inctx->dcf;
-                ((volatile ULONG *)scan64p)[1] = inctx->acf;
-                memcpy((UBYTE *)scan64p + 64, (const void *)islot, 32);
-                memcpy((UBYTE *)scan64p + 128, (const void *)iep0, 32);
-                CacheClearE(scan64p, 3 * 64, CACRF_ClearD);
-
-                /* CPU address: the TRB writer does the translation */
-                dma64 = (UQUAD)(IPTR)scan64p;
-
-                for(bsr = 0; bsr < 2 && addr_cc != TRB_CC_SUCCESS; bsr++) {
-                    ULONG trbflags = (slotid << 24) | TRBF_FLAG_CRTYPE_ADDRESS_DEVICE;
-                    WORD queued;
-
-                    if(bsr)
-                        trbflags |= (1UL << 9);
-
-                    Disable();
-                    queued = xhciQueueTRB(hc, xhcic->xhc_OPRp, dma64, 0, trbflags);
-                    if(queued != -1) {
-                        xhcic->xhc_CmdResults[queued].flags = 0xFFFFFFFF;
-                        xhcic->xhc_CmdResults[queued].status = 0xFFFFFFFF;
-                    }
-                    Enable();
-
-                    addr_cc = -1;
-                    if(queued != -1) {
-                        xhciRingDoorbell(hc, 0, 0);
-                        for(ULONG waitms = 0; waitms < 1000; waitms++) {
-                            if(xhcic->xhc_CmdResults[queued].status != 0xFFFFFFFF) {
-                                addr_cc = xhcic->xhc_CmdResults[queued].status;
-                                break;
-                            }
-                            uhwDelayMS(1, timerreq);
-                            AROS_INTC1(hc->hc_PCIIntHandler.is_Code,
-                                       hc->hc_PCIIntHandler.is_Data);
-                        }
-                    }
-                    bug("[xhci] ADDRSCAN bsr%lu/ctx64 cc=%ld\n", (unsigned long)bsr, (long)addr_cc);
-                }
-            }
-        }
-
-        if(addr_cc != TRB_CC_SUCCESS) {
-            pciusbError("xHCI",
-                        DEBUGWARNCOLOR_SET "Address Device failed" DEBUGCOLOR_RESET "\n");
-
-            xhciCmdSlotDisable(hc, slotid, timerreq);
-            xhciSetPointer(hc, deviceslots[slotid], 0);
-
-            devCtx->dc_SlotID = 0;
-            xhciFreeDeviceCtx(hc, devCtx, FALSE, timerreq);
-            return NULL;
-        }
+        devCtx->dc_SlotID = 0;
+        xhciFreeDeviceCtx(hc, devCtx, FALSE, timerreq);
+        return NULL;
     }
 
     /* Copy the updated output contexts to the input context for future commands.
@@ -3751,19 +3642,6 @@ BOOL xhciInit(struct PCIController *hc, struct PCIUnit *hu,
     if(val & (XHCIF_USBSTS_HCE | XHCIF_USBSTS_HSE)) {
         pciusbError("xHCI", DEBUGWARNCOLOR_SET "Controller reports fatal error (USBSTS=%08x), aborting init"
                     DEBUGCOLOR_RESET" \n", val);
-        /* TEMPORARY: name the bus error behind HSE, both ends of the link */
-        bug("[xhci] HSE: EP devctl/sts=%08x status=%08x\n",
-            (unsigned)READCONFIGLONG(hc, hc->hc_PCIDeviceObject, 0xc4 + 0x08),
-            (unsigned)READCONFIGLONG(hc, hc->hc_PCIDeviceObject, 0x04));
-#if defined(__aarch64__)
-        {
-            volatile ULONG *rc = (volatile ULONG *)0xFD500000UL;
-
-            bug("[xhci] HSE: RC status=%08x devctl/sts=%08x intr2=%08x aer=%08x\n",
-                (unsigned)rc[0x04 / 4], (unsigned)rc[(0xAC + 0x08) / 4],
-                (unsigned)rc[0x4300 / 4], (unsigned)rc[0x104 / 4]);
-        }
-#endif
         goto init_fail;
     }
     if(val & XHCIF_USBSTS_HCH)
@@ -3807,53 +3685,6 @@ BOOL xhciInit(struct PCIController *hc, struct PCIUnit *hu,
     hcopr->usbcmd = AROS_LONG2LE(val);
     pciusbXHCIDebug("xHCI", DEBUGCOLOR_SET "USBCMD = $%08x..." DEBUGCOLOR_RESET" \n",
                     AROS_LE2LONG(hcopr->usbcmd));
-
-    /*
-     * TEMPORARY single-boot DMA ladder:
-     *   1. MFINDEX advancing  = controller internals alive
-     *   2. MFINDEX wrap event = inbound DMA WRITE path works
-     *   3. No-Op command      = inbound DMA READ (TRB fetch) works
-     */
-    {
-        volatile ULONG *mfindex =
-            (volatile ULONG *)((IPTR)xhcic->xhc_XHCIIntR - 0x20);
-        volatile ULONG *evt = (volatile ULONG *)xhcic->xhc_ERSp;
-        ULONG mf1, mf2;
-        LONG nres;
-
-        int attempt;
-
-        for (attempt = 0; attempt < 5; attempt++) {
-            mf1 = AROS_LE2LONG(*mfindex) & 0x3fff;
-            uhwDelayMS(100, timerreq);
-            mf2 = AROS_LE2LONG(*mfindex) & 0x3fff;
-            bug("[xhci] SELFTEST 1.%d mfindex %u -> %u : %s\n",
-                attempt, (unsigned)mf1, (unsigned)mf2,
-                (mf1 != mf2) ? "RUNNING" : "STATIC");
-            if (mf1 != mf2)
-                break;
-
-            /* The controller's internal firmware boots on its own clock;
-               a reset that catches it mid-start leaves the engine dead.
-               Reset and restart until the microframe counter moves. */
-            xhciReset(hc, hu, timerreq);
-            val = AROS_LE2LONG(hcopr->usbcmd);
-            hcopr->usbcmd = AROS_LONG2LE(val | XHCIF_USBCMD_RS | XHCIF_USBCMD_INTE);
-            uhwDelayMS(200, timerreq);
-        }
-
-        val = AROS_LE2LONG(hcopr->usbcmd);
-        hcopr->usbcmd = AROS_LONG2LE(val | XHCIF_USBCMD_EWE);
-        uhwDelayMS(2300, timerreq);
-        hcopr->usbcmd = AROS_LONG2LE(val);
-        bug("[xhci] SELFTEST 2 evtring %08x %08x %08x %08x : %s\n",
-            (unsigned)evt[0], (unsigned)evt[1],
-            (unsigned)evt[2], (unsigned)evt[3],
-            (evt[0] | evt[1] | evt[2] | evt[3]) ? "WRITTEN" : "EMPTY");
-
-        nres = xhciCmdNoOp(hc, 0, NULL, timerreq);
-        bug("[xhci] SELFTEST 3 noop result %ld\n", (long)nres);
-    }
 
     pciusbXHCIDebug("xHCI", DEBUGCOLOR_SET "xhciInit returns TRUE..." DEBUGCOLOR_RESET" \n");
     return TRUE;

@@ -444,10 +444,10 @@ void EnsureEndpointFirmware(struct pci_staticdata *psd)
 
     if (psd->fw_loaded)
         return;
-    psd->fw_loaded = TRUE;
 
     if (EndpointFWVersion(psd))
     {
+        psd->fw_loaded = TRUE;
         bug("[PCIBcm2711] controller firmware %08x, no load needed\n",
             EndpointFWVersion(psd));
         return;
@@ -464,6 +464,14 @@ void EnsureEndpointFirmware(struct pci_staticdata *psd)
 
     bug("[PCIBcm2711] controller firmware %08x, %dms after load request\n",
         EndpointFWVersion(psd), ms);
+
+    /* The version reports in a little before the controller is ready;
+       a failed load stays unmarked so the next enable tries again. */
+    if (EndpointFWVersion(psd))
+    {
+        psd->fw_loaded = TRUE;
+        delay_us(1000);
+    }
 }
 
 static int PCIBcm2711_InitClass(LIBBASETYPEPTR LIBBASE)

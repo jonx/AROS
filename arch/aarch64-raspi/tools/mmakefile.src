@@ -1,0 +1,15 @@
+#
+#   Bring-up tools for the Raspberry Pi aarch64 target.
+#
+
+include $(SRCDIR)/config/aros.cfg
+
+FILES := \
+    FBGrab
+
+#MM- kernel-raspi-aarch64-tools : includes linklibs
+
+%build_progs mmake=kernel-raspi-aarch64-tools \
+    files=$(FILES) targetdir=$(AROSDIR)/C
+
+%common

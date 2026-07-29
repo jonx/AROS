@@ -118,7 +118,17 @@ LONG xhciCmdSubmit(struct PCIController *hc,
             /* Assume typical input context size; adjust if needed */
             CacheClearE(dmaaddr, 2048, CACRF_ClearD);
         }
-        queued = xhciQueueTRB(hc, xhcic->xhc_OPRp, (UQUAD)(IPTR)dmaaddr, 0, trbflags);
+        /* The context commands take a CPU pointer; the TRB carries the
+           bus address. */
+        {
+            UQUAD dma_ctx;
+#if !defined(PCIUSB_NO_CPUTOPCI)
+            dma_ctx = (UQUAD)(IPTR)CPUTOPCI(hc, hc->hc_PCIDriverObject, dmaaddr);
+#else
+            dma_ctx = (UQUAD)(IPTR)dmaaddr;
+#endif
+            queued = xhciQueueTRB(hc, xhcic->xhc_OPRp, dma_ctx, 0, trbflags);
+        }
     } else if(dmaaddr) {
         queued = xhciQueueTRB(hc, xhcic->xhc_OPRp, (UQUAD)(IPTR)dmaaddr, 0, trbflags);
     } else {
@@ -138,9 +148,9 @@ LONG xhciCmdSubmit(struct PCIController *hc,
         /* Wait for completion with a bounded timeout to avoid hanging */
         for(ULONG waitms = 0; waitms < 1000; waitms++) {
             if(xhcic->xhc_CmdResults[queued].status != 0xFFFFFFFF) {
-                /* Invalidate any output contexts that may have been updated */
-                if(dmaaddr) {
-                    /* For commands that update contexts, invalidate cache */
+                /* Invalidate any output contexts that may have been updated;
+                   only the context commands carry a CPU-addressable buffer. */
+                if(dmaaddr && needs_context) {
                     CacheClearE(dmaaddr, 2048, CACRF_InvalidateD);
                 }
 
@@ -178,6 +188,84 @@ LONG xhciCmdSubmit(struct PCIController *hc,
             bug("[xhci] evtring@%p: %08x %08x %08x %08x\n", evtring,
                 (unsigned)evtring[0], (unsigned)evtring[1],
                 (unsigned)evtring[2], (unsigned)evtring[3]);
+            bug("[xhci] pcicmd=%04x fwver=%08x bar0=%08x\n",
+                (unsigned)READCONFIGWORD(hc, hc->hc_PCIDeviceObject, 0x04),
+                (unsigned)READCONFIGLONG(hc, hc->hc_PCIDeviceObject, 0x50),
+                (unsigned)READCONFIGLONG(hc, hc->hc_PCIDeviceObject, 0x10));
+            {
+                volatile struct xhci_ir *dbg_ir =
+                    (volatile struct xhci_ir *)((IPTR)xhcic->xhc_XHCIIntR);
+
+                bug("[xhci] iman=%08x erstsz=%08x erstba=%08x:%08x erdp=%08x:%08x\n",
+                    (unsigned)AROS_LE2LONG(dbg_ir->iman),
+                    (unsigned)AROS_LE2LONG(dbg_ir->erstsz),
+                    (unsigned)AROS_LE2LONG(dbg_ir->erstba.addr_hi),
+                    (unsigned)AROS_LE2LONG(dbg_ir->erstba.addr_lo),
+                    (unsigned)AROS_LE2LONG(dbg_ir->erdp.addr_hi),
+                    (unsigned)AROS_LE2LONG(dbg_ir->erdp.addr_lo));
+                bug("[xhci] erst@%p: %08x %08x %08x %08x\n", xhcic->xhc_ERSTp,
+                    (unsigned)((volatile ULONG *)xhcic->xhc_ERSTp)[0],
+                    (unsigned)((volatile ULONG *)xhcic->xhc_ERSTp)[1],
+                    (unsigned)((volatile ULONG *)xhcic->xhc_ERSTp)[2],
+                    (unsigned)((volatile ULONG *)xhcic->xhc_ERSTp)[3]);
+            }
+
+            /* TEMPORARY: PCIe-level error state on both ends of the link.
+               The endpoint is the requester of the failing DMA reads, so
+               its Device Status and AER registers name the failure if one
+               is recorded; the root port records rejected inbound TLPs. */
+            {
+                ULONG cap = READCONFIGLONG(hc, hc->hc_PCIDeviceObject, 0x34) & 0xff;
+                ULONG guard = 12;
+
+                while (cap && guard--) {
+                    ULONG hdr = READCONFIGLONG(hc, hc->hc_PCIDeviceObject, cap);
+
+                    if ((hdr & 0xff) == 0x10) {  /* PCI Express capability */
+                        bug("[xhci] EP pcie cap@%02x devctl/sts=%08x lnkctl/sts=%08x\n",
+                            (unsigned)cap,
+                            (unsigned)READCONFIGLONG(hc, hc->hc_PCIDeviceObject, cap + 0x08),
+                            (unsigned)READCONFIGLONG(hc, hc->hc_PCIDeviceObject, cap + 0x10));
+                        break;
+                    }
+                    cap = (hdr >> 8) & 0xff;
+                }
+
+                bug("[xhci] EP status=%08x aer uesta=%08x cesta=%08x\n",
+                    (unsigned)READCONFIGLONG(hc, hc->hc_PCIDeviceObject, 0x04),
+                    (unsigned)READCONFIGLONG(hc, hc->hc_PCIDeviceObject, 0x104),
+                    (unsigned)READCONFIGLONG(hc, hc->hc_PCIDeviceObject, 0x110));
+                /* AER header log: the exact TLP that was aborted */
+                bug("[xhci] EP aer hdr=%08x %08x %08x %08x\n",
+                    (unsigned)READCONFIGLONG(hc, hc->hc_PCIDeviceObject, 0x11c),
+                    (unsigned)READCONFIGLONG(hc, hc->hc_PCIDeviceObject, 0x120),
+                    (unsigned)READCONFIGLONG(hc, hc->hc_PCIDeviceObject, 0x124),
+                    (unsigned)READCONFIGLONG(hc, hc->hc_PCIDeviceObject, 0x128));
+            }
+#if defined(__aarch64__)
+            /* TEMPORARY: root complex side, direct on this platform only. */
+            {
+                volatile ULONG *rc = (volatile ULONG *)0xFD500000UL;
+
+                bug("[xhci] RC status=%08x devctl/sts=%08x pciests=%08x\n",
+                    (unsigned)rc[0x04 / 4],
+                    (unsigned)rc[(0xAC + 0x08) / 4],
+                    (unsigned)rc[0x4068 / 4]);
+                bug("[xhci] RC intr2sts=%08x msists=%08x aer uesta=%08x\n",
+                    (unsigned)rc[0x4300 / 4],
+                    (unsigned)rc[0x4500 / 4],
+                    (unsigned)rc[0x104 / 4]);
+                /* Inbound window state as it stands at failure time, to
+                   catch anything reprogramming it after bridge init. */
+                bug("[xhci] RC misc_ctrl=%08x rc_bar2=%08x:%08x win0=%08x/%08x harddbg=%08x\n",
+                    (unsigned)rc[0x4008 / 4],
+                    (unsigned)rc[0x4038 / 4],
+                    (unsigned)rc[0x4034 / 4],
+                    (unsigned)rc[0x400c / 4],
+                    (unsigned)rc[0x4070 / 4],
+                    (unsigned)rc[0x4204 / 4]);
+            }
+#endif
         }
     }
     return -1;
@@ -232,8 +320,18 @@ LONG xhciCmdSubmitAsync(struct PCIController *hc,
             Enable();
             return -1;
         }
-        queued = xhciQueueTRB_IO(hc, cmdring, (UQUAD)(IPTR)dmaaddr, 0, trbflags,
-                                 &ioreq->iouh_Req);
+        /* The context commands take a CPU pointer; the TRB carries the
+           bus address. */
+        {
+            UQUAD dma_ctx;
+#if !defined(PCIUSB_NO_CPUTOPCI)
+            dma_ctx = (UQUAD)(IPTR)CPUTOPCI(hc, hc->hc_PCIDriverObject, dmaaddr);
+#else
+            dma_ctx = (UQUAD)(IPTR)dmaaddr;
+#endif
+            queued = xhciQueueTRB_IO(hc, cmdring, dma_ctx, 0, trbflags,
+                                     &ioreq->iouh_Req);
+        }
     } else
         queued = xhciQueueTRB_IO(hc, cmdring, 0, 0, trbflags, &ioreq->iouh_Req);
 

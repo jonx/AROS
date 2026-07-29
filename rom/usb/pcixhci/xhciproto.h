@@ -363,6 +363,18 @@ void xhciDumpCC(UBYTE completioncode);
     y.addr_hi = 0
 #endif
 
+/*
+ * 64-bit registers are programmed as two 32-bit accesses, low dword
+ * first: not every host bridge or controller carries an 8-byte
+ * transaction whole. Memory-resident pointer fields do not need this.
+ */
+#define xhciSetPointerMMIO(x,y,z) \
+    do { \
+        y.addr_lo = AROS_LONG2LE((ULONG)((UQUAD)(IPTR)(z) & 0xFFFFFFFF)); \
+        y.addr_hi = ((x)->hc_Flags & HCF_ADDR64) ? \
+            AROS_LONG2LE((ULONG)((UQUAD)(IPTR)(z) >> 32)) : 0; \
+    } while (0)
+
 static inline struct xhci_trb *
 xhciTRBPointer(struct PCIController *hc, volatile struct xhci_trb *trb)
 {

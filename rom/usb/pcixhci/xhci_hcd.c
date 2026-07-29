@@ -3270,7 +3270,7 @@ static AROS_INTH1(xhciIntCode, struct PCIController *, hc)
             next_dma  = (UQUAD)(IPTR)xhcic->xhc_DMAERS;
             next_dma += (UQUAD)(idx) * (UQUAD)sizeof(struct xhci_trb);
 
-            xhciSetPointer(hc, ir->erdp, (IPTR)(next_dma | (UQUAD)XHCIF_IR_ERDP_EHB));
+            xhciSetPointerMMIO(hc, ir->erdp, (IPTR)(next_dma | (UQUAD)XHCIF_IR_ERDP_EHB));
         }
 
         if(maxwork == 0) {
@@ -3390,10 +3390,10 @@ void xhciReset(struct PCIController *hc, struct PCIUnit *hu,
 
     hcopr->config = AROS_LONG2LE(xhcic->xhc_NumSlots);
     pciusbXHCIDebug("xHCI", DEBUGCOLOR_SET "  Setting DCBAA to 0x%p" DEBUGCOLOR_RESET" \n", xhcic->xhc_DMADCBAA);
-    xhciSetPointer(hc, hcopr->dcbaap, xhcic->xhc_DMADCBAA);
+    xhciSetPointerMMIO(hc, hcopr->dcbaap, xhcic->xhc_DMADCBAA);
     xhciDumpStatus(AROS_LE2LONG(hcopr->usbsts));
     pciusbXHCIDebug("xHCI", DEBUGCOLOR_SET "  Setting CRCR to 0x%p" DEBUGCOLOR_RESET" \n", xhcic->xhc_DMAOPR);
-    xhciSetPointer(hc, hcopr->crcr, ((IPTR)xhcic->xhc_DMAOPR | 1));
+    xhciSetPointerMMIO(hc, hcopr->crcr, ((IPTR)xhcic->xhc_DMAOPR | 1));
 
     volatile struct pcisusbXHCIRing *xring = (volatile struct pcisusbXHCIRing *)xhcic->xhc_OPRp;
     xhciInitRing(hc, (struct pcisusbXHCIRing *)xring);
@@ -3409,8 +3409,8 @@ void xhciReset(struct PCIController *hc, struct PCIUnit *hu,
     xhciir->erstsz = AROS_LONG2LE(1);
     pciusbXHCIDebug("xHCI", DEBUGCOLOR_SET "  Setting ERDP to 0x%p" DEBUGCOLOR_RESET" \n", xhcic->xhc_DMAERS);
     pciusbXHCIDebug("xHCI", DEBUGCOLOR_SET "  Setting ERSTBA to 0x%p" DEBUGCOLOR_RESET" \n", xhcic->xhc_DMAERST);
-    xhciSetPointer(hc, xhciir->erdp, ((IPTR)xhcic->xhc_DMAERS | (IPTR)XHCIF_IR_ERDP_EHB));
-    xhciSetPointer(hc, xhciir->erstba, ((IPTR)xhcic->xhc_DMAERST));
+    xhciSetPointerMMIO(hc, xhciir->erdp, ((IPTR)xhcic->xhc_DMAERS | (IPTR)XHCIF_IR_ERDP_EHB));
+    xhciSetPointerMMIO(hc, xhciir->erstba, ((IPTR)xhcic->xhc_DMAERST));
 
     xring = (volatile struct pcisusbXHCIRing *)xhcic->xhc_ERSp;
     xhciInitRing(hc, (struct pcisusbXHCIRing *)xring);
@@ -3514,6 +3514,30 @@ BOOL xhciInit(struct PCIController *hc, struct PCIUnit *hu,
 
     xhciReset(hc, hu, timerreq);
 
+    /* The VL805 re-enables the link power-saving states from its own
+       firmware when the controller is reset. Against a root port that
+       does not take part in them its bus mastering goes nowhere, so
+       switch them back off now that the reset is done. */
+    if(hc->hc_VendID == 0x1106 && hc->hc_ProdID == 0x3483) {
+        ULONG pmcap = READCONFIGLONG(hc, hc->hc_PCIDeviceObject, 0x34) & 0xff;
+        ULONG pmguard = 12;
+
+        while(pmcap && pmguard--) {
+            ULONG pmhdr = READCONFIGLONG(hc, hc->hc_PCIDeviceObject, pmcap);
+
+            if((pmhdr & 0xff) == 0x10) {  /* PCI Express capability */
+                ULONG lnkctl = READCONFIGLONG(hc, hc->hc_PCIDeviceObject, pmcap + 0x10);
+
+                WRITECONFIGLONG(hc, hc->hc_PCIDeviceObject, pmcap + 0x10, lnkctl & ~3);
+                pciusbWarn("xHCI", DEBUGCOLOR_SET "lnkctl %08x -> %08x" DEBUGCOLOR_RESET" \n",
+                           lnkctl,
+                           READCONFIGLONG(hc, hc->hc_PCIDeviceObject, pmcap + 0x10));
+                break;
+            }
+            pmcap = (pmhdr >> 8) & 0xff;
+        }
+    }
+
     /* Ensure ports are powered per xHCI spec before enabling interrupts */
     xhciPowerOnRootPorts(hc, hu, timerreq);
 
@@ -3557,6 +3581,19 @@ BOOL xhciInit(struct PCIController *hc, struct PCIUnit *hu,
     if(val & (XHCIF_USBSTS_HCE | XHCIF_USBSTS_HSE)) {
         pciusbError("xHCI", DEBUGWARNCOLOR_SET "Controller reports fatal error (USBSTS=%08x), aborting init"
                     DEBUGCOLOR_RESET" \n", val);
+        /* TEMPORARY: name the bus error behind HSE, both ends of the link */
+        bug("[xhci] HSE: EP devctl/sts=%08x status=%08x\n",
+            (unsigned)READCONFIGLONG(hc, hc->hc_PCIDeviceObject, 0xc4 + 0x08),
+            (unsigned)READCONFIGLONG(hc, hc->hc_PCIDeviceObject, 0x04));
+#if defined(__aarch64__)
+        {
+            volatile ULONG *rc = (volatile ULONG *)0xFD500000UL;
+
+            bug("[xhci] HSE: RC status=%08x devctl/sts=%08x intr2=%08x aer=%08x\n",
+                (unsigned)rc[0x04 / 4], (unsigned)rc[(0xAC + 0x08) / 4],
+                (unsigned)rc[0x4300 / 4], (unsigned)rc[0x104 / 4]);
+        }
+#endif
         goto init_fail;
     }
     if(val & XHCIF_USBSTS_HCH)
@@ -3600,6 +3637,53 @@ BOOL xhciInit(struct PCIController *hc, struct PCIUnit *hu,
     hcopr->usbcmd = AROS_LONG2LE(val);
     pciusbXHCIDebug("xHCI", DEBUGCOLOR_SET "USBCMD = $%08x..." DEBUGCOLOR_RESET" \n",
                     AROS_LE2LONG(hcopr->usbcmd));
+
+    /*
+     * TEMPORARY single-boot DMA ladder:
+     *   1. MFINDEX advancing  = controller internals alive
+     *   2. MFINDEX wrap event = inbound DMA WRITE path works
+     *   3. No-Op command      = inbound DMA READ (TRB fetch) works
+     */
+    {
+        volatile ULONG *mfindex =
+            (volatile ULONG *)((IPTR)xhcic->xhc_XHCIIntR - 0x20);
+        volatile ULONG *evt = (volatile ULONG *)xhcic->xhc_ERSp;
+        ULONG mf1, mf2;
+        LONG nres;
+
+        int attempt;
+
+        for (attempt = 0; attempt < 5; attempt++) {
+            mf1 = AROS_LE2LONG(*mfindex) & 0x3fff;
+            uhwDelayMS(100, timerreq);
+            mf2 = AROS_LE2LONG(*mfindex) & 0x3fff;
+            bug("[xhci] SELFTEST 1.%d mfindex %u -> %u : %s\n",
+                attempt, (unsigned)mf1, (unsigned)mf2,
+                (mf1 != mf2) ? "RUNNING" : "STATIC");
+            if (mf1 != mf2)
+                break;
+
+            /* The controller's internal firmware boots on its own clock;
+               a reset that catches it mid-start leaves the engine dead.
+               Reset and restart until the microframe counter moves. */
+            xhciReset(hc, hu, timerreq);
+            val = AROS_LE2LONG(hcopr->usbcmd);
+            hcopr->usbcmd = AROS_LONG2LE(val | XHCIF_USBCMD_RS | XHCIF_USBCMD_INTE);
+            uhwDelayMS(200, timerreq);
+        }
+
+        val = AROS_LE2LONG(hcopr->usbcmd);
+        hcopr->usbcmd = AROS_LONG2LE(val | XHCIF_USBCMD_EWE);
+        uhwDelayMS(2300, timerreq);
+        hcopr->usbcmd = AROS_LONG2LE(val);
+        bug("[xhci] SELFTEST 2 evtring %08x %08x %08x %08x : %s\n",
+            (unsigned)evt[0], (unsigned)evt[1],
+            (unsigned)evt[2], (unsigned)evt[3],
+            (evt[0] | evt[1] | evt[2] | evt[3]) ? "WRITTEN" : "EMPTY");
+
+        nres = xhciCmdNoOp(hc, 0, NULL, timerreq);
+        bug("[xhci] SELFTEST 3 noop result %ld\n", (long)nres);
+    }
 
     pciusbXHCIDebug("xHCI", DEBUGCOLOR_SET "xhciInit returns TRUE..." DEBUGCOLOR_RESET" \n");
     return TRUE;

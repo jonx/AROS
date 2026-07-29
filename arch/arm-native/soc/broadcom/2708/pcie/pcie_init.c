@@ -270,7 +270,6 @@ static BOOL BridgeInit(struct pci_staticdata *psd)
      */
     wr32(regs, PCIE_MISC_MISC_CTRL,
          MISC_CTRL_SCB_ACCESS_EN | MISC_CTRL_CFG_READ_UR_MODE |
-         MISC_CTRL_RCB_64B_MODE | MISC_CTRL_RCB_MPS_MODE |
          MISC_CTRL_MAX_BURST_SIZE_128 | MISC_CTRL_SCB0_SIZE(BCM2711_DMA_EXP));
 
     wr32(regs, PCIE_MISC_RC_BAR2_CONFIG_LO,
@@ -419,6 +418,58 @@ static void SetupEndpoint(struct pci_staticdata *psd)
     D(bug("[PCIBcm2711] endpoint 1:0.0 id %08x\n", id));
 }
 
+static uint32_t EndpointCfgRead(struct pci_staticdata *psd, uint32_t reg)
+{
+    uint32_t val;
+
+    Disable();
+    wr32(psd->regs, PCIE_EXT_CFG_INDEX, EXT_CFG_ADDR(1, 0, 0));
+    val = rd32(psd->regs, PCIE_EXT_CFG_DATA + reg);
+    Enable();
+
+    return val;
+}
+
+static void EndpointCfgWrite(struct pci_staticdata *psd, uint32_t reg, uint32_t val)
+{
+    Disable();
+    wr32(psd->regs, PCIE_EXT_CFG_INDEX, EXT_CFG_ADDR(1, 0, 0));
+    wr32(psd->regs, PCIE_EXT_CFG_DATA + reg, val);
+    Enable();
+}
+
+/*
+ * The loader leaves the controller advertising larger payloads than the
+ * root complex is set up for; bring it down to match. Error status is
+ * sticky across everything but a reset, so clear it too: anything seen
+ * later was earned later.
+ */
+static void EndpointPostLoad(struct pci_staticdata *psd)
+{
+    uint32_t cap, guard;
+
+    cap = EndpointCfgRead(psd, 0x34) & 0xff;
+    for (guard = 12; cap && guard; guard--)
+    {
+        uint32_t hdr = EndpointCfgRead(psd, cap);
+
+        if ((hdr & 0xff) == 0x10)
+        {
+            uint32_t devctl = EndpointCfgRead(psd, cap + 0x08);
+
+            EndpointCfgWrite(psd, cap + 0x08, devctl & ~(7 << 5));
+            /* Device status is W1C in the same dword */
+            EndpointCfgWrite(psd, cap + 0x08,
+                             EndpointCfgRead(psd, cap + 0x08));
+            break;
+        }
+        cap = (hdr >> 8) & 0xff;
+    }
+
+    EndpointCfgWrite(psd, 0x104, EndpointCfgRead(psd, 0x104));
+    EndpointCfgWrite(psd, 0x110, EndpointCfgRead(psd, 0x110));
+}
+
 /* Firmware revision of the attached controller, 0 if it is running none. */
 static uint32_t EndpointFWVersion(struct pci_staticdata *psd)
 {
@@ -450,6 +501,7 @@ void EnsureEndpointFirmware(struct pci_staticdata *psd)
         psd->fw_loaded = TRUE;
         bug("[PCIBcm2711] controller firmware %08x, no load needed\n",
             EndpointFWVersion(psd));
+        EndpointPostLoad(psd);
         return;
     }
 
@@ -471,6 +523,7 @@ void EnsureEndpointFirmware(struct pci_staticdata *psd)
     {
         psd->fw_loaded = TRUE;
         delay_us(1000);
+        EndpointPostLoad(psd);
     }
 }
 

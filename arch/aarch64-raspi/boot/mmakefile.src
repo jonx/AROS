@@ -20,12 +20,7 @@ ARM_BSP := aros-$(AROS_TARGET_CPU)-bsp.rom
 #MM distfiles-raspi-aarch64le : \
 #MM kernel-raspi-aarch64 \
 #MM kernel-package-raspi-aarch64 \
-#MM distfiles-raspi-aarch64-fw \
-#MM compiler-startup \
-#MM compiler-stdc \
-#MM compiler-stdcio \
-#MM compiler-posixc \
-#MM workbench-complete
+#MM distfiles-raspi-aarch64-fw
 
 #MM kernel-package-raspi-aarch64-quick: \
 #MM linklibs-stdc-static-quick \

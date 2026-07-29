@@ -1274,6 +1274,22 @@ xhciCreateDeviceCtx(struct PCIController *hc,
     inctx->acf |= (1UL << 1); /* EP0 context */
     CacheClearE((APTR)devCtx->dc_IN.dmaa_Ptr, inctx_size, CACRF_ClearD);
 
+    /* TEMPORARY: the exact context handed to Address Device */
+    bug("[xhci] ADDRDEV inctx dcf=%08x acf=%08x param=%08x:%08x\n",
+        (unsigned)AROS_LE2LONG(inctx->dcf), (unsigned)AROS_LE2LONG(inctx->acf),
+        (unsigned)((UQUAD)(IPTR)devCtx->dc_IN.dmaa_DMA >> 32),
+        (unsigned)((UQUAD)(IPTR)devCtx->dc_IN.dmaa_DMA & 0xffffffff));
+    bug("[xhci] ADDRDEV slot %08x %08x %08x %08x\n",
+        (unsigned)AROS_LE2LONG(islot->ctx[0]), (unsigned)AROS_LE2LONG(islot->ctx[1]),
+        (unsigned)AROS_LE2LONG(islot->ctx[2]), (unsigned)AROS_LE2LONG(islot->ctx[3]));
+    bug("[xhci] ADDRDEV ep0 %08x %08x deq=%08x:%08x len=%08x\n",
+        (unsigned)AROS_LE2LONG(iep0->ctx[0]), (unsigned)AROS_LE2LONG(iep0->ctx[1]),
+        (unsigned)AROS_LE2LONG(iep0->deq.addr_hi), (unsigned)AROS_LE2LONG(iep0->deq.addr_lo),
+        (unsigned)AROS_LE2LONG(iep0->length));
+    bug("[xhci] ADDRDEV dcbaa[%u]=%08x:%08x\n", (unsigned)slotid,
+        (unsigned)AROS_LE2LONG(deviceslots[slotid].addr_hi),
+        (unsigned)AROS_LE2LONG(deviceslots[slotid].addr_lo));
+
     /* ---- Address Device ---- */
 #if 1
     /* BSR = 0 is needed on real hardware for the following GET_DESCRIPTORS to work
@@ -1732,8 +1748,11 @@ ULONG xhciInitEP(struct PCIController *hc, struct pciusbXHCIDevice *devCtx,
         UBYTE ival = xhciCalcInterval(interval, flags, type);
         if(ival)
             ep->ctx[0] |= ((ULONG)ival << 16);
-    } else
+    } else {
         devCtx->dc_EP0MaxPacket = maxpacket;
+        /* Average TRB Length is not optional for EP0: 8 per the spec */
+        ep->length = 8;
+    }
 
     /*
      * Endpoint Context DW1 programming:

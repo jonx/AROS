@@ -118,17 +118,9 @@ LONG xhciCmdSubmit(struct PCIController *hc,
             /* Assume typical input context size; adjust if needed */
             CacheClearE(dmaaddr, 2048, CACRF_ClearD);
         }
-        /* The context commands take a CPU pointer; the TRB carries the
-           bus address. */
-        {
-            UQUAD dma_ctx;
-#if !defined(PCIUSB_NO_CPUTOPCI)
-            dma_ctx = (UQUAD)(IPTR)CPUTOPCI(hc, hc->hc_PCIDriverObject, dmaaddr);
-#else
-            dma_ctx = (UQUAD)(IPTR)dmaaddr;
-#endif
-            queued = xhciQueueTRB(hc, xhcic->xhc_OPRp, dma_ctx, 0, trbflags);
-        }
+        /* The TRB writer translates pointer payloads itself; hand it the
+           CPU address, once. */
+        queued = xhciQueueTRB(hc, xhcic->xhc_OPRp, (UQUAD)(IPTR)dmaaddr, 0, trbflags);
     } else if(dmaaddr) {
         queued = xhciQueueTRB(hc, xhcic->xhc_OPRp, (UQUAD)(IPTR)dmaaddr, 0, trbflags);
     } else {
@@ -320,18 +312,10 @@ LONG xhciCmdSubmitAsync(struct PCIController *hc,
             Enable();
             return -1;
         }
-        /* The context commands take a CPU pointer; the TRB carries the
-           bus address. */
-        {
-            UQUAD dma_ctx;
-#if !defined(PCIUSB_NO_CPUTOPCI)
-            dma_ctx = (UQUAD)(IPTR)CPUTOPCI(hc, hc->hc_PCIDriverObject, dmaaddr);
-#else
-            dma_ctx = (UQUAD)(IPTR)dmaaddr;
-#endif
-            queued = xhciQueueTRB_IO(hc, cmdring, dma_ctx, 0, trbflags,
-                                     &ioreq->iouh_Req);
-        }
+        /* The TRB writer translates pointer payloads itself; hand it the
+           CPU address, once. */
+        queued = xhciQueueTRB_IO(hc, cmdring, (UQUAD)(IPTR)dmaaddr, 0, trbflags,
+                                 &ioreq->iouh_Req);
     } else
         queued = xhciQueueTRB_IO(hc, cmdring, 0, 0, trbflags, &ioreq->iouh_Req);
 

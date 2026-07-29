@@ -1289,26 +1289,116 @@ xhciCreateDeviceCtx(struct PCIController *hc,
     bug("[xhci] ADDRDEV dcbaa[%u]=%08x:%08x\n", (unsigned)slotid,
         (unsigned)AROS_LE2LONG(deviceslots[slotid].addr_hi),
         (unsigned)AROS_LE2LONG(deviceslots[slotid].addr_lo));
+    {
+        volatile struct xhci_hccapr *dbgcapr =
+            (volatile struct xhci_hccapr *)hc->hc_RegBase;
+        volatile struct xhci_pr *dbgports =
+            (volatile struct xhci_pr *)((IPTR)xhcic->xhc_XHCIPorts);
+        ULONG dbgport = (AROS_LE2LONG(islot->ctx[1]) >> 16) & 0xff;
 
-    /* ---- Address Device ---- */
-#if 1
-    /* BSR = 0 is needed on real hardware for the following GET_DESCRIPTORS to work
-       (it won't execute on devaddr=0, it needs EP in state Addressed) */
-    if(TRB_CC_SUCCESS != xhciCmdDeviceAddress(hc, slotid, devCtx->dc_IN.dmaa_Ptr, 0, NULL,
-#else
-    /* original code */
-    if(TRB_CC_SUCCESS != xhciCmdDeviceAddress(hc, slotid, devCtx->dc_IN.dmaa_Ptr, 1, NULL,
-#endif
-            timerreq)) {
-        pciusbError("xHCI",
-                    DEBUGWARNCOLOR_SET "Address Device failed" DEBUGCOLOR_RESET "\n");
+        bug("[xhci] ADDRDEV hccparams1=%08x hcsparams1=%08x portsc[%u]=%08x\n",
+            (unsigned)AROS_LE2LONG(dbgcapr->hccparams1),
+            (unsigned)AROS_LE2LONG(dbgcapr->hcsparams1),
+            (unsigned)dbgport,
+            dbgport ? (unsigned)AROS_LE2LONG(dbgports[dbgport - 1].portsc) : 0);
+    }
 
-        xhciCmdSlotDisable(hc, slotid, timerreq);
-        xhciSetPointer(hc, deviceslots[slotid], 0);
+    /* ---- Address Device ----
+     *
+     * BSR = 0 is needed on real hardware for the following GET_DESCRIPTORS
+     * to work (it won't execute on devaddr=0, it needs EP in state
+     * Addressed).
+     *
+     * TEMPORARY: on failure, scan the variants in one go: BSR=1 (context
+     * only, no SET_ADDRESS on the wire) and a 64-byte-stride copy of the
+     * input context, each logged with its completion code. A variant that
+     * succeeds lets the boot continue so the rest of the stack gets
+     * exercised in the same run.
+     */
+    {
+        LONG addr_cc;
 
-        devCtx->dc_SlotID = 0;
-        xhciFreeDeviceCtx(hc, devCtx, FALSE, timerreq);
-        return NULL;
+        addr_cc = xhciCmdDeviceAddress(hc, slotid, devCtx->dc_IN.dmaa_Ptr, 0, NULL, timerreq);
+        bug("[xhci] ADDRSCAN bsr0/ctx32 cc=%ld\n", (long)addr_cc);
+
+        if(addr_cc != TRB_CC_SUCCESS) {
+            addr_cc = xhciCmdDeviceAddress(hc, slotid, devCtx->dc_IN.dmaa_Ptr, 1, NULL, timerreq);
+            bug("[xhci] ADDRSCAN bsr1/ctx32 cc=%ld\n", (long)addr_cc);
+
+            if(addr_cc == TRB_CC_SUCCESS) {
+                /* Context accepted without the wire transaction; now do
+                   the real addressing on top of it. */
+                addr_cc = xhciCmdDeviceAddress(hc, slotid, devCtx->dc_IN.dmaa_Ptr, 0, NULL, timerreq);
+                bug("[xhci] ADDRSCAN bsr1-then-bsr0 cc=%ld\n", (long)addr_cc);
+            }
+        }
+
+        if(addr_cc != TRB_CC_SUCCESS) {
+            /* 64-byte-stride copies, submitted raw: the peek logic in the
+               normal submit path assumes the 32-byte layout. */
+            static struct MemEntry scan64entry;
+            static APTR scan64p = NULL;
+            if(!scan64p)
+                scan64p = pciAllocAligned(hc, &scan64entry, 3 * 64, 64, xhciPageSize(hc));
+
+            if(scan64p) {
+                UQUAD dma64;
+                ULONG bsr;
+
+                memset(scan64p, 0, 3 * 64);
+                ((volatile ULONG *)scan64p)[0] = inctx->dcf;
+                ((volatile ULONG *)scan64p)[1] = inctx->acf;
+                memcpy((UBYTE *)scan64p + 64, (const void *)islot, 32);
+                memcpy((UBYTE *)scan64p + 128, (const void *)iep0, 32);
+                CacheClearE(scan64p, 3 * 64, CACRF_ClearD);
+
+                /* CPU address: the TRB writer does the translation */
+                dma64 = (UQUAD)(IPTR)scan64p;
+
+                for(bsr = 0; bsr < 2 && addr_cc != TRB_CC_SUCCESS; bsr++) {
+                    ULONG trbflags = (slotid << 24) | TRBF_FLAG_CRTYPE_ADDRESS_DEVICE;
+                    WORD queued;
+
+                    if(bsr)
+                        trbflags |= (1UL << 9);
+
+                    Disable();
+                    queued = xhciQueueTRB(hc, xhcic->xhc_OPRp, dma64, 0, trbflags);
+                    if(queued != -1) {
+                        xhcic->xhc_CmdResults[queued].flags = 0xFFFFFFFF;
+                        xhcic->xhc_CmdResults[queued].status = 0xFFFFFFFF;
+                    }
+                    Enable();
+
+                    addr_cc = -1;
+                    if(queued != -1) {
+                        xhciRingDoorbell(hc, 0, 0);
+                        for(ULONG waitms = 0; waitms < 1000; waitms++) {
+                            if(xhcic->xhc_CmdResults[queued].status != 0xFFFFFFFF) {
+                                addr_cc = xhcic->xhc_CmdResults[queued].status;
+                                break;
+                            }
+                            uhwDelayMS(1, timerreq);
+                            AROS_INTC1(hc->hc_PCIIntHandler.is_Code,
+                                       hc->hc_PCIIntHandler.is_Data);
+                        }
+                    }
+                    bug("[xhci] ADDRSCAN bsr%lu/ctx64 cc=%ld\n", (unsigned long)bsr, (long)addr_cc);
+                }
+            }
+        }
+
+        if(addr_cc != TRB_CC_SUCCESS) {
+            pciusbError("xHCI",
+                        DEBUGWARNCOLOR_SET "Address Device failed" DEBUGCOLOR_RESET "\n");
+
+            xhciCmdSlotDisable(hc, slotid, timerreq);
+            xhciSetPointer(hc, deviceslots[slotid], 0);
+
+            devCtx->dc_SlotID = 0;
+            xhciFreeDeviceCtx(hc, devCtx, FALSE, timerreq);
+            return NULL;
+        }
     }
 
     /* Copy the updated output contexts to the input context for future commands.

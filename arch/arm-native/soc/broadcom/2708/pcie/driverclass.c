@@ -156,6 +156,24 @@ void PCIBcm2711__Hidd_PCIDriver__WriteConfigByte(OOP_Class *cl, OOP_Object *o,
 }
 
 /*
+ * A bus master reaches system memory through the inbound window, which
+ * the firmware does not place at address zero: what the CPU calls
+ * address X, the bus calls X plus this offset. Drivers ask for the
+ * translation through these two methods.
+ */
+APTR PCIBcm2711__Hidd_PCIDriver__CPUtoPCI(OOP_Class *cl, OOP_Object *o,
+    struct pHidd_PCIDriver_CPUtoPCI *msg)
+{
+    return (APTR)((uintptr_t)msg->address + PSD(cl)->dma_offset);
+}
+
+APTR PCIBcm2711__Hidd_PCIDriver__PCItoCPU(OOP_Class *cl, OOP_Object *o,
+    struct pHidd_PCIDriver_PCItoCPU *msg)
+{
+    return (APTR)((uintptr_t)msg->address - PSD(cl)->dma_offset);
+}
+
+/*
  * BAR addresses live on the PCI bus at BCM2711_PCIE_PCI_WIN; the CPU
  * reaches them through the outbound window. The window is already
  * mapped by the bootstrap.

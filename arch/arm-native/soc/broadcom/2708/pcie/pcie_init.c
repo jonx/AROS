@@ -120,6 +120,40 @@ static BOOL PCIeNodeUsable(void)
     return TRUE;
 }
 
+/*
+ * Read the inbound mapping the firmware published: dma-ranges gives the
+ * bus address that system memory appears at, which is not the system
+ * address itself on a board whose memory does not fit below the window.
+ */
+static uint64_t DMAOffsetFromDT(void)
+{
+    void *key, *prop;
+    const uint32_t *r;
+    uint64_t pci, cpu;
+
+    if (!OpenFirmwareBase)
+        return 0;
+
+    key = OF_OpenKey("/scb/pcie@7d500000");
+    if (!key)
+        return 0;
+
+    prop = OF_FindProperty(key, "dma-ranges");
+    if (!prop || OF_GetPropLen(prop) < 7 * 4)
+        return 0;
+
+    /* <pci flags, pci hi, pci lo, cpu hi, cpu lo, size hi, size lo> */
+    r = (const uint32_t *)OF_GetPropValue(prop);
+    pci = ((uint64_t)AROS_BE2LONG(r[1]) << 32) | AROS_BE2LONG(r[2]);
+    cpu = ((uint64_t)AROS_BE2LONG(r[3]) << 32) | AROS_BE2LONG(r[4]);
+
+    D(bug("[PCIBcm2711] dma-ranges: bus %08x%08x <- cpu %08x%08x\n",
+          (unsigned)(pci >> 32), (unsigned)pci,
+          (unsigned)(cpu >> 32), (unsigned)cpu));
+
+    return pci - cpu;
+}
+
 static inline uint32_t rd32(volatile uint8_t *regs, uint32_t reg)
 {
     return *(volatile uint32_t *)(regs + reg);
@@ -229,30 +263,37 @@ static BOOL BridgeInit(struct pci_staticdata *psd)
     }
 
     /*
-     * SCB/inbound setup: one region at PCI address 0 covering system
-     * memory. The size is an exponent and has to describe the memory
-     * that is really fitted, not the largest a controller could take,
-     * or inbound addresses do not decode.
+     * SCB/inbound setup: one region at PCI address 0. The size follows
+     * the DMA range the SoC allows a bus master to reach, rounded up to
+     * a power of two, not the memory that happens to be fitted: on this
+     * SoC that range is 3GB and the window is therefore 4GB.
      */
-    {
-        uint64_t ramtop = psd->ucmem_base + psd->ucmem_size;
-        unsigned int exp = 63 - __builtin_clzll(ramtop);
+    wr32(regs, PCIE_MISC_MISC_CTRL,
+         MISC_CTRL_SCB_ACCESS_EN | MISC_CTRL_CFG_READ_UR_MODE |
+         MISC_CTRL_RCB_64B_MODE | MISC_CTRL_RCB_MPS_MODE |
+         MISC_CTRL_MAX_BURST_SIZE_128 | MISC_CTRL_SCB0_SIZE(BCM2711_DMA_EXP));
 
-        if ((1ULL << exp) < ramtop)
-            exp++;              /* round up to the next power of two */
+    wr32(regs, PCIE_MISC_RC_BAR2_CONFIG_LO,
+         (uint32_t)psd->dma_offset | RC_BAR_SIZE(BCM2711_DMA_EXP));
+    wr32(regs, PCIE_MISC_RC_BAR2_CONFIG_HI, (uint32_t)(psd->dma_offset >> 32));
 
-        D(bug("[PCIBcm2711] system memory %uMB, inbound size exponent %u\n",
-              (unsigned)(ramtop >> 20), exp));
+    /*
+     * Present the inbound window in the byte order the rest of the system
+     * uses. Left as it comes out of reset, everything a bus master reads
+     * from memory arrives swapped.
+     */
+    tmp = rd32(regs, PCIE_RC_CFG_VENDOR_SPECIFIC_REG1);
+    tmp = (tmp & ~VENDOR_SPECIFIC_REG1_ENDIAN_BAR2_MASK) |
+          VENDOR_SPECIFIC_REG1_LITTLE_ENDIAN;
+    wr32(regs, PCIE_RC_CFG_VENDOR_SPECIFIC_REG1, tmp);
 
-        wr32(regs, PCIE_MISC_MISC_CTRL,
-             MISC_CTRL_SCB_ACCESS_EN | MISC_CTRL_CFG_READ_UR_MODE |
-             MISC_CTRL_MAX_BURST_SIZE_128 | MISC_CTRL_SCB0_SIZE(exp));
 
-        wr32(regs, PCIE_MISC_RC_BAR2_CONFIG_LO, RC_BAR_SIZE(exp));
-        wr32(regs, PCIE_MISC_RC_BAR2_CONFIG_HI, 0);
-    }
     wr32(regs, PCIE_MISC_RC_BAR1_CONFIG_LO, 0);
     wr32(regs, PCIE_MISC_RC_BAR3_CONFIG_LO, 0);
+
+    /* Legacy interrupts are used, so keep the message-signalled block quiet */
+    wr32(regs, PCIE_MSI_INTR2_MASK_SET, 0xffffffff);
+    wr32(regs, PCIE_MSI_INTR2_CLR, 0xffffffff);
 
     /* Outbound window: CPU 0x6_0000_0000 -> PCI 0xC0000000, 64MB */
     wr32(regs, PCIE_MISC_CPU_2_PCIE_MEM_WIN0_LO, BCM2711_PCIE_PCI_WIN);
@@ -292,8 +333,10 @@ static BOOL BridgeInit(struct pci_staticdata *psd)
 
     D(bug("[PCIBcm2711] link up after %dms (status %08x)\n", i * 5, tmp));
 
+
     /* Present the root port as a PCI-PCI bridge */
-    wr32(regs, PCIE_RC_CFG_PRIV1_ID_VAL3, 0x060400);
+    tmp = rd32(regs, PCIE_RC_CFG_PRIV1_ID_VAL3);
+    wr32(regs, PCIE_RC_CFG_PRIV1_ID_VAL3, (tmp & ~0xffffffUL) | 0x060400);
 
     /* Bus numbers: primary 0, secondary 1, subordinate 1 */
     tmp = rd32(regs, 0x18);
@@ -307,6 +350,20 @@ static BOOL BridgeInit(struct pci_staticdata *psd)
        pass legacy interrupts up */
     tmp = rd32(regs, PCI_CMD);
     wr32(regs, PCI_CMD, (tmp | PCI_CMD_MEMORY | PCI_CMD_MASTER) & ~PCI_CMD_INTX_DISABLE);
+
+    /* Confirm the windows we programmed actually took. */
+    bug("[PCIBcm2711] misc_ctrl=%08x rc_bar2=%08x:%08x\n",
+        rd32(regs, PCIE_MISC_MISC_CTRL),
+        rd32(regs, PCIE_MISC_RC_BAR2_CONFIG_HI),
+        rd32(regs, PCIE_MISC_RC_BAR2_CONFIG_LO));
+    bug("[PCIBcm2711] win0 lo=%08x hi=%08x baselimit=%08x basehi=%08x limithi=%08x\n",
+        rd32(regs, PCIE_MISC_CPU_2_PCIE_MEM_WIN0_LO),
+        rd32(regs, PCIE_MISC_CPU_2_PCIE_MEM_WIN0_HI),
+        rd32(regs, PCIE_MISC_CPU_2_PCIE_MEM_WIN0_BASE_LIMIT),
+        rd32(regs, PCIE_MISC_CPU_2_PCIE_MEM_WIN0_BASE_HI),
+        rd32(regs, PCIE_MISC_CPU_2_PCIE_MEM_WIN0_LIMIT_HI));
+    bug("[PCIBcm2711] busnumbers=%08x rc_cmd=%04x\n",
+        rd32(regs, 0x18), (unsigned)(rd32(regs, PCI_CMD) & 0xffff));
 
     /* Let the legacy interrupt lines through to the interrupt controller. */
     wr32(regs, PCIE_INTR2_CPU_MASK_CLR, PCIE_INTR2_INTX_MASK);
@@ -347,17 +404,54 @@ static void SetupEndpoint(struct pci_staticdata *psd)
         tmp = rd32(regs, PCIE_EXT_CFG_DATA + 0x3c);
         wr32(regs, PCIE_EXT_CFG_DATA + 0x3c, (tmp & 0xffffff00) | BCM2711_PCIE_INTA);
 
+        /* Cache line size, as every reference stack programs */
+        tmp = rd32(regs, PCIE_EXT_CFG_DATA + 0x0c);
+        wr32(regs, PCIE_EXT_CFG_DATA + 0x0c, (tmp & ~0xffUL) | 16);
+
         /* Memory decode + bus mastering, and let it raise its interrupt:
            the firmware leaves legacy interrupts disabled. */
         tmp = rd32(regs, PCIE_EXT_CFG_DATA + PCI_CMD);
-        tmp = (tmp | PCI_CMD_MEMORY | PCI_CMD_MASTER) & ~PCI_CMD_INTX_DISABLE;
+        tmp = (tmp | PCI_CMD_MEMORY | PCI_CMD_MASTER | 0x0140) & ~PCI_CMD_INTX_DISABLE;
         wr32(regs, PCIE_EXT_CFG_DATA + PCI_CMD, tmp);
+
         D(bug("[PCIBcm2711] endpoint command now %04x\n",
               (unsigned)(rd32(regs, PCIE_EXT_CFG_DATA + PCI_CMD) & 0xffff)));
     }
     Enable();
 
     D(bug("[PCIBcm2711] endpoint 1:0.0 id %08x\n", id));
+}
+
+/*
+ * Give the endpoint its address and nothing else. The firmware loader
+ * wants the device addressed but quiescent, the state it is in when the
+ * reference implementation asks for the load.
+ */
+static void AssignEndpointBAR(struct pci_staticdata *psd)
+{
+    volatile uint8_t *regs = psd->regs;
+
+    Disable();
+    wr32(regs, PCIE_EXT_CFG_INDEX, EXT_CFG_ADDR(1, 0, 0));
+    wr32(regs, PCIE_EXT_CFG_DATA + 0x10, BCM2711_PCIE_PCI_WIN);
+    wr32(regs, PCIE_EXT_CFG_DATA + 0x14, 0);
+    wr32(regs, PCIE_EXT_CFG_DATA + PCI_CMD,
+         rd32(regs, PCIE_EXT_CFG_DATA + PCI_CMD) &
+         ~(PCI_CMD_MEMORY | PCI_CMD_MASTER));
+    Enable();
+}
+
+/* Firmware revision of the attached controller, 0 if it is running none. */
+static uint32_t EndpointFWVersion(struct pci_staticdata *psd)
+{
+    uint32_t ver;
+
+    Disable();
+    wr32(psd->regs, PCIE_EXT_CFG_INDEX, EXT_CFG_ADDR(1, 0, 0));
+    ver = rd32(psd->regs, PCIE_EXT_CFG_DATA + VL805_CFG_FWVERSION);
+    Enable();
+
+    return (ver == 0xffffffff) ? 0 : ver;
 }
 
 static int PCIBcm2711_InitClass(LIBBASETYPEPTR LIBBASE)
@@ -380,6 +474,9 @@ static int PCIBcm2711_InitClass(LIBBASETYPEPTR LIBBASE)
         return TRUE;
 
     psd->regs = (volatile uint8_t *)BCM2711_PCIE_REG_BASE;
+    psd->dma_offset = DMAOffsetFromDT();
+    bug("[PCIBcm2711] bus master address offset %08x%08x\n",
+        (unsigned)(psd->dma_offset >> 32), (unsigned)psd->dma_offset);
 
     psd->ucmem_base = (uintptr_t)KrnGetSystemAttr(KATTR_UncachedMemBase);
     psd->ucmem_size = (uintptr_t)KrnGetSystemAttr(KATTR_UncachedMemSize);
@@ -392,20 +489,44 @@ static int PCIBcm2711_InitClass(LIBBASETYPEPTR LIBBASE)
     if (!BridgeInit(psd))
         return TRUE;    /* no link; nothing to drive, but do not stop boot */
 
-    /*
-     * Give the controller its resources before asking the firmware to
-     * reload it: the upload travels over the bus and needs the endpoint
-     * decoding memory. Taking the bus through reset above cost it the
-     * firmware the bootloader had left running.
-     */
-    SetupEndpoint(psd);
+    bug("[PCIBcm2711] controller firmware %08x before reload\n",
+        EndpointFWVersion(psd));
 
-    /* Only worth asking when we are the ones who reset it. */
+    /*
+     * A controller that carries its own firmware store reloads itself
+     * after the reset above, and takes a moment over it. Give it that
+     * time and check, rather than reading it too early and asking the
+     * platform firmware for a reload it does not owe us: that request
+     * is only meant for boards without the store, and on a board that
+     * has one it leaves the controller running but inert.
+     */
     if (!psd->preinitialised)
     {
-        NotifyXHCIReset();
-        delay_us(200000);
+        int ms;
+
+        for (ms = 0; ms < 600; ms += 50)
+        {
+            if (EndpointFWVersion(psd))
+                break;
+            delay_us(50000);
+        }
+
+        bug("[PCIBcm2711] controller firmware %08x after %dms\n",
+            EndpointFWVersion(psd), ms);
+
+        /* Only ask if it really cannot do it itself. */
+        if (!EndpointFWVersion(psd))
+        {
+            AssignEndpointBAR(psd);
+            NotifyXHCIReset();
+            delay_us(200000);
+            bug("[PCIBcm2711] controller firmware %08x after reload\n",
+                EndpointFWVersion(psd));
+        }
     }
+
+    /* Now bring it up for use */
+    SetupEndpoint(psd);
 
     psd->hiddPCIDriverAB = OOP_ObtainAttrBase(IID_Hidd_PCIDriver);
     psd->hiddAB = OOP_ObtainAttrBase(IID_Hidd);

@@ -29,7 +29,18 @@
 /* The root complex configuration header is memory mapped at offset 0;
  * external configuration space is reached through an indexed window. */
 #define PCIE_RC_CFG_PRIV1_ID_VAL3       0x043c  /* class code override */
+
+/* Byte order the inbound window presents to a bus master. */
+#define PCIE_RC_CFG_VENDOR_SPECIFIC_REG1        0x0188
+#define VENDOR_SPECIFIC_REG1_ENDIAN_BAR2_MASK   0xc
+#define VENDOR_SPECIFIC_REG1_LITTLE_ENDIAN      0x0
 #define PCIE_RC_CFG_PRIV1_LINK_CAP      0x04dc
+#define LINK_CAP_ASPM_SUPPORT_MASK      0xc00
+
+/* MSI block, masked off since legacy interrupts are used */
+#define PCIE_MSI_INTR2_BASE             0x4500
+#define PCIE_MSI_INTR2_CLR              (PCIE_MSI_INTR2_BASE + 0x08)
+#define PCIE_MSI_INTR2_MASK_SET         (PCIE_MSI_INTR2_BASE + 0x10)
 
 #define PCIE_MISC_MISC_CTRL             0x4008
 #define PCIE_MISC_CPU_2_PCIE_MEM_WIN0_LO 0x400c
@@ -48,6 +59,10 @@
 
 /* Configuration header command register */
 #define PCI_CMD                         0x04
+
+/* The attached USB controller reports the firmware it is running here;
+   zero means it has none and will execute no command. */
+#define VL805_CFG_FWVERSION             0x50
 #define PCI_CMD_MEMORY                  (1 << 1)
 #define PCI_CMD_MASTER                  (1 << 2)
 #define PCI_CMD_INTX_DISABLE            (1 << 10)
@@ -66,6 +81,8 @@
 #define PCIE_RGR1_SW_INIT_1             0x9210
 
 /* MISC_CTRL bits */
+#define MISC_CTRL_RCB_64B_MODE          (1 << 7)
+#define MISC_CTRL_RCB_MPS_MODE          (1 << 10)
 #define MISC_CTRL_SCB_ACCESS_EN         (1 << 12)
 #define MISC_CTRL_CFG_READ_UR_MODE      (1 << 13)
 #define MISC_CTRL_MAX_BURST_SIZE_128    (0 << 20)
@@ -74,12 +91,17 @@
 /* RC_BAR config: size exponent in the low 5 bits (log2 bytes - 15) */
 #define RC_BAR_SIZE(exp)                ((exp) - 15)
 
+/* The SoC lets a bus master reach the low 3GB; the inbound window that
+   covers it is the next power of two up. */
+#define BCM2711_DMA_EXP                 32
+
 /* PCIE_STATUS bits */
 #define STATUS_PHYLINKUP                (1 << 4)
 #define STATUS_DL_ACTIVE                (1 << 5)
 
 /* HARD_DEBUG bits */
 #define HARD_DEBUG_SERDES_IDDQ          (1 << 27)
+#define HARD_DEBUG_CLKREQ_DEBUG_EN      (1 << 1)
 
 /* RGR1_SW_INIT_1 bits. While SW_INIT is asserted the bridge core is held
  * in reset and every register outside this block raises a bus error. */
@@ -107,6 +129,13 @@ struct pci_staticdata {
 
     volatile uint8_t *regs;
     BOOL            preinitialised;     /* firmware left the link trained */
+
+    /*
+     * What a bus master must add to a system address to reach it. The
+     * firmware picks this to suit the memory fitted and publishes it in
+     * the device tree, so it is read at run time rather than assumed.
+     */
+    uint64_t        dma_offset;
 
     /* Uncached DMA memory block */
     uintptr_t       ucmem_base;

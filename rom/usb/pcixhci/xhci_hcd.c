@@ -1285,7 +1285,7 @@ xhciCreateDeviceCtx(struct PCIController *hc,
 #endif
             timerreq)) {
         pciusbError("xHCI",
-                    DEBUGWARNCOLOR_SET "Address Device (BSR=1) failed" DEBUGCOLOR_RESET "\n");
+                    DEBUGWARNCOLOR_SET "Address Device failed" DEBUGCOLOR_RESET "\n");
 
         xhciCmdSlotDisable(hc, slotid, timerreq);
         xhciSetPointer(hc, deviceslots[slotid], 0);

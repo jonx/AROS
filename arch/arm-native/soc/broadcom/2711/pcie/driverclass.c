@@ -22,7 +22,6 @@
 
 #include "pcie.h"
 
-#define DEBUG 1
 #include <aros/debug.h>
 
 #undef HiddPCIDriverAttrBase

@@ -36,7 +36,6 @@ IPTR __arm_periiobase __attribute__((used)) = 0;
 
 #include "pcie.h"
 
-#define DEBUG 1
 #include <aros/debug.h>
 
 APTR MBoxBase;
@@ -350,20 +349,6 @@ static BOOL BridgeInit(struct pci_staticdata *psd)
     tmp = rd32(regs, PCI_CMD);
     wr32(regs, PCI_CMD, (tmp | PCI_CMD_MEMORY | PCI_CMD_MASTER) & ~PCI_CMD_INTX_DISABLE);
 
-    /* Confirm the windows we programmed actually took. */
-    bug("[PCIBcm2711] misc_ctrl=%08x rc_bar2=%08x:%08x\n",
-        rd32(regs, PCIE_MISC_MISC_CTRL),
-        rd32(regs, PCIE_MISC_RC_BAR2_CONFIG_HI),
-        rd32(regs, PCIE_MISC_RC_BAR2_CONFIG_LO));
-    bug("[PCIBcm2711] win0 lo=%08x hi=%08x baselimit=%08x basehi=%08x limithi=%08x\n",
-        rd32(regs, PCIE_MISC_CPU_2_PCIE_MEM_WIN0_LO),
-        rd32(regs, PCIE_MISC_CPU_2_PCIE_MEM_WIN0_HI),
-        rd32(regs, PCIE_MISC_CPU_2_PCIE_MEM_WIN0_BASE_LIMIT),
-        rd32(regs, PCIE_MISC_CPU_2_PCIE_MEM_WIN0_BASE_HI),
-        rd32(regs, PCIE_MISC_CPU_2_PCIE_MEM_WIN0_LIMIT_HI));
-    bug("[PCIBcm2711] busnumbers=%08x rc_cmd=%04x\n",
-        rd32(regs, 0x18), (unsigned)(rd32(regs, PCI_CMD) & 0xffff));
-
     /* Let the legacy interrupt lines through to the interrupt controller. */
     wr32(regs, PCIE_INTR2_CPU_MASK_CLR, PCIE_INTR2_INTX_MASK);
     D(bug("[PCIBcm2711] INTx mask now %08x\n",
@@ -499,8 +484,8 @@ void EnsureEndpointFirmware(struct pci_staticdata *psd)
     if (EndpointFWVersion(psd))
     {
         psd->fw_loaded = TRUE;
-        bug("[PCIBcm2711] controller firmware %08x, no load needed\n",
-            EndpointFWVersion(psd));
+        D(bug("[PCIBcm2711] controller firmware %08x, no load needed\n",
+              EndpointFWVersion(psd)));
         EndpointPostLoad(psd);
         return;
     }
@@ -514,17 +499,18 @@ void EnsureEndpointFirmware(struct pci_staticdata *psd)
         delay_us(10000);
     }
 
-    bug("[PCIBcm2711] controller firmware %08x, %dms after load request\n",
-        EndpointFWVersion(psd), ms);
-
     /* The version reports in a little before the controller is ready;
        a failed load stays unmarked so the next enable tries again. */
     if (EndpointFWVersion(psd))
     {
         psd->fw_loaded = TRUE;
+        D(bug("[PCIBcm2711] controller firmware %08x, %dms after load request\n",
+              EndpointFWVersion(psd), ms));
         delay_us(1000);
         EndpointPostLoad(psd);
     }
+    else
+        bug("[PCIBcm2711] controller firmware did not load\n");
 }
 
 static int PCIBcm2711_InitClass(LIBBASETYPEPTR LIBBASE)
@@ -548,8 +534,8 @@ static int PCIBcm2711_InitClass(LIBBASETYPEPTR LIBBASE)
 
     psd->regs = (volatile uint8_t *)BCM2711_PCIE_REG_BASE;
     psd->dma_offset = DMAOffsetFromDT();
-    bug("[PCIBcm2711] bus master address offset %08x%08x\n",
-        (unsigned)(psd->dma_offset >> 32), (unsigned)psd->dma_offset);
+    D(bug("[PCIBcm2711] bus master address offset %08x%08x\n",
+          (unsigned)(psd->dma_offset >> 32), (unsigned)psd->dma_offset));
 
     psd->ucmem_base = (uintptr_t)KrnGetSystemAttr(KATTR_UncachedMemBase);
     psd->ucmem_size = (uintptr_t)KrnGetSystemAttr(KATTR_UncachedMemSize);
@@ -564,8 +550,8 @@ static int PCIBcm2711_InitClass(LIBBASETYPEPTR LIBBASE)
 
     /* Address the endpoint; the firmware load waits for its driver. */
     SetupEndpoint(psd);
-    bug("[PCIBcm2711] controller firmware %08x at init\n",
-        EndpointFWVersion(psd));
+    D(bug("[PCIBcm2711] controller firmware %08x at init\n",
+          EndpointFWVersion(psd)));
 
     psd->hiddPCIDriverAB = OOP_ObtainAttrBase(IID_Hidd_PCIDriver);
     psd->hiddAB = OOP_ObtainAttrBase(IID_Hidd);

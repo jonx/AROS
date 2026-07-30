@@ -1306,15 +1306,21 @@ xhciCreateDeviceCtx(struct PCIController *hc,
                 volatile struct xhci_slot *pslot_out =
                     (volatile struct xhci_slot *)parentCtx->dc_SlotCtx.dmaa_Ptr;
                 LONG hubcc;
+                ULONG nports = parentCtx->dc_NbrPorts;
+
+                /* The port count was snooped from the hub descriptor; a
+                   hub that never showed one gets the field's maximum. */
+                if(!nports)
+                    nports = 255;
 
                 /* Update the slot context alone: current state plus the
-                   hub fields. Port count: the internal hub has four. */
+                   hub fields. */
                 pin->dcf = 0;
                 pin->acf = AROS_LONG2LE(0x01);
                 memcpy((void *)pslot_in, (const void *)pslot_out, 32);
                 pslot_in->ctx[0] |= AROS_LONG2LE(1UL << 26);
                 pslot_in->ctx[1] = AROS_LONG2LE(
-                    (AROS_LE2LONG(pslot_in->ctx[1]) & 0x00FFFFFF) | (4UL << 24));
+                    (AROS_LE2LONG(pslot_in->ctx[1]) & 0x00FFFFFF) | (nports << 24));
                 CacheClearE((APTR)parentCtx->dc_IN.dmaa_Ptr, inctx_size, CACRF_ClearD);
 
                 hubcc = xhciCmdEndpointConfigure(hc, parentCtx->dc_SlotID,
@@ -2556,6 +2562,21 @@ void xhciHandleFinishedTDs(struct PCIController *hc, struct timerequest *timerre
                         (ioreq->iouh_Req.io_Command == UHCMD_CONTROLXFER)) {
                     xhciHandleClearFeatureEndpointHalt(hc, ioreq, clear_dev, timerreq);
                     uhwCheckSpecialCtrlTransfers(hc, ioreq);
+
+                    /*
+                     * A hub descriptor going by names the hub's port count,
+                     * which the slot context needs when a split-transaction
+                     * child is addressed through this hub later.
+                     */
+                    if(clear_dev && clear_dev != XHCI_ROOT_HUB_HANDLE &&
+                            ioreq->iouh_SetupData.bmRequestType ==
+                                (URTF_IN | URTF_CLASS | URTF_DEVICE) &&
+                            ioreq->iouh_SetupData.bRequest == USR_GET_DESCRIPTOR &&
+                            ioreq->iouh_Data && ioreq->iouh_Actual >= 3) {
+                        UWORD dtype = AROS_LE2WORD(ioreq->iouh_SetupData.wValue) >> 8;
+                        if(dtype == UDT_HUB || dtype == UDT_SSHUB)
+                            clear_dev->dc_NbrPorts = ((UBYTE *)ioreq->iouh_Data)[2];
+                    }
                 }
                 ReplyMsg(&ioreq->iouh_Req.io_Message);
             }

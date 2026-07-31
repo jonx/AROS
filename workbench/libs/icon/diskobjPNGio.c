@@ -531,6 +531,10 @@ BOOL ReadIconPNG(struct DiskObject *dobj, BPTR file, struct IconBase *IconBase)
                         NATIVEICON(icon)->ni_Frameless = val ? TRUE : FALSE;
                         break;
 
+                    case ATTR_TYPE:
+                        DO(icon)->do_Type = val;
+                        break;
+
                     case ATTR_TOOLTYPE:
                         ttnum++;
 

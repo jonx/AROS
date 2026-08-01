@@ -103,10 +103,20 @@ AROS_LH2(LONG, Emu68k_RunSeg,
                                    emu68k_sink, &sc, err, sizeof err);
     if (!run)
     {
+        /* Say so. A silent load failure is indistinguishable from a program
+         * that ran and printed nothing, which is exactly how a loader bug hid
+         * behind a row of "quiet" programs in the corpus sweeps. */
         bug("[emu68k.library] load failed for \"%s\": %s\n",
             ctx->elc_Name ? (const char *)ctx->elc_Name : "", err);
+        if (sc.out)
+        {
+            FPuts(sc.out, "emu68k: cannot load this 68k program: ");
+            FPuts(sc.out, err);
+            FPuts(sc.out, "\n");
+        }
+        *result = RETURN_FAIL;
         CloseLibrary(DOSBase);
-        return DOSFALSE;                 /* could not even load: caller declines */
+        return DOSTRUE;                  /* handled: reported, not silently declined */
     }
     if (ctx->elc_Name)
         Emu68kBase->host.run_set_name(run, (const char *)ctx->elc_Name);

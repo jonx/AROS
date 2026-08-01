@@ -45,6 +45,8 @@ struct Emu68kRegs
 #define DOS_LVO_DELAY   33    /* -198 */
 #define DOS_LVO_IOERR   22    /* -132: what every failed dos call is followed by */
 #define DOS_LVO_GETPROGRAMNAME 96   /* -576 */
+#define DOS_LVO_GETVAR        151   /* -906 */
+#define DOS_LVO_SETVAR        152   /* -912 */
 #define DOS_LVO_PRINTFAULT 79 /* -474 */
 #define DOS_LVO_SETIOERR   77 /* -462 */
 #define ICON_LVO_FINDTOOLTYPE  16   /* -96  */
@@ -158,6 +160,25 @@ int Emu68k_OSCall(const char *libname, int lvo, APTR regs, APTR guest0,
 
         case DOS_LVO_DELAY:      /* Delay(LONG ticks D1)                          */
             Delay((LONG)r->d[1]);
+            return 0;
+
+        case DOS_LVO_GETVAR:
+            /* GetVar(name D1, buffer D2, size D3, flags D4) -> length.
+             * The buffer is the guest's, so the native call fills guest memory
+             * directly - the value is bytes, not a structure, which is why this
+             * one can be bridged rather than reimplemented. */
+        {
+            LONG n = GetVar((CONST_STRPTR)gptr(guest0, r->d[1]),
+                            (STRPTR)gptr(guest0, r->d[2]),
+                            (LONG)r->d[3], (LONG)r->d[4]);
+            r->d[0] = (ULONG)n;
+            return 0;
+        }
+
+        case DOS_LVO_SETVAR:
+            r->d[0] = (ULONG)SetVar((CONST_STRPTR)gptr(guest0, r->d[1]),
+                                    (CONST_STRPTR)gptr(guest0, r->d[2]),
+                                    (LONG)r->d[3], (LONG)r->d[4]);
             return 0;
 
         case DOS_LVO_GETPROGRAMNAME:  /* GetProgramName(buf D1, len D2)          */

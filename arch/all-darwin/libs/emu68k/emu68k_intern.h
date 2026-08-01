@@ -13,6 +13,13 @@
 
 #define EMU68K_DYLIB_NAME "libemu68k.dylib"
 
+/* Guest-visible file handles. MUST match the host service (emu68k_host.c):
+ * a dos handle is a BPTR the program may dereference, so each one is backed by
+ * a real guest structure and what crosses is MKBADDR of its address. */
+#define EMU68K_GUEST_FH_BASE  0x00223000UL
+#define EMU68K_GUEST_FH_SLOT  64UL
+#define EMU68K_GUEST_FH_MAX   32UL
+
 /* the host service surface (hosted/emu68k/emu68k_host.h on the graft side) */
 typedef void *emu68k_run_h;
 typedef void (*emu68k_sink_fn)(const char *buf, long len, void *user);

@@ -67,39 +67,54 @@ static APTR gptr(APTR guest0, ULONG addr)
  * program never dereferences it, which is what makes a token legitimate.
  * Small and fixed: a 68k program with more than this many open files is not
  * the case we are serving yet, and it fails cleanly rather than corrupting. */
-#define EMU68K_MAX_HANDLES 32
-#define EMU68K_HANDLE_TAG  0x48000000UL          /* 'H' in the top byte        */
+#define EMU68K_MAX_HANDLES ((int)EMU68K_GUEST_FH_MAX)
 
 static struct { BPTR bptr; } g_handles[EMU68K_MAX_HANDLES];
+
+/* A handle crosses as a BPTR of a real guest structure, not as an opaque tag:
+ * a program may dereference its handle, and BADDR of a tag lands nowhere. Slot
+ * i lives at EMU68K_GUEST_FH_BASE + i*SLOT, and the guest gets that >> 2. */
+static ULONG handle_slot_bptr(int i)
+{
+    return (ULONG)((EMU68K_GUEST_FH_BASE + (ULONG)i * EMU68K_GUEST_FH_SLOT) >> 2);
+}
 
 static ULONG handle_token(BPTR b)
 {
     int i;
     if (!b) return 0;
     for (i = 0; i < EMU68K_MAX_HANDLES; i++)
-        if (g_handles[i].bptr == b) return EMU68K_HANDLE_TAG | (ULONG)i;
+        if (g_handles[i].bptr == b) return handle_slot_bptr(i);
     for (i = 0; i < EMU68K_MAX_HANDLES; i++)
         if (!g_handles[i].bptr)
         {
             g_handles[i].bptr = b;
-            return EMU68K_HANDLE_TAG | (ULONG)i;
+            return handle_slot_bptr(i);
         }
     return 0;                                    /* table full: NULL, cleanly  */
 }
 
+static int handle_index(ULONG token)
+{
+    ULONG addr = (ULONG)token << 2;              /* BADDR, the guest's view    */
+    ULONG off;
+    if (addr < EMU68K_GUEST_FH_BASE) return -1;
+    off = addr - EMU68K_GUEST_FH_BASE;
+    if (off % EMU68K_GUEST_FH_SLOT) return -1;
+    off /= EMU68K_GUEST_FH_SLOT;
+    return (off < EMU68K_GUEST_FH_MAX) ? (int)off : -1;
+}
+
 static BPTR handle_bptr(ULONG token)
 {
-    ULONG idx = token & 0x00FFFFFFUL;
-    if ((token & 0xFF000000UL) != EMU68K_HANDLE_TAG) return BNULL;
-    if (idx >= EMU68K_MAX_HANDLES) return BNULL;
-    return g_handles[idx].bptr;
+    int i = handle_index(token);
+    return (i < 0) ? BNULL : g_handles[i].bptr;
 }
 
 static void handle_release(ULONG token)
 {
-    ULONG idx = token & 0x00FFFFFFUL;
-    if ((token & 0xFF000000UL) == EMU68K_HANDLE_TAG && idx < EMU68K_MAX_HANDLES)
-        g_handles[idx].bptr = BNULL;
+    int i = handle_index(token);
+    if (i >= 0) g_handles[i].bptr = BNULL;
 }
 
 int Emu68k_OSCall(const char *libname, int lvo, APTR regs, APTR guest0,

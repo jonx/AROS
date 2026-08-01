@@ -2152,6 +2152,16 @@ static inline void xhciIOErrfromCC(struct IOUsbHWReq *ioreq, ULONG cc)
             ioreq->iouh_Actual = ioreq->iouh_Length;
         break;
 
+    case TRB_CC_SHORT_PACKET:                                   /* Short Packet */
+        /*
+         * The device returned less than the transfer asked for, which is
+         * how a device says it has nothing more to send. The count of what
+         * did arrive is already in iouh_Actual, and must not be rounded up
+         * to the requested length the way a full completion is.
+         */
+        ioreq->iouh_Req.io_Error = UHIOERR_NO_ERROR;
+        break;
+
     case TRB_CC_BABBLE_DETECTED_ERROR:                          /* Data Buffer Error / Babble */
         ioreq->iouh_Req.io_Error = UHIOERR_BABBLE;
         break;
@@ -2631,7 +2641,7 @@ BOOL xhciIntWorkProcess(struct PCIController *hc, struct IOUsbHWReq *ioreq, ULON
         driprivate->dpCC = ccode;
 
         /* Avoid log storms for expected ISO conditions */
-        if((ccode != TRB_CC_SUCCESS) &&
+        if((ccode != TRB_CC_SUCCESS) && (ccode != TRB_CC_SHORT_PACKET) &&
                 !(ccode == TRB_CC_RING_UNDERRUN && (ioreq->iouh_Req.io_Command == UHCMD_ISOXFER))) {
             pciusbWarn("xHCI",
                        DEBUGWARNCOLOR_SET
@@ -2644,7 +2654,7 @@ BOOL xhciIntWorkProcess(struct PCIController *hc, struct IOUsbHWReq *ioreq, ULON
          * This is particularly useful to spot endpoints that remain HALTED /
          * STOPPED while new TDs are being submitted.
          */
-        if((ccode != TRB_CC_SUCCESS) &&
+        if((ccode != TRB_CC_SUCCESS) && (ccode != TRB_CC_SHORT_PACKET) &&
                 !(ccode == TRB_CC_RING_UNDERRUN && (ioreq->iouh_Req.io_Command == UHCMD_ISOXFER))) {
             xhciDiagDumpEndpointBrief(hc, driprivate->dpDevice, (UBYTE)driprivate->dpEPID, "completion-error");
             xhciDumpEndpointCtx(hc, driprivate->dpDevice, driprivate->dpEPID, "completion-error");

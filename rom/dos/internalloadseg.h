@@ -5,6 +5,18 @@
 #define SEGTYPE_HUNK_OVERLAY    2
 #define SEGTYPE_ELF             10
 
+/* The seg-registry node for SEGTYPE_HUNK on non-68k 64-bit targets: carries the
+ * raw source-file bytes alongside the seglist, because the seglist's own payload
+ * (loaded above 4GB, truncated relocations) is not interpretable there - the 68k
+ * execution router re-loads from these bytes. Owned by the registry: freed with
+ * the node when the seglist is unloaded. Other node types stay a plain Node. */
+struct hunk_segnode
+{
+    struct Node shn_Node;
+    APTR        shn_Image;      /* AllocVec'd copy of the hunk file (or NULL) */
+    ULONG       shn_ImageSize;
+};
+
 BPTR InternalLoadSeg_AOS(BPTR file,
                          BPTR table,
                          SIPTR * funcarray,

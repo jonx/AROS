@@ -1,0 +1,21 @@
+#
+#   Generate emu68k.library -- the 68k execution service binding: DOS's launch
+#   router hands 68k hunk programs here; the library drives the host engine
+#   (libemu68k.dylib) via hostlib.resource in scheduler-friendly quanta.
+#
+
+include $(SRCDIR)/config/aros.cfg
+
+#MM- workbench-darwin-$(CPU) : hostlibs-emu68k
+#MM hostlibs-emu68k : \
+#MM     kernel-exec-includes \
+#MM     includes-copy
+#MM- hostlibs-emu68k : linklibs
+
+USER_INCLUDES += -isystem $(GENINCDIR)
+
+%build_module mmake=hostlibs-emu68k \
+    modname=emu68k modtype=library \
+    files="emu68k_init emu68k_runseg"
+
+%common

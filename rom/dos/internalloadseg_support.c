@@ -82,18 +82,23 @@ void register_elf(BPTR file, BPTR hunks, struct elfheader *eh, struct sheader *s
  * No DosBase = Open debug.library manually, this enables
  * us to have RDB segments in debug.library list.
  */
-void register_hunk(BPTR file, BPTR hunks, APTR header, struct DosLibrary *DOSBase)
+void register_hunk(BPTR file, BPTR hunks, APTR header, struct DosLibrary *DOSBase,
+                   APTR image, ULONG imagesize)
 {
     struct Library *DebugBase;
     struct KernelBase *KernelBase = OpenResource("kernel.resource");
     BOOL issuper = (KernelBase && KrnIsSuper());
     if (DOSBase)
     {
-        struct Node *segnode = AllocVec(sizeof(struct Node), MEMF_CLEAR);
+        struct hunk_segnode *hnode = AllocVec(sizeof(struct hunk_segnode), MEMF_CLEAR);
+        struct Node *segnode = hnode ? &hnode->shn_Node : NULL;
         if (segnode)
         {
             segnode->ln_Name = (char *)hunks;
             segnode->ln_Type = SEGTYPE_HUNK;
+            hnode->shn_Image     = image;
+            hnode->shn_ImageSize = imagesize;
+            image = NULL;                    /* ownership transferred          */
 
             if (issuper)
                 Forbid();
@@ -119,6 +124,8 @@ void register_hunk(BPTR file, BPTR hunks, APTR header, struct DosLibrary *DOSBas
     }
     if (!DOSBase)
         CloseLibrary(DebugBase);
+    if (image)
+        FreeVec(image);          /* not registered: nothing took ownership */
 }
 
 #if defined(DOCACHECLEAR)

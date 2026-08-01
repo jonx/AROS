@@ -13,6 +13,7 @@
 #include <exec/types.h>
 
 #include "dos_intern.h"
+#include "internalloadseg.h"
 
 static AROS_UFH3(void, FreeFunc,
         AROS_UFHA(APTR, buffer, A1),
@@ -100,6 +101,11 @@ static AROS_UFH3(void, FreeFunc,
                 {
                     D(bug("[DOS] %s: freeing seglist info @ 0x%p\n", __func__, segnode);)
                     Remove(segnode);
+                    if (segnode->ln_Type == SEGTYPE_HUNK)
+                    {
+                        /* hunk nodes carry the stashed source image */
+                        FreeVec(((struct hunk_segnode *)segnode)->shn_Image);
+                    }
                     FreeVec(segnode);
                     break;
                 }

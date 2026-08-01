@@ -120,10 +120,19 @@ static ULONG dd_to_flags(struct DiskObject *dobj)
  */
 ULONG *ReadMemPNG(struct DiskObject *icon, APTR stream, LONG *width, LONG *height, const CONST_STRPTR *chunknames, APTR *chunkpointer, struct IconBase *IconBase)
 {
-    APTR PNGBase = OpenLibrary("SYS:Classes/datatypes/png.datatype", 41);
+    /* Opened once and kept. Opening and closing around each decode lets a
+     * second task expunge the class between another task's open and its call
+     * into it, which lands in freed code. */
+    static APTR PNGBase = NULL;
     APTR handle;
     ULONG *argb = NULL;
 
+    if (!PNGBase) {
+        ObtainSemaphore(&IconBase->iconlistlock);
+        if (!PNGBase)
+            PNGBase = OpenLibrary("SYS:Classes/datatypes/png.datatype", 41);
+        ReleaseSemaphore(&IconBase->iconlistlock);
+    }
     if (!PNGBase) {
         D(bug("[%s] Can't open png.datatype\n", __func__));
         return NULL;
@@ -180,7 +189,6 @@ ULONG *ReadMemPNG(struct DiskObject *icon, APTR stream, LONG *width, LONG *heigh
         D(bug("[%s] PNG datatype can't parse data\n", __func__));
     }
 
-    CloseLibrary(PNGBase);
     return argb;
 }
 

@@ -20,6 +20,9 @@
 
 #include <aros/debug.h>
 
+int Emu68k_OSCall(const char *libname, int lvo, APTR regs, APTR guest0,
+                  APTR user, char *err, ULONG errlen);
+
 /* dispatcher roundtrips per quantum: small enough that CTRL-C and other tasks
  * stay responsive, large enough that the lock traffic is noise */
 #define EMU68K_QUANTUM 4096
@@ -107,6 +110,12 @@ AROS_LH2(LONG, Emu68k_RunSeg,
     }
     if (ctx->elc_Name)
         Emu68kBase->host.run_set_name(run, (const char *)ctx->elc_Name);
+
+    /* [T3] Library calls the engine cannot serve itself come back to us, and we
+     * perform them as real native AROS calls. DOSBase rides along as the user
+     * pointer so the bridge does not have to open its own. */
+    if (Emu68kBase->host.set_oscall)
+        Emu68kBase->host.set_oscall(Emu68k_OSCall, DOSBase);
 
     D(bug("[emu68k.library] run \"%s\" origin=%lu args=%lub\n",
           ctx->elc_Name ? (const char *)ctx->elc_Name : "",

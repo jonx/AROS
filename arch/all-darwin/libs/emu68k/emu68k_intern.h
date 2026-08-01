@@ -37,6 +37,9 @@ struct Emu68kHostIf
     void (*run_set_name)(emu68k_run_h r, const char *name);
     int  (*scan_image)(const void *image, unsigned long imagelen,
                        char *detail, unsigned detaillen);
+    void (*set_oscall)(int (*fn)(const char *libname, int lvo, APTR regs,
+                                 APTR guest0, APTR user, char *err, ULONG errlen),
+                       APTR user);
 };
 
 struct Emu68kBase

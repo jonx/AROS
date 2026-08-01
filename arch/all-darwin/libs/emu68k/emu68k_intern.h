@@ -21,6 +21,7 @@ typedef void (*emu68k_sink_fn)(const char *buf, long len, void *user);
 #define EMU68K_RC_YIELD  1
 #define EMU68K_RC_KILLED 2
 #define EMU68K_RC_ERROR  (-1)
+#define EMU68K_RC_HARDWARE 3
 
 struct Emu68kHostIf
 {
@@ -34,6 +35,8 @@ struct Emu68kHostIf
     void (*run_free)(emu68k_run_h r);
     const char *(*version)(void);
     void (*run_set_name)(emu68k_run_h r, const char *name);
+    int  (*scan_image)(const void *image, unsigned long imagelen,
+                       char *detail, unsigned detaillen);
 };
 
 struct Emu68kBase

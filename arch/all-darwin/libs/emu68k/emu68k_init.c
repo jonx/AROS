@@ -25,6 +25,7 @@ static const char *const emu68k_syms[] =
     "emu68k_run_free",
     "emu68k_version",
     "emu68k_run_set_name",
+    "emu68k_scan_image",
     NULL
 };
 
@@ -33,7 +34,7 @@ static const char *const emu68k_syms[] =
 static int Emu68k_InitLib(LIBBASETYPEPTR LIBBASE)
 {
     ULONG errcount = 0;
-    void *syms[6] = { 0 };
+    void *syms[7] = { 0 };
     int i;
 
     InitSemaphore(&LIBBASE->runlock);
@@ -76,6 +77,7 @@ static int Emu68k_InitLib(LIBBASETYPEPTR LIBBASE)
     LIBBASE->host.run_free     = syms[3];
     LIBBASE->host.version      = syms[4];
     LIBBASE->host.run_set_name = syms[5];
+    LIBBASE->host.scan_image   = syms[6];
     LIBBASE->host_ok = TRUE;
 
     D(bug("[emu68k.library] bound: %s\n", LIBBASE->host.version()));

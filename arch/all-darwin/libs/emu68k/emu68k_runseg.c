@@ -72,6 +72,28 @@ AROS_LH2(LONG, Emu68k_RunSeg,
     if (argslen && ctx->elc_Args && ctx->elc_Args[argslen - 1] == '\n')
         argslen--;
 
+    /* [T2] AUTO routing: ask the static scan first. A program that plainly
+     * drives the Amiga hardware cannot be served by translation, so say so
+     * instead of running it into a fault. Anything else runs, with the runtime
+     * guard as the authority. */
+    err[0] = 0;
+    if (ctx->elc_Mode == 0 && Emu68kBase->host.scan_image &&
+        Emu68kBase->host.scan_image(ctx->elc_Image, ctx->elc_ImageSize,
+                                    err, sizeof err))
+    {
+        if (sc.out)
+        {
+            FPuts(sc.out, "This program needs a full Amiga emulator: ");
+            FPuts(sc.out, err);
+            FPuts(sc.out, "\n");
+        }
+        bug("[emu68k.library] \"%s\": routed FULL (%s)\n",
+            ctx->elc_Name ? (const char *)ctx->elc_Name : "", err);
+        *result = RETURN_FAIL;
+        CloseLibrary(DOSBase);
+        return DOSTRUE;               /* handled: a routing decision, not a decline */
+    }
+
     err[0] = 0;
     run = Emu68kBase->host.run_new(ctx->elc_Image, ctx->elc_ImageSize,
                                    (const char *)ctx->elc_Args, argslen,
@@ -121,6 +143,20 @@ AROS_LH2(LONG, Emu68k_RunSeg,
     case EMU68K_RC_KILLED:
         if (sc.out)
             FPuts(sc.out, "***Break\n");
+        *result = RETURN_FAIL;
+        ran = DOSTRUE;
+        break;
+    case EMU68K_RC_HARDWARE:
+        /* the runtime guard: it wanted the hardware after all (an address the
+         * static scan could not see). Same answer, now with the exact register. */
+        bug("[emu68k.library] \"%s\": hardware event: %s\n",
+            ctx->elc_Name ? (const char *)ctx->elc_Name : "", err);
+        if (sc.out)
+        {
+            FPuts(sc.out, "This program needs a full Amiga emulator: it ");
+            FPuts(sc.out, err);
+            FPuts(sc.out, "\n");
+        }
         *result = RETURN_FAIL;
         ran = DOSTRUE;
         break;

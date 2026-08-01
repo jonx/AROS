@@ -447,9 +447,12 @@ static void cocoa_clipboard_task(void)
             }
             lastHostCC = cc;
         }
-        else
+
         {
-            /* ---- AROS clipboard changed -> push to macOS (unless it's our echo) ---- */
+            /* ---- AROS clipboard changed -> push to macOS (unless it's our echo) ----
+               Polled every tick, not only when the macOS counter stood still: a
+               host app that rewrites the pasteboard on a timer would otherwise
+               starve this direction for as long as it kept writing. */
             LONG wid = clip_write_id();
             if (wid != lastArosWid)
             {

@@ -13,6 +13,7 @@
 #include <dos/stdio.h>
 
 #include "dos_intern.h"
+#include "dos_emu68k.h"
 
 /*****************************************************************************
 
@@ -95,6 +96,26 @@
         D(bug("[DOS] %s: elfinfo == 0x%p\n", __func__, elfinfo);)
         if (!elfinfo)
         {
+            if (hunkinfo)
+            {
+                /* A 68k hunk seglist: hand it to the 68k router with the CLI
+                 * launch context instead of rejecting it outright. */
+                struct CommandLineInterface *cli = BADDR(me->pr_CLI);
+                struct Emu68kLaunchCtx ctx;
+                LONG routed_result = -1;
+
+                ctx.elc_Version = EMU68K_CTX_VERSION;
+                ctx.elc_Origin  = EMU68K_LAUNCH_CLI;
+                ctx.elc_SegList = segList;
+                ctx.elc_Name    = cli ? (CONST_STRPTR)AROS_BSTR_ADDR(cli->cli_CommandName)
+                                      : (CONST_STRPTR)me->pr_Task.tc_Node.ln_Name;
+                ctx.elc_Args    = argptr;
+                ctx.elc_ArgSize = argsize;
+                ctx.elc_Process = me;
+                ctx.elc_Mode    = 0;
+                if (Emu68k_RouteSegList(&ctx, &routed_result, DOSBase))
+                    return routed_result;
+            }
             /* Segment is tracked by LoadSeg but is not ELF.
              * Reject unsupported formats (e.g. 68k HUNK). */
             return -1;

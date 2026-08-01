@@ -205,6 +205,16 @@ BPTR InternalLoadSeg_AOS(BPTR fh,
      */
     hunksize = lcount * 4 + sizeof(ULONG) + sizeof(BPTR);
     hunkptr = ilsAllocVec(hunksize, req | MEMF_31BIT);
+#if __WORDSIZE > 32
+    /* Hosts with no 32-bit-addressable memory at all (e.g. 64-bit hosted with a
+     * high RAM map) cannot satisfy MEMF_31BIT ever. Fall back to plain memory so
+     * the file still loads and the seglist is registered: execution is diverted
+     * at the entry boundaries (a hunk seglist never runs as native code), and
+     * the seglist-aware data consumers detect an above-4GB seglist and decline.
+     * Relocations below then hold truncated values; nothing may interpret them. */
+    if (!hunkptr)
+      hunkptr = ilsAllocVec(hunksize, req);
+#endif
     if (!hunkptr)
       ERROR(ERROR_NO_FREE_STORE);
     hunktab[i] = MKBADDR(hunkptr);

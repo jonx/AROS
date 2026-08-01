@@ -1,0 +1,19 @@
+# RunSeg -- run a LoadSeg()ed executable as a new synchronous process
+# (exercises the created-process entry path). -noposixc main().
+
+include $(SRCDIR)/config/aros.cfg
+
+FILES   := runseg
+
+EXEDIR  := $(AROS_C)
+
+USER_CFLAGS := -noposixc
+
+#MM- workbench-c : workbench-c-runseg
+#MM workbench-c-runseg : includes linklibs
+
+%build_prog mmake=workbench-c-runseg \
+    progname=RunSeg targetdir=$(EXEDIR) \
+    files="$(FILES)"
+
+%common

@@ -12,6 +12,7 @@
 #include <dos/doshunks.h>
 #include <dos/dosasl.h>
 #include <dos/dosextens.h>
+#include <dos/dostags.h>
 #include <string.h>
 
 #include <proto/dos.h>
@@ -521,6 +522,26 @@ struct TextFont *ReadDiskFont(
     
     if ((seglist = LoadSeg(filename)) != 0)
     {
+#if __WORDSIZE > 32
+        /* A 68k hunk font seglist above 4GB carries truncated relocations and
+         * cannot be interpreted (same rule as the keymap loader's conversion
+         * fallback); decline it instead of parsing garbage. */
+        {
+            IPTR hunkinfo = 0;
+            struct TagItem segtags[] =
+            {
+                { GSLI_68KHUNK, (IPTR)&hunkinfo },
+                { TAG_DONE,     0               }
+            };
+            if (GetSegListInfo(seglist, segtags) && hunkinfo &&
+                (IPTR)BADDR(seglist) > 0xFFFFFFFFUL)
+            {
+                D(bug("ReadDiskFont: 68k hunk seglist above 4GB, declining\n"));
+                UnLoadSeg(seglist);
+                ReturnPtr("ReadDiskFont", struct TextFont *, NULL);
+            }
+        }
+#endif
         dfh = ConvDiskFont(seglist, realfontname, TRUE, DiskfontBase);
         UnLoadSeg(seglist);
 

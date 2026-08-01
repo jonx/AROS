@@ -20,6 +20,7 @@
 #include <proto/intuition.h>
 #include <proto/graphics.h>
 #include "dos_intern.h"
+#include "dos_emu68k.h"
 #include LC_LIBDEFS_FILE
 #include <string.h>
 
@@ -678,7 +679,7 @@ BOOL copyVars(struct Process *fromProcess, struct Process *toProcess, struct Dos
         struct LocalVar *varNode;
         struct LocalVar *newVar;
         
-        /* We use the same strategy as in the ***Var() functions */
+        /* We use the same strategy as in theï¿½***Var() functions */
         ForeachNode(&fromProcess->pr_LocalVars, varNode)
         {
             LONG  copyLength = strlen(varNode->lv_Node.ln_Name) + 1 +
@@ -746,8 +747,56 @@ static void DosEntry(void)
 
     D(bug("[DosEntry %p] entry=%p, CIS=%p, COS=%p, argsize=%d, arguments=\"%s\"\n", me, initialPC, BADDR(me->pr_CIS), BADDR(me->pr_COS), argSize, me->pr_Arguments));
 
+#if !(AROS_FLAVOUR & AROS_FLAVOUR_BINCOMPAT)
+    /* A 68k hunk seglist holds no native code: divert it to the 68k router
+     * with the process launch context instead of jumping into it. Only when
+     * the entry PC was derived from the seglist â€” an explicit NP_Entry (the
+     * SystemTagList shell case) runs as native code regardless. The check
+     * needs DOS; open our private base early (the cleanup path below reopens
+     * its own). */
+    if (segArray && segArray[3] &&
+        initialPC == (APTR)((UBYTE *)BADDR(segArray[3]) + sizeof(BPTR)))
+    {
+        struct DosLibrary *DOSBase = (struct DosLibrary *)TaggedOpenLibrary(TAGGEDOPEN_DOS);
+        LONG routed = 0, routed_result = -1;
+        if (DOSBase)
+        {
+            IPTR hunkinfo = 0;
+            struct TagItem segtags[] =
+            {
+                { GSLI_68KHUNK, (IPTR)&hunkinfo },
+                { TAG_DONE,     0               }
+            };
+            if (GetSegListInfo(segArray[3], segtags) && hunkinfo)
+            {
+                struct Emu68kLaunchCtx ctx;
+                ctx.elc_Version = EMU68K_CTX_VERSION;
+                ctx.elc_Origin  = EMU68K_LAUNCH_PROC;
+                ctx.elc_SegList = segArray[3];
+                ctx.elc_Name    = (CONST_STRPTR)me->pr_Task.tc_Node.ln_Name;
+                ctx.elc_Args    = (CONST_STRPTR)me->pr_Arguments;
+                ctx.elc_ArgSize = argSize;
+                ctx.elc_Process = me;
+                ctx.elc_Mode    = 0;
+                Emu68k_RouteSegList(&ctx, &routed_result, DOSBase);
+                routed = 1;      /* routed or declined: never jump into 68k code */
+            }
+            CloseLibrary((struct Library *)DOSBase);
+        }
+        if (routed)
+        {
+            result = routed_result;
+            goto entry_done;
+        }
+    }
+#endif
+
     /* Call entry point of our process, remembering stack in its pr_ReturnAddr */
     result = CallEntry(me->pr_Arguments, argSize, initialPC, me);
+
+#if !(AROS_FLAVOUR & AROS_FLAVOUR_BINCOMPAT)
+entry_done:
+#endif
 
     /* Call user defined exit function before shutting down. */
     if (me->pr_ExitCode != NULL)

@@ -43,6 +43,11 @@ struct Emu68kRegs
 #define DOS_LVO_OUTPUT  10    /* -60  */
 #define DOS_LVO_SEEK    11    /* -66  */
 #define DOS_LVO_DELAY   33    /* -198 */
+#define DOS_LVO_IOERR   22    /* -132: what every failed dos call is followed by */
+#define DOS_LVO_GETPROGRAMNAME 96   /* -576 */
+#define DOS_LVO_PRINTFAULT 79 /* -474 */
+#define DOS_LVO_SETIOERR   77 /* -462 */
+#define ICON_LVO_FINDTOOLTYPE  16   /* -96  */
 
 /* A guest pointer becomes a host pointer by adding the guest base. Only memory
  * INSIDE the guest arena may be handed to a native call this way. */
@@ -105,6 +110,19 @@ int Emu68k_OSCall(const char *libname, int lvo, APTR regs, APTR guest0,
     {
         switch (lvo)
         {
+        case DOS_LVO_IOERR:      /* IoErr() -> the last error code               */
+            r->d[0] = (ULONG)IoErr();
+            return 0;
+
+        case DOS_LVO_SETIOERR:   /* SetIoErr(LONG D1) -> old                     */
+            r->d[0] = (ULONG)SetIoErr((LONG)r->d[1]);
+            return 0;
+
+        case DOS_LVO_PRINTFAULT: /* PrintFault(LONG code D1, STRPTR hdr D2)      */
+            r->d[0] = (ULONG)PrintFault((LONG)r->d[1],
+                                        (CONST_STRPTR)gptr(guest0, r->d[2]));
+            return 0;
+
         case DOS_LVO_OUTPUT:
             r->d[0] = handle_token(Output());
             return 0;
@@ -141,7 +159,29 @@ int Emu68k_OSCall(const char *libname, int lvo, APTR regs, APTR guest0,
         case DOS_LVO_DELAY:      /* Delay(LONG ticks D1)                          */
             Delay((LONG)r->d[1]);
             return 0;
+
+        case DOS_LVO_GETPROGRAMNAME:  /* GetProgramName(buf D1, len D2)          */
+        {
+            STRPTR buf = gptr(guest0, r->d[1]);
+            LONG   len = (LONG)r->d[2];
+            if (buf && len > 0)
+            {
+                /* the guest's own name, into the guest's own buffer */
+                if (!GetProgramName(buf, len)) buf[0] = '\0';
+                r->d[0] = DOSTRUE;
+            }
+            else r->d[0] = DOSFALSE;
+            return 0;
         }
+        }
+    }
+
+    if (strcmp(libname, "icon.library") == 0)
+    {
+        /* FindToolType on a program launched from the Shell has no tool types
+         * to find: NULL is the correct, expected answer, and programs are
+         * written to handle it. */
+        if (lvo == ICON_LVO_FINDTOOLTYPE) { r->d[0] = 0; return 0; }
     }
 
     /* Anything else is a capability gap, reported by name so the ledger says

@@ -83,6 +83,8 @@ AROS_LH2(LONG, Emu68k_RunSeg,
         CloseLibrary(DOSBase);
         return DOSFALSE;                 /* could not even load: caller declines */
     }
+    if (ctx->elc_Name)
+        Emu68kBase->host.run_set_name(run, (const char *)ctx->elc_Name);
 
     D(bug("[emu68k.library] run \"%s\" origin=%lu args=%lub\n",
           ctx->elc_Name ? (const char *)ctx->elc_Name : "",
@@ -111,7 +113,9 @@ AROS_LH2(LONG, Emu68k_RunSeg,
     switch (rc)
     {
     case EMU68K_RC_DONE:
-        *result = (LONG)d0;
+        /* a shell-meaningful return code, exactly as the host CLI clamps it
+         * (the full D0 is a 32-bit value; rc semantics are 0..255) */
+        *result = (LONG)(d0 & 0xFF);
         ran = DOSTRUE;
         break;
     case EMU68K_RC_KILLED:

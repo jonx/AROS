@@ -33,6 +33,7 @@ struct Emu68kHostIf
     void (*run_kill)(emu68k_run_h r);
     void (*run_free)(emu68k_run_h r);
     const char *(*version)(void);
+    void (*run_set_name)(emu68k_run_h r, const char *name);
 };
 
 struct Emu68kBase

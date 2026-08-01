@@ -220,20 +220,50 @@ static void core_TrapHandler(int sig, regs_t *regs)
      */
     {
         IPTR *fp = (IPTR *)(IPTR)FP(regs);
+        struct Task *t = SysBase ? (struct Task *)SysBase->ThisTask : NULL;
+        IPTR stk_lo = 0, stk_hi = 0;
         ULONG i;
+
+        /*
+         * A crashed program's frame chain is not to be trusted: one bad link
+         * and the walk dereferences a wild pointer, which faults inside the
+         * crash handler and takes the whole host down (the nested-trap halt
+         * above) instead of reporting the crash. Bound the walk by the
+         * faulting task's own stack when that is known, and never step more
+         * than one large stack's worth in a single frame.
+         */
+        if (t && t->tc_SPLower && t->tc_SPUpper > t->tc_SPLower)
+        {
+            stk_lo = (IPTR)t->tc_SPLower;
+            stk_hi = (IPTR)t->tc_SPUpper;
+        }
+
         bug("[KRN] Backtrace (innermost first): pc=%p", (APTR)(IPTR)PC(regs));
         krnSymbolize(PC(regs));
         bug("\n");
         for (i = 0; i < 24 && fp; i++)
         {
-            IPTR saved_fp = fp[0];
-            IPTR ret      = fp[1];
-            if (!ret)
+            IPTR saved_fp, ret;
+
+            if ((IPTR)fp & 0xF)
+                break;
+            if (stk_hi && ((IPTR)fp < stk_lo || (IPTR)fp + 2 * sizeof(IPTR) > stk_hi))
+                break;
+
+            saved_fp = fp[0];
+            ret      = fp[1];
+            /* A return address is 4-byte aligned and inside the 47-bit user
+             * range; anything else is data the walk has strayed into, and
+             * handing it to the symbolizer faults. */
+            if (ret < 0x1000 || (ret & 3) || ret >= ((IPTR)1 << 47))
                 break;
             bug("[KRN]   <- %p", (APTR)ret);
             krnSymbolize(ret);
             bug("\n");
-            if (saved_fp <= (IPTR)fp || (saved_fp & 0xF))
+            if (saved_fp <= (IPTR)fp || (saved_fp & 0xF)
+                || saved_fp >= ((IPTR)1 << 47))
+                break;
+            if (!stk_hi && saved_fp - (IPTR)fp > (16UL << 20))
                 break;
             fp = (IPTR *)saved_fp;
         }

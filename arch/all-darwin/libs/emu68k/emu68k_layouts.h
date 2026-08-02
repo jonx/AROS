@@ -438,6 +438,40 @@ struct EmuField
 #define M68K_TextFont_tf_CharSpace 44   /* native @88 - CONVERT */
 #define M68K_TextFont_tf_CharKern 48   /* native @96 - CONVERT */
 
+/* struct DimensionInfo: 88 bytes on m68k (DimensionInfo), 96 native (DimensionInfo) */
+#define M68K_DimensionInfo_SIZEOF 88
+#define M68K_DimensionInfo_Header_StructID 0
+#define M68K_DimensionInfo_Header_DisplayID 4
+#define M68K_DimensionInfo_Header_SkipID 8
+#define M68K_DimensionInfo_Header_Length 12
+#define M68K_DimensionInfo_MaxDepth 16
+#define M68K_DimensionInfo_MinRasterWidth 18
+#define M68K_DimensionInfo_MinRasterHeight 20
+#define M68K_DimensionInfo_MaxRasterWidth 22
+#define M68K_DimensionInfo_MaxRasterHeight 24
+#define M68K_DimensionInfo_Nominal_MinX 26
+#define M68K_DimensionInfo_Nominal_MinY 28
+#define M68K_DimensionInfo_Nominal_MaxX 30
+#define M68K_DimensionInfo_Nominal_MaxY 32
+#define M68K_DimensionInfo_MaxOScan_MinX 34
+#define M68K_DimensionInfo_MaxOScan_MinY 36
+#define M68K_DimensionInfo_MaxOScan_MaxX 38
+#define M68K_DimensionInfo_MaxOScan_MaxY 40
+#define M68K_DimensionInfo_VideoOScan_MinX 42
+#define M68K_DimensionInfo_VideoOScan_MinY 44
+#define M68K_DimensionInfo_VideoOScan_MaxX 46
+#define M68K_DimensionInfo_VideoOScan_MaxY 48
+#define M68K_DimensionInfo_TxtOScan_MinX 50
+#define M68K_DimensionInfo_TxtOScan_MinY 52
+#define M68K_DimensionInfo_TxtOScan_MaxX 54
+#define M68K_DimensionInfo_TxtOScan_MaxY 56
+#define M68K_DimensionInfo_StdOScan_MinX 58
+#define M68K_DimensionInfo_StdOScan_MinY 60
+#define M68K_DimensionInfo_StdOScan_MaxX 62
+#define M68K_DimensionInfo_StdOScan_MaxY 64
+#define M68K_DimensionInfo_pad 66
+#define M68K_DimensionInfo_reserved 80
+
 /* The conversion tables. Each row is one field: where it lives on
  * each side, how wide it is on each side, and what may be done to it.
  * A generic walker (emu68k_marshal.c) is all that is needed to convert
@@ -861,6 +895,42 @@ static const struct EmuField emu_fields_TextFont[] = {
  *   tf_CharLoc (APTR)
  *   tf_CharSpace (APTR)
  *   tf_CharKern (APTR)
+ */
+
+static const struct EmuField emu_fields_DimensionInfo[] = {
+    {    0,    0,    1, 4, 4, EMU_F_SCALAR },   /* Header_StructID          ULONG */
+    {    4,    4,    1, 4, 4, EMU_F_SCALAR },   /* Header_DisplayID         ULONG */
+    {    8,    8,    1, 4, 4, EMU_F_SCALAR },   /* Header_SkipID            ULONG */
+    {   12,   12,    1, 4, 4, EMU_F_SCALAR },   /* Header_Length            ULONG */
+    {   16,   16,    1, 2, 2, EMU_F_SCALAR },   /* MaxDepth                 UWORD */
+    {   18,   18,    1, 2, 2, EMU_F_SCALAR },   /* MinRasterWidth           UWORD */
+    {   20,   20,    1, 2, 2, EMU_F_SCALAR },   /* MinRasterHeight          UWORD */
+    {   22,   22,    1, 2, 2, EMU_F_SCALAR },   /* MaxRasterWidth           UWORD */
+    {   24,   24,    1, 2, 2, EMU_F_SCALAR },   /* MaxRasterHeight          UWORD */
+    {   26,   26,    1, 2, 2, EMU_F_SCALAR },   /* Nominal_MinX             WORD */
+    {   28,   28,    1, 2, 2, EMU_F_SCALAR },   /* Nominal_MinY             WORD */
+    {   30,   30,    1, 2, 2, EMU_F_SCALAR },   /* Nominal_MaxX             WORD */
+    {   32,   32,    1, 2, 2, EMU_F_SCALAR },   /* Nominal_MaxY             WORD */
+    {   34,   34,    1, 2, 2, EMU_F_SCALAR },   /* MaxOScan_MinX            WORD */
+    {   36,   36,    1, 2, 2, EMU_F_SCALAR },   /* MaxOScan_MinY            WORD */
+    {   38,   38,    1, 2, 2, EMU_F_SCALAR },   /* MaxOScan_MaxX            WORD */
+    {   40,   40,    1, 2, 2, EMU_F_SCALAR },   /* MaxOScan_MaxY            WORD */
+    {   42,   42,    1, 2, 2, EMU_F_SCALAR },   /* VideoOScan_MinX          WORD */
+    {   44,   44,    1, 2, 2, EMU_F_SCALAR },   /* VideoOScan_MinY          WORD */
+    {   46,   46,    1, 2, 2, EMU_F_SCALAR },   /* VideoOScan_MaxX          WORD */
+    {   48,   48,    1, 2, 2, EMU_F_SCALAR },   /* VideoOScan_MaxY          WORD */
+    {   50,   50,    1, 2, 2, EMU_F_SCALAR },   /* TxtOScan_MinX            WORD */
+    {   52,   52,    1, 2, 2, EMU_F_SCALAR },   /* TxtOScan_MinY            WORD */
+    {   54,   54,    1, 2, 2, EMU_F_SCALAR },   /* TxtOScan_MaxX            WORD */
+    {   56,   56,    1, 2, 2, EMU_F_SCALAR },   /* TxtOScan_MaxY            WORD */
+    {   58,   58,    1, 2, 2, EMU_F_SCALAR },   /* StdOScan_MinX            WORD */
+    {   60,   60,    1, 2, 2, EMU_F_SCALAR },   /* StdOScan_MinY            WORD */
+    {   62,   62,    1, 2, 2, EMU_F_SCALAR },   /* StdOScan_MaxX            WORD */
+    {   64,   64,    1, 2, 2, EMU_F_SCALAR },   /* StdOScan_MaxY            WORD */
+    {   66,   66,   14, 1, 1, EMU_F_BYTES },   /* pad                      UBYTE[14] */
+};
+/* NOT converted, and deliberately not guessed at:
+ *   reserved (IPTR[2])
  */
 
 #endif /* EMU68K_LAYOUTS_H */

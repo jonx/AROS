@@ -9,6 +9,8 @@
 #include <exec/types.h>
 #include <proto/graphics.h>
 #include <string.h>
+#include <stdio.h>
+#include <graphics/displayinfo.h>
 #include <graphics/modeid.h>
 
 #include "emu68k_gen.h"
@@ -242,6 +244,54 @@ int emu68k_gen_graphics(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
     case 122:  /* NextDisplayInfo(ULONG last_ID) -> ULONG  [-732] */
         r->d[0] = (ULONG)NextDisplayInfo((ULONG)r->d[0]);
         return 0;
+    case 126:  /* GetDisplayInfoData(DisplayInfoHandle handle, UBYTE * buf, ULONG size, ULONG tagID, ULONG ID) -> ULONG  [-756] */
+    {
+        struct DimensionInfo emu_tagged_1_DimensionInfo;
+        APTR emu_tagged_native_1 = NULL;
+        const struct EmuField *emu_tagged_fields_1 = NULL;
+        ULONG emu_tagged_nfields_1 = 0;
+        ULONG emu_tagged_native_size_1 = 0;
+        ULONG emu_tagged_guest_size_1 = 0;
+        switch ((ULONG)r->d[1])
+        {
+        case DTAG_DIMS:
+            memset(&emu_tagged_1_DimensionInfo, 0, sizeof(emu_tagged_1_DimensionInfo));
+            emu_tagged_native_1 = &emu_tagged_1_DimensionInfo;
+            emu_tagged_fields_1 = emu_fields_DimensionInfo;
+            emu_tagged_nfields_1 = EMU_NFIELDS(emu_fields_DimensionInfo);
+            emu_tagged_native_size_1 = sizeof(struct DimensionInfo);
+            emu_tagged_guest_size_1 = M68K_DimensionInfo_SIZEOF;
+            break;
+        default:
+            if (err && errlen)
+                snprintf(err, errlen, "GetDisplayInfoData.buf: unsupported tag %08lx",
+                         (unsigned long)r->d[1]);
+            return 1;
+        }
+        ULONG emu_tagged_limit_1 = (ULONG)r->d[0];
+        if (emu_tagged_limit_1 > emu_tagged_guest_size_1)
+            emu_tagged_limit_1 = emu_tagged_guest_size_1;
+        if (emu68k_require_guest_range(r->a[1], emu_tagged_limit_1,
+                                         "GetDisplayInfoData.buf", err, errlen) < 0)
+            return 1;
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_DisplayInfoHandle, 1,
+                                        "DisplayInfoHandle", &emu_object_0, err, errlen) < 0)
+            return 1;
+            r->d[0] = (ULONG)GetDisplayInfoData((DisplayInfoHandle)emu_object_0,
+              (UBYTE *)emu_tagged_native_1,
+              (ULONG)emu_tagged_native_size_1,
+              (ULONG)r->d[1],
+              (ULONG)r->d[2]);
+        if (r->d[0])
+        {
+            memset(EMU_GPTR(guest0, r->a[1]), 0, emu_tagged_limit_1);
+            emu68k_to_guest_sized(guest0, r->a[1], emu_tagged_native_1,
+                               emu_tagged_fields_1, emu_tagged_nfields_1, emu_tagged_limit_1);
+            r->d[0] = emu_tagged_limit_1;
+        }
+            return 0;
+    }
     case 133:  /* ModeNotAvailable(ULONG modeID) -> ULONG  [-798] */
         r->d[0] = (ULONG)ModeNotAvailable((ULONG)r->d[0]);
         return 0;

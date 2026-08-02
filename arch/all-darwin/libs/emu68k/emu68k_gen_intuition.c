@@ -46,6 +46,22 @@ int emu68k_gen_intuition(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
     case 13:  /* CloseWorkBench(void) -> LONG  [-78] */
         r->d[0] = (ULONG)CloseWorkBench();
         return 0;
+    case 14:  /* CurrentTime(ULONG * seconds, ULONG * micros) -> void  [-84] */
+    {
+        ULONG emu_scalar_0 = 0;
+        if (emu68k_require_guest_range(r->a[0], 4,
+                                         "CurrentTime.seconds", err, errlen) < 0)
+            return 1;
+        ULONG emu_scalar_1 = 0;
+        if (emu68k_require_guest_range(r->a[1], 4,
+                                         "CurrentTime.micros", err, errlen) < 0)
+            return 1;
+            CurrentTime((ULONG *)&emu_scalar_0,
+              (ULONG *)&emu_scalar_1);
+        emu68k_scalar_to_guest(guest0, r->a[0], 4, (UQUAD)emu_scalar_0);
+        emu68k_scalar_to_guest(guest0, r->a[1], 4, (UQUAD)emu_scalar_1);
+            return 0;
+    }
     case 15:  /* DisplayAlert(ULONG alertnumber, UBYTE * string, UWORD height) -> BOOL  [-90] */
         r->d[0] = (ULONG)DisplayAlert((ULONG)r->d[0],
               (UBYTE *)EMU_GPTR(guest0, r->a[0]),

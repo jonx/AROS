@@ -73,6 +73,25 @@ static ULONG gr32(APTR guest0, ULONG addr)
            ((ULONG)p[2] << 8) | (ULONG)p[3];
 }
 
+UQUAD emu68k_scalar_from_guest(APTR guest0, ULONG addr, UBYTE width)
+{
+    const UBYTE *p = (const UBYTE *)guest0 + addr;
+    UQUAD value = 0;
+    UBYTE i;
+    for (i = 0; i < width; i++) value = (value << 8) | p[i];
+    return value;
+}
+
+void emu68k_scalar_to_guest(APTR guest0, ULONG addr, UBYTE width, UQUAD value)
+{
+    UBYTE *p = (UBYTE *)guest0 + addr;
+    while (width)
+    {
+        p[--width] = (UBYTE)value;
+        value >>= 8;
+    }
+}
+
 /* ---- OPAQUE HANDLES -------------------------------------------------------
  * A 68k register is 32 bits; a native AROS BPTR is a 64-bit pointer. A file
  * handle therefore CANNOT be handed to the program as itself - truncating it

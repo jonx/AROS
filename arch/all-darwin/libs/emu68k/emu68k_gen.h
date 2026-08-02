@@ -58,6 +58,9 @@ ULONG emu68k_handle_token(APTR guest0, BPTR b);
 #define EMU_HANDLE(g0, t)  emu68k_handle_bptr((g0), (ULONG)(t))
 #define EMU_TOKEN(g0, b)   emu68k_handle_token((g0), (b))
 
+UQUAD emu68k_scalar_from_guest(APTR guest0, ULONG addr, UBYTE width);
+void  emu68k_scalar_to_guest(APTR guest0, ULONG addr, UBYTE width, UQUAD value);
+
 /* Native OS objects cross as typed, per-run tokens. The table preserves
  * identity and reference counts, rejects stale/wrong-type tokens, and owns a
  * cleanup callback so objects still live at program exit are released. */

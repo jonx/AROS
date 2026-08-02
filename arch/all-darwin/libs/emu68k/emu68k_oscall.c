@@ -21,18 +21,11 @@
 #include <proto/dos.h>
 
 #include "emu68k_intern.h"
+#include "emu68k_gen.h"
 #include LC_LIBDEFS_FILE
 
 #include <aros/debug.h>
 #include <string.h>
-
-/* The leading, stable part of the engine's 68k register file. The engine owns
- * the full struct; only these two arrays are contractual here. */
-struct Emu68kRegs
-{
-    ULONG d[8];
-    ULONG a[8];
-};
 
 /* dos.library vector indices (negative offset / 6) */
 #define DOS_LVO_OPEN     5    /* -30  */
@@ -115,6 +108,77 @@ static void handle_release(ULONG token)
 {
     int i = handle_index(token);
     if (i >= 0) g_handles[i].bptr = BNULL;
+}
+
+/* ---- THE GENERATED TABLE --------------------------------------------------
+ * One entry per library the generator covers. The base is resolved on first
+ * use and cached: dos and exec are already open, the rest are opened only if a
+ * guest actually calls them, so covering intuition and graphics costs a
+ * console program nothing. A library that will not open is remembered as
+ * absent rather than retried on every call. */
+enum { GENBASE_DOS, GENBASE_EXEC, GENBASE_OPEN };
+
+struct EmuGenLib
+{
+    const char *name;
+    int       (*fn)(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base);
+    UBYTE       kind;
+    UBYTE       tried;
+    APTR        base;
+};
+
+static struct EmuGenLib g_genlibs[] =
+{
+    { "dos.library",         emu68k_gen_dos,         GENBASE_DOS,  0, NULL },
+    { "exec.library",        emu68k_gen_exec,        GENBASE_EXEC, 0, NULL },
+    { "utility.library",     emu68k_gen_utility,     GENBASE_OPEN, 0, NULL },
+    { "intuition.library",   emu68k_gen_intuition,   GENBASE_OPEN, 0, NULL },
+    { "graphics.library",    emu68k_gen_graphics,    GENBASE_OPEN, 0, NULL },
+    { "icon.library",        emu68k_gen_icon,        GENBASE_OPEN, 0, NULL },
+    { "commodities.library", emu68k_gen_commodities, GENBASE_OPEN, 0, NULL },
+};
+
+static int gen_dispatch(const char *libname, int lvo, struct Emu68kRegs *r,
+                        APTR guest0, APTR DOSBase)
+{
+    unsigned i;
+
+    for (i = 0; i < sizeof(g_genlibs) / sizeof(g_genlibs[0]); i++)
+    {
+        struct EmuGenLib *g = &g_genlibs[i];
+
+        if (strcmp(libname, g->name) != 0)
+            continue;
+
+        if (!g->tried)
+        {
+            g->tried = 1;
+            switch (g->kind)
+            {
+            case GENBASE_DOS:  g->base = DOSBase;                    break;
+            case GENBASE_EXEC: g->base = SysBase;                    break;
+            default:           g->base = OpenLibrary(g->name, 0);    break;
+            }
+        }
+        if (!g->base)
+            return 1;
+        return g->fn(lvo, r, guest0, g->base);
+    }
+    return 1;
+}
+
+/* Released at expunge: the bases the table opened on demand. */
+void Emu68k_OSCallCleanup(void)
+{
+    unsigned i;
+
+    for (i = 0; i < sizeof(g_genlibs) / sizeof(g_genlibs[0]); i++)
+    {
+        if (g_genlibs[i].kind == GENBASE_OPEN && g_genlibs[i].base)
+            CloseLibrary(g_genlibs[i].base);
+        g_genlibs[i].base  = NULL;
+        g_genlibs[i].tried = 0;
+    }
 }
 
 int Emu68k_OSCall(const char *libname, int lvo, APTR regs, APTR guest0,
@@ -219,6 +283,13 @@ int Emu68k_OSCall(const char *libname, int lvo, APTR regs, APTR guest0,
          * written to handle it. */
         if (lvo == ICON_LVO_FINDTOOLTYPE) { r->d[0] = 0; return 0; }
     }
+
+    /* Nothing above claimed it, so try the GENERATED table: the crossings that
+     * follow entirely from the vector's declared prototype and register map.
+     * Hand-written cases run first and win, so a crossing that needs judgement
+     * is never silently replaced by a derived one. */
+    if (gen_dispatch(libname, lvo, r, guest0, DOSBase) == 0)
+        return 0;
 
     /* Anything else is a capability gap, reported by name so the ledger says
      * exactly what to implement next. Never a guess. */

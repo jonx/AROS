@@ -16,7 +16,7 @@ USER_INCLUDES += -isystem $(GENINCDIR)
 
 %build_module mmake=hostlibs-emu68k \
     modname=emu68k modtype=library \
-    files="emu68k_init emu68k_runseg emu68k_oscall \
+    files="emu68k_init emu68k_runseg emu68k_oscall emu68k_marshal \
            emu68k_gen_dos emu68k_gen_exec emu68k_gen_utility \
            emu68k_gen_intuition emu68k_gen_graphics emu68k_gen_layers \
            emu68k_gen_gadtools emu68k_gen_asl emu68k_gen_icon \

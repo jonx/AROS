@@ -201,43 +201,31 @@ static void gwbytes(APTR guest0, ULONG addr, const UBYTE *src, ULONG n)
     CopyMem((APTR)src, (UBYTE *)guest0 + addr, n);
 }
 
-/* A native FileInfoBlock, as the guest's AmigaOS one. 14 of its 15 fields sit
- * at a different offset on the two sides, so this is the whole conversion. */
-#define FIB_F(f)  (base + M68K_FileInfoBlock_##f)
+void emu68k_to_guest(APTR guest0, ULONG gbase, const void *native,
+                     const struct EmuField *f, int n);
+void emu68k_from_guest(APTR guest0, ULONG gbase, void *native,
+                       const struct EmuField *f, int n);
+
+#define EMU_NFIELDS(t) ((int)(sizeof (t) / sizeof (t)[0]))
+
+/* A native FileInfoBlock, as the guest's AmigaOS one. The field-by-field work
+ * is the generated table's, not this file's: 14 of its 15 fields sit at a
+ * different offset and several are a different width, and none of those
+ * numbers should ever be typed here. */
 static void fib_to_guest(APTR guest0, ULONG base, const struct FileInfoBlock *n)
 {
-    gw32(guest0, FIB_F(fib_DiskKey),      (ULONG)n->fib_DiskKey);
-    gw32(guest0, FIB_F(fib_DirEntryType), (ULONG)n->fib_DirEntryType);
-    gwbytes(guest0, FIB_F(fib_FileName),  (const UBYTE *)n->fib_FileName,
-            sizeof n->fib_FileName > 108 ? 108 : sizeof n->fib_FileName);
-    gw32(guest0, FIB_F(fib_Protection),   (ULONG)n->fib_Protection);
-    gw32(guest0, FIB_F(fib_EntryType),    (ULONG)n->fib_EntryType);
-    gw32(guest0, FIB_F(fib_Size),         (ULONG)n->fib_Size);
-    gw32(guest0, FIB_F(fib_NumBlocks),    (ULONG)n->fib_NumBlocks);
-    gw32(guest0, FIB_F(ds_Days),          (ULONG)n->fib_Date.ds_Days);
-    gw32(guest0, FIB_F(ds_Minute),        (ULONG)n->fib_Date.ds_Minute);
-    gw32(guest0, FIB_F(ds_Tick),          (ULONG)n->fib_Date.ds_Tick);
-    gwbytes(guest0, FIB_F(fib_Comment),   (const UBYTE *)n->fib_Comment,
-            sizeof n->fib_Comment > 80 ? 80 : sizeof n->fib_Comment);
-    gw16(guest0, FIB_F(fib_OwnerUID),     (UWORD)n->fib_OwnerUID);
-    gw16(guest0, FIB_F(fib_OwnerGID),     (UWORD)n->fib_OwnerGID);
-    (void)gw8;
+    emu68k_to_guest(guest0, base, n, emu_fields_FileInfoBlock,
+                    EMU_NFIELDS(emu_fields_FileInfoBlock));
 }
 
 /* ---- ANCHORPATH: A RETAINED SHADOW ----------------------------------------
- * MatchFirst/MatchNext/MatchEnd are not three independent calls: the
+ * MatchFirst/MatchNext/MatchEnd are one operation, not three calls: the
  * AnchorPath carries the live state of a directory scan between them,
  * including a chain of AChain structures dos.library allocated. Those are
  * NATIVE pointers, so the guest can never be shown them and the structure
- * cannot be rebuilt per call the way a FileInfoBlock is.
- *
- * So the native AnchorPath is kept HERE for the life of the scan, keyed by the
- * guest's own AnchorPath address, and only the fields the program reads travel
- * back. This is the shadow pattern the design calls for whenever a callee
- * retains a pointer.
- *
- * Small and fixed: a guest running more scans at once than this is not a case
- * being served yet, and it fails cleanly rather than corrupting one. */
+ * cannot be rebuilt per call the way a FileInfoBlock is. The native one is
+ * kept for the life of the scan, keyed by the guest's own, and only the fields
+ * the program reads travel back. */
 static struct AnchorPath *scan_find(struct Emu68kRunState *rs, ULONG guest)
 {
     int i;
@@ -260,8 +248,8 @@ static void scan_drop(struct Emu68kRunState *rs, ULONG guest)
         }
 }
 
-/* Copy back what the program reads after a match: the entry it found, the
- * assembled path, and the flag/break bytes. */
+/* What the program reads after a match: the entry found, the assembled path,
+ * and the flag/break bytes. */
 static void ap_to_guest(APTR guest0, ULONG gap, const struct AnchorPath *n,
                         UWORD strlen_)
 {

@@ -15,6 +15,15 @@
 #ifndef EMU68K_LAYOUTS_H
 #define EMU68K_LAYOUTS_H
 
+/* One field of a structure, in both layouts at once. */
+struct EmuField
+{
+    unsigned short g_off, n_off;   /* offset in the guest / native structure  */
+    unsigned char  g_w, n_w;       /* width on each side (a guest LONG is 4,
+                                    * a native IPTR is 8)                     */
+    unsigned char  kind;
+};
+
 
 /* struct FileInfoBlock: 260 bytes on m68k (FileInfoBlock32), 264 native (FileInfoBlock32) */
 #define M68K_FileInfoBlock_SIZEOF 260
@@ -214,5 +223,217 @@
 #define M68K_ExAllData_ed_Comment 32   /* native @40 - CONVERT */
 #define M68K_ExAllData_ed_OwnerUID 36   /* native @48 - CONVERT */
 #define M68K_ExAllData_ed_OwnerGID 38   /* native @50 - CONVERT */
+
+/* The conversion tables. Each row is one field: where it lives on
+ * each side, how wide it is on each side, and what may be done to it.
+ * A generic walker (emu68k_marshal.c) is all that is needed to convert
+ * a whole structure, so no per-structure C is written by hand. */
+#define EMU_F_SCALAR 0   /* byte-swapped, narrowed to the guest width */
+#define EMU_F_BYTES  1   /* copied verbatim: no byte order to change  */
+
+static const struct EmuField emu_fields_FileInfoBlock[] = {
+    {    0,    0, 4, 8, EMU_F_SCALAR },   /* fib_DiskKey          IPTR */
+    {    4,    8, 4, 4, EMU_F_SCALAR },   /* fib_DirEntryType     LONG */
+    {    8,   12, 108, 108, EMU_F_BYTES },   /* fib_FileName         UBYTE[108] */
+    {  116,  120, 4, 4, EMU_F_SCALAR },   /* fib_Protection       LONG */
+    {  120,  124, 4, 4, EMU_F_SCALAR },   /* fib_EntryType        LONG */
+    {  124,  128, 4, 4, EMU_F_SCALAR },   /* fib_Size             LONG */
+    {  128,  132, 4, 4, EMU_F_SCALAR },   /* fib_NumBlocks        LONG */
+    {  132,  136, 4, 4, EMU_F_SCALAR },   /* ds_Days              LONG */
+    {  136,  140, 4, 4, EMU_F_SCALAR },   /* ds_Minute            LONG */
+    {  140,  144, 4, 4, EMU_F_SCALAR },   /* ds_Tick              LONG */
+    {  144,  148, 80, 80, EMU_F_BYTES },   /* fib_Comment          UBYTE[80] */
+    {  224,  228, 2, 2, EMU_F_SCALAR },   /* fib_OwnerUID         UWORD */
+    {  226,  230, 2, 2, EMU_F_SCALAR },   /* fib_OwnerGID         UWORD */
+    {  228,  232, 32, 32, EMU_F_BYTES },   /* fib_Reserved         UBYTE[32] */
+};
+/* NOT converted, and deliberately not guessed at:
+ *   fib_Date (struct DateStamp)
+ */
+
+static const struct EmuField emu_fields_AnchorPath[] = {
+    {    8,   16, 4, 4, EMU_F_SCALAR },   /* ap_BreakBits         LONG */
+    {   12,   20, 4, 4, EMU_F_SCALAR },   /* ap_FoundBreak        LONG */
+    {   16,   24, 1, 1, EMU_F_SCALAR },   /* ap_Flags             BYTE */
+    {   17,   25, 1, 1, EMU_F_SCALAR },   /* ap_Reserved          BYTE */
+    {   18,   26, 2, 2, EMU_F_SCALAR },   /* ap_Strlen            WORD */
+    {   20,   32, 4, 8, EMU_F_SCALAR },   /* fib_DiskKey          IPTR */
+    {   24,   40, 4, 4, EMU_F_SCALAR },   /* fib_DirEntryType     LONG */
+    {   28,   44, 108, 108, EMU_F_BYTES },   /* fib_FileName         UBYTE[108] */
+    {  136,  152, 4, 4, EMU_F_SCALAR },   /* fib_Protection       LONG */
+    {  140,  156, 4, 4, EMU_F_SCALAR },   /* fib_EntryType        LONG */
+    {  144,  160, 4, 4, EMU_F_SCALAR },   /* fib_Size             LONG */
+    {  148,  164, 4, 4, EMU_F_SCALAR },   /* fib_NumBlocks        LONG */
+    {  152,  168, 4, 4, EMU_F_SCALAR },   /* ds_Days              LONG */
+    {  156,  172, 4, 4, EMU_F_SCALAR },   /* ds_Minute            LONG */
+    {  160,  176, 4, 4, EMU_F_SCALAR },   /* ds_Tick              LONG */
+    {  164,  180, 80, 80, EMU_F_BYTES },   /* fib_Comment          UBYTE[80] */
+    {  244,  260, 2, 2, EMU_F_SCALAR },   /* fib_OwnerUID         UWORD */
+    {  246,  262, 2, 2, EMU_F_SCALAR },   /* fib_OwnerGID         UWORD */
+    {  248,  264, 32, 32, EMU_F_BYTES },   /* fib_Reserved         UBYTE[32] */
+    {  280,  296, 1, 1, EMU_F_BYTES },   /* ap_Buf               UBYTE[1] */
+};
+/* NOT converted, and deliberately not guessed at:
+ *   ap_Base (struct AChain *)
+ *   ap_Last (struct AChain *)
+ *   ap_Info (struct FileInfoBlock32)
+ *   fib_Date (struct DateStamp)
+ */
+
+static const struct EmuField emu_fields_AChain[] = {
+    {    8,   16, 4, 8, EMU_F_SCALAR },   /* an_Lock              BPTR */
+    {   12,   24, 4, 8, EMU_F_SCALAR },   /* fib_DiskKey          IPTR */
+    {   16,   32, 4, 4, EMU_F_SCALAR },   /* fib_DirEntryType     LONG */
+    {   20,   36, 108, 108, EMU_F_BYTES },   /* fib_FileName         UBYTE[108] */
+    {  128,  144, 4, 4, EMU_F_SCALAR },   /* fib_Protection       LONG */
+    {  132,  148, 4, 4, EMU_F_SCALAR },   /* fib_EntryType        LONG */
+    {  136,  152, 4, 4, EMU_F_SCALAR },   /* fib_Size             LONG */
+    {  140,  156, 4, 4, EMU_F_SCALAR },   /* fib_NumBlocks        LONG */
+    {  144,  160, 4, 4, EMU_F_SCALAR },   /* ds_Days              LONG */
+    {  148,  164, 4, 4, EMU_F_SCALAR },   /* ds_Minute            LONG */
+    {  152,  168, 4, 4, EMU_F_SCALAR },   /* ds_Tick              LONG */
+    {  156,  172, 80, 80, EMU_F_BYTES },   /* fib_Comment          UBYTE[80] */
+    {  236,  252, 2, 2, EMU_F_SCALAR },   /* fib_OwnerUID         UWORD */
+    {  238,  254, 2, 2, EMU_F_SCALAR },   /* fib_OwnerGID         UWORD */
+    {  240,  256, 32, 32, EMU_F_BYTES },   /* fib_Reserved         UBYTE[32] */
+    {  272,  288, 1, 1, EMU_F_SCALAR },   /* an_Flags             BYTE */
+    {  273,  289, 1, 1, EMU_F_BYTES },   /* an_String            UBYTE[1] */
+};
+/* NOT converted, and deliberately not guessed at:
+ *   an_Child (struct AChain *)
+ *   an_Parent (struct AChain *)
+ *   an_Info (struct FileInfoBlock32)
+ *   fib_Date (struct DateStamp)
+ */
+
+static const struct EmuField emu_fields_DateStamp[] = {
+    {    0,    0, 4, 4, EMU_F_SCALAR },   /* ds_Days              LONG */
+    {    4,    4, 4, 4, EMU_F_SCALAR },   /* ds_Minute            LONG */
+    {    8,    8, 4, 4, EMU_F_SCALAR },   /* ds_Tick              LONG */
+};
+
+static const struct EmuField emu_fields_InfoData[] = {
+    {    0,    0, 4, 4, EMU_F_SCALAR },   /* id_NumSoftErrors     LONG */
+    {    4,    4, 4, 4, EMU_F_SCALAR },   /* id_UnitNumber        LONG */
+    {    8,    8, 4, 4, EMU_F_SCALAR },   /* id_DiskState         LONG */
+    {   12,   12, 4, 4, EMU_F_SCALAR },   /* id_NumBlocks         LONG */
+    {   16,   16, 4, 4, EMU_F_SCALAR },   /* id_NumBlocksUsed     LONG */
+    {   20,   20, 4, 4, EMU_F_SCALAR },   /* id_BytesPerBlock     LONG */
+    {   24,   24, 4, 4, EMU_F_SCALAR },   /* id_DiskType          LONG */
+    {   28,   32, 4, 8, EMU_F_SCALAR },   /* id_VolumeNode        BPTR */
+    {   32,   40, 4, 8, EMU_F_SCALAR },   /* id_InUse             IPTR */
+};
+
+static const struct EmuField emu_fields_TagItem[] = {
+    {    0,    0, 4, 8, EMU_F_SCALAR },   /* ti_Tag               Tag */
+    {    4,    8, 4, 8, EMU_F_SCALAR },   /* ti_Data              IPTR */
+};
+
+static const struct EmuField emu_fields_Node[] = {
+    {    8,   16, 1, 1, EMU_F_SCALAR },   /* ln_Type              UBYTE */
+    {    9,   17, 1, 1, EMU_F_SCALAR },   /* ln_Pri               BYTE */
+};
+/* NOT converted, and deliberately not guessed at:
+ *   ln_Succ (struct Node *)
+ *   ln_Pred (struct Node *)
+ *   ln_Name (char *)
+ */
+
+static const struct EmuField emu_fields_List[] = {
+    {   12,   24, 1, 1, EMU_F_SCALAR },   /* lh_Type              UBYTE */
+    {   13,   25, 1, 1, EMU_F_SCALAR },   /* l_pad                UBYTE */
+};
+/* NOT converted, and deliberately not guessed at:
+ *   lh_Head (struct Node *)
+ *   lh_Tail (struct Node *)
+ *   lh_TailPred (struct Node *)
+ *   lh_TailPred_ (struct List *)
+ */
+
+static const struct EmuField emu_fields_MsgPort[] = {
+    {    8,   16, 1, 1, EMU_F_SCALAR },   /* ln_Type              UBYTE */
+    {    9,   17, 1, 1, EMU_F_SCALAR },   /* ln_Pri               BYTE */
+    {   14,   32, 1, 1, EMU_F_SCALAR },   /* mp_Flags             UBYTE */
+    {   15,   33, 1, 1, EMU_F_SCALAR },   /* mp_SigBit            UBYTE */
+    {   32,   72, 1, 1, EMU_F_SCALAR },   /* lh_Type              UBYTE */
+    {   33,   73, 1, 1, EMU_F_SCALAR },   /* l_pad                UBYTE */
+};
+/* NOT converted, and deliberately not guessed at:
+ *   mp_Node (struct Node)
+ *   ln_Succ (struct Node *)
+ *   ln_Pred (struct Node *)
+ *   ln_Name (char *)
+ *   mp_SigTask (void *)
+ *   mp_MsgList (struct List)
+ *   lh_Head (struct Node *)
+ *   lh_Tail (struct Node *)
+ *   lh_TailPred (struct Node *)
+ *   lh_TailPred_ (struct List *)
+ *   mp_Pad (spinlock_t)
+ *   slock (struct spinlock_t::(unnamed at /Users/jkn/aros-build/bin/darwin-aarch64/AROS/Developer/include/aros/types/spinlock_s.h:25:18))
+ *   block (volatile unsigned char[4])
+ *   lock (volatile unsigned int)
+ *   s_Owner (void *)
+ */
+
+static const struct EmuField emu_fields_Message[] = {
+    {    8,   16, 1, 1, EMU_F_SCALAR },   /* ln_Type              UBYTE */
+    {    9,   17, 1, 1, EMU_F_SCALAR },   /* ln_Pri               BYTE */
+    {   18,   40, 2, 2, EMU_F_SCALAR },   /* mn_Length            UWORD */
+};
+/* NOT converted, and deliberately not guessed at:
+ *   mn_Node (struct Node)
+ *   ln_Succ (struct Node *)
+ *   ln_Pred (struct Node *)
+ *   ln_Name (char *)
+ *   mn_ReplyPort (struct MsgPort *)
+ */
+
+static const struct EmuField emu_fields_DiskObject[] = {
+    {    0,    0, 2, 2, EMU_F_SCALAR },   /* do_Magic             UWORD */
+    {    2,    2, 2, 2, EMU_F_SCALAR },   /* do_Version           UWORD */
+    {    8,   16, 2, 2, EMU_F_SCALAR },   /* LeftEdge             WORD */
+    {   10,   18, 2, 2, EMU_F_SCALAR },   /* TopEdge              WORD */
+    {   12,   20, 2, 2, EMU_F_SCALAR },   /* Width                WORD */
+    {   14,   22, 2, 2, EMU_F_SCALAR },   /* Height               WORD */
+    {   16,   24, 2, 2, EMU_F_SCALAR },   /* Flags                UWORD */
+    {   18,   26, 2, 2, EMU_F_SCALAR },   /* Activation           UWORD */
+    {   20,   28, 2, 2, EMU_F_SCALAR },   /* GadgetType           UWORD */
+    {   22,   32, 4, 8, EMU_F_SCALAR },   /* GadgetRender         APTR */
+    {   26,   40, 4, 8, EMU_F_SCALAR },   /* SelectRender         APTR */
+    {   34,   56, 4, 8, EMU_F_SCALAR },   /* MutualExclude        IPTR */
+    {   38,   64, 4, 8, EMU_F_SCALAR },   /* SpecialInfo          APTR */
+    {   42,   72, 2, 2, EMU_F_SCALAR },   /* GadgetID             UWORD */
+    {   44,   80, 4, 8, EMU_F_SCALAR },   /* UserData             APTR */
+    {   48,   88, 1, 1, EMU_F_SCALAR },   /* do_Type              UBYTE */
+    {   50,   96, 4, 8, EMU_F_SCALAR },   /* do_DefaultTool       STRPTR */
+    {   58,  112, 4, 4, EMU_F_SCALAR },   /* do_CurrentX          LONG */
+    {   62,  116, 4, 4, EMU_F_SCALAR },   /* do_CurrentY          LONG */
+    {   70,  128, 4, 8, EMU_F_SCALAR },   /* do_ToolWindow        STRPTR */
+    {   74,  136, 4, 4, EMU_F_SCALAR },   /* do_StackSize         LONG */
+};
+/* NOT converted, and deliberately not guessed at:
+ *   do_Gadget (struct Gadget)
+ *   NextGadget (struct Gadget *)
+ *   GadgetText (struct IntuiText *)
+ *   do_ToolTypes (STRPTR *)
+ *   do_DrawerData (struct DrawerData *)
+ */
+
+static const struct EmuField emu_fields_ExAllData[] = {
+    {    8,   16, 4, 4, EMU_F_SCALAR },   /* ed_Type              LONG */
+    {   12,   20, 4, 4, EMU_F_SCALAR },   /* ed_Size              ULONG */
+    {   16,   24, 4, 4, EMU_F_SCALAR },   /* ed_Prot              ULONG */
+    {   20,   28, 4, 4, EMU_F_SCALAR },   /* ed_Days              ULONG */
+    {   24,   32, 4, 4, EMU_F_SCALAR },   /* ed_Mins              ULONG */
+    {   28,   36, 4, 4, EMU_F_SCALAR },   /* ed_Ticks             ULONG */
+    {   36,   48, 2, 2, EMU_F_SCALAR },   /* ed_OwnerUID          UWORD */
+    {   38,   50, 2, 2, EMU_F_SCALAR },   /* ed_OwnerGID          UWORD */
+};
+/* NOT converted, and deliberately not guessed at:
+ *   ed_Next (struct ExAllData32 *)
+ *   ed_Name (UBYTE *)
+ *   ed_Comment (UBYTE *)
+ */
 
 #endif /* EMU68K_LAYOUTS_H */

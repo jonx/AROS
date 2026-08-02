@@ -78,7 +78,19 @@ static APTR gptr(APTR guest0, ULONG addr)
  * the case we are serving yet, and it fails cleanly rather than corrupting. */
 #define EMU68K_MAX_HANDLES ((int)EMU68K_GUEST_FH_MAX)
 #define EMU68K_MAX_SCANS   4
+#define EMU68K_MAX_OBJECTS 64
 #define EMU68K_MAX_RUNS    4
+#define EMU68K_OBJECT_TOKEN_BASE 0xE6800000UL
+
+struct Emu68kObject
+{
+    APTR native;
+    APTR base;
+    EmuObjectCleanup cleanup;
+    ULONG token;
+    ULONG refs;
+    UWORD type;
+};
 
 /* ---- PER-RUN STATE --------------------------------------------------------
  * Handles and directory scans belong to ONE guest program, not to the library:
@@ -96,6 +108,8 @@ struct Emu68kRunState
     APTR  guest0;                                    /* NULL = a free slot     */
     struct { BPTR bptr; } handles[EMU68K_MAX_HANDLES];
     struct { ULONG guest; struct AnchorPath *nap; } scans[EMU68K_MAX_SCANS];
+    struct Emu68kObject objects[EMU68K_MAX_OBJECTS];
+    ULONG next_object;
 };
 
 static struct Emu68kRunState g_runs[EMU68K_MAX_RUNS];
@@ -171,6 +185,137 @@ static void handle_release(struct Emu68kRunState *rs, ULONG token)
 {
     int i = handle_index(token);
     if (i >= 0 && rs) rs->handles[i].bptr = BNULL;
+}
+
+/* ---- TYPED NATIVE OBJECTS -------------------------------------------------
+ * Catalogs, Locales, Windows and similar OS-owned pointers do not fit in a
+ * 68k register and must never be dereferenced as native structures by the
+ * guest. They cross as typed per-run tokens. Repeated opens of the same native
+ * object preserve pointer identity while refs records how many matching close
+ * calls are required. A cleanup thunk generated in the owning library's C
+ * file closes anything a terminating guest forgot to release. */
+static struct Emu68kObject *object_by_token(struct Emu68kRunState *rs,
+                                            ULONG token)
+{
+    int i;
+    if (!rs || !token) return NULL;
+    for (i = 0; i < EMU68K_MAX_OBJECTS; i++)
+        if (rs->objects[i].native && rs->objects[i].token == token)
+            return &rs->objects[i];
+    return NULL;
+}
+
+static ULONG object_new_token(struct Emu68kRunState *rs)
+{
+    ULONG token;
+    int tries;
+
+    for (tries = 0; tries < 0xffff; tries++)
+    {
+        rs->next_object = (rs->next_object + 1) & 0xffff;
+        if (!rs->next_object) rs->next_object = 1;
+        token = EMU68K_OBJECT_TOKEN_BASE | rs->next_object;
+        if (!object_by_token(rs, token)) return token;
+    }
+    return 0;
+}
+
+LONG emu68k_object_from_guest(APTR guest0, ULONG token, UWORD type,
+                              BOOL nullable, const char *type_name,
+                              APTR *native, char *err, ULONG errlen)
+{
+    struct Emu68kObject *o;
+
+    if (native) *native = NULL;
+    if (!token)
+    {
+        if (nullable) return 0;
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: NULL %s object",
+                     type_name ? type_name : "native");
+        return -1;
+    }
+    o = object_by_token(run_state(guest0), token);
+    if (!o)
+    {
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: stale or unknown %s object token %08lx",
+                     type_name ? type_name : "native", (unsigned long)token);
+        return -1;
+    }
+    if (o->type != type)
+    {
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: wrong object type for %s token %08lx",
+                     type_name ? type_name : "native", (unsigned long)token);
+        return -1;
+    }
+    if (native) *native = o->native;
+    return 0;
+}
+
+LONG emu68k_object_to_guest(APTR guest0, APTR native, UWORD type,
+                            APTR base, EmuObjectCleanup cleanup,
+                            const char *type_name, ULONG *token,
+                            char *err, ULONG errlen)
+{
+    struct Emu68kRunState *rs = run_state(guest0);
+    int i, free_slot = -1;
+
+    if (token) *token = 0;
+    if (!native) return 0;
+    if (!rs)
+    {
+        if (cleanup) cleanup(base, native);
+        if (err && errlen)
+            snprintf(err, errlen, "no per-run state for %s object",
+                     type_name ? type_name : "native");
+        return -1;
+    }
+    for (i = 0; i < EMU68K_MAX_OBJECTS; i++)
+    {
+        struct Emu68kObject *o = &rs->objects[i];
+        if (o->native == native && o->type == type)
+        {
+            o->refs++;
+            if (token) *token = o->token;
+            return 0;
+        }
+        if (!o->native && free_slot < 0) free_slot = i;
+    }
+    if (free_slot < 0)
+    {
+        if (cleanup) cleanup(base, native);
+        if (err && errlen)
+            snprintf(err, errlen, "more live %s objects than this bridge keeps",
+                     type_name ? type_name : "native");
+        return -1;
+    }
+    rs->objects[free_slot].token = object_new_token(rs);
+    if (!rs->objects[free_slot].token)
+    {
+        if (cleanup) cleanup(base, native);
+        if (err && errlen)
+            snprintf(err, errlen, "object token space exhausted");
+        return -1;
+    }
+    rs->objects[free_slot].native = native;
+    rs->objects[free_slot].base = base;
+    rs->objects[free_slot].cleanup = cleanup;
+    rs->objects[free_slot].refs = 1;
+    rs->objects[free_slot].type = type;
+    if (token) *token = rs->objects[free_slot].token;
+    return 0;
+}
+
+void emu68k_object_release(APTR guest0, ULONG token, UWORD type)
+{
+    struct Emu68kObject *o = object_by_token(run_state(guest0), token);
+    if (!o || o->type != type) return;
+    if (o->refs > 1)
+        o->refs--;
+    else
+        memset(o, 0, sizeof *o);
 }
 
 /* ---- GUEST-SIDE STRUCTURE WRITES ------------------------------------------
@@ -356,6 +501,14 @@ void Emu68k_OSCallEndRun(APTR guest0)
                 MatchEnd(rs->scans[j].nap);
                 FreeVec(rs->scans[j].nap);
             }
+        for (int j = 0; j < EMU68K_MAX_OBJECTS; j++)
+            if (rs->objects[j].native && rs->objects[j].cleanup)
+                while (rs->objects[j].refs)
+                {
+                    rs->objects[j].refs--;
+                    rs->objects[j].cleanup(rs->objects[j].base,
+                                           rs->objects[j].native);
+                }
         memset(rs, 0, sizeof *rs);
     }
 }

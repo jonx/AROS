@@ -19,10 +19,10 @@ int emu68k_gen_iffparse(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
 
     switch (lvo)
     {
-    case 42:  /* GoodID(LONG id) -> LONG  [-252] */
+    case 43:  /* GoodID(LONG id) -> LONG  [-258] */
         r->d[0] = (ULONG)GoodID((LONG)r->d[0]);
         return 0;
-    case 43:  /* GoodType(LONG type) -> LONG  [-258] */
+    case 44:  /* GoodType(LONG type) -> LONG  [-264] */
         r->d[0] = (ULONG)GoodType((LONG)r->d[0]);
         return 0;
     }

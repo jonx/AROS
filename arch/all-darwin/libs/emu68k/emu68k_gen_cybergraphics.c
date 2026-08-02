@@ -45,7 +45,7 @@ int emu68k_gen_cybergraphics(int lvo, struct Emu68kRegs *r, APTR guest0, APTR ba
             r->d[0] = (ULONG)BestCModeIDTagList((struct TagItem *)(r->a[0] ? emu_tags_0 : NULL));
             return 0;
     }
-    case 15:  /* GetCyberIDAttr(ULONG attribute, ULONG DisplayModeID) -> ULONG  [-90] */
+    case 17:  /* GetCyberIDAttr(ULONG attribute, ULONG DisplayModeID) -> ULONG  [-102] */
         r->d[0] = (ULONG)GetCyberIDAttr((ULONG)r->d[0],
               (ULONG)r->d[1]);
         return 0;

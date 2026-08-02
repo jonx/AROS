@@ -8,8 +8,33 @@
 
 #include <exec/types.h>
 #include <proto/locale.h>
+#include <libraries/locale.h>
 
 #include "emu68k_gen.h"
+
+static const struct EmuTagDesc emu_tagdesc_locale_open_catalog[] =
+{
+    { OC_BuiltInLanguage, EMU_TAG_CSTR, "OC_BuiltInLanguage" },
+    { OC_BuiltInCodeSet, EMU_TAG_U32, "OC_BuiltInCodeSet" },
+    { OC_Version, EMU_TAG_U32, "OC_Version" },
+    { OC_Language, EMU_TAG_CSTR, "OC_Language" },
+};
+static const struct EmuTagDomain emu_tagdomain_locale_open_catalog =
+{
+    emu_tagdesc_locale_open_catalog, (UWORD)(sizeof(emu_tagdesc_locale_open_catalog) / sizeof(emu_tagdesc_locale_open_catalog[0])), "locale.open_catalog"
+};
+
+static void emu_object_cleanup_Catalog(APTR emu_base, APTR emu_object)
+{
+    struct LocaleBase *LocaleBase = emu_base;
+    CloseCatalog((struct Catalog *)emu_object);
+}
+
+static void emu_object_cleanup_Locale(APTR emu_base, APTR emu_object)
+{
+    struct LocaleBase *LocaleBase = emu_base;
+    CloseLocale((struct Locale *)emu_object);
+}
 
 int emu68k_gen_locale(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
                   char *err, ULONG errlen)
@@ -19,6 +44,74 @@ int emu68k_gen_locale(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
 
     switch (lvo)
     {
+    case 6:  /* CloseCatalog(struct Catalog * catalog) -> void  [-36] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_Catalog, 0,
+                                        "Catalog", &emu_object_0, err, errlen) < 0)
+            return 1;
+            CloseCatalog((struct Catalog *)emu_object_0);
+        emu68k_object_release(guest0, r->a[0], EMU_OBJ_Catalog);
+            return 0;
+    }
+    case 7:  /* CloseLocale(struct Locale * locale) -> void  [-42] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_Locale, 0,
+                                        "Locale", &emu_object_0, err, errlen) < 0)
+            return 1;
+            CloseLocale((struct Locale *)emu_object_0);
+        emu68k_object_release(guest0, r->a[0], EMU_OBJ_Locale);
+            return 0;
+    }
+    case 8:  /* ConvToLower(const struct Locale * locale, ULONG character) -> ULONG  [-48] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_Locale, 0,
+                                        "Locale", &emu_object_0, err, errlen) < 0)
+            return 1;
+            r->d[0] = (ULONG)ConvToLower((const struct Locale *)emu_object_0,
+              (ULONG)r->d[0]);
+            return 0;
+    }
+    case 9:  /* ConvToUpper(const struct Locale * locale, ULONG character) -> ULONG  [-54] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_Locale, 0,
+                                        "Locale", &emu_object_0, err, errlen) < 0)
+            return 1;
+            r->d[0] = (ULONG)ConvToUpper((const struct Locale *)emu_object_0,
+              (ULONG)r->d[0]);
+            return 0;
+    }
+    case 25:  /* OpenCatalogA(const struct Locale * locale, CONST_STRPTR name, const struct TagItem * tags) -> struct Catalog *  [-150] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_Locale, 1,
+                                        "Locale", &emu_object_0, err, errlen) < 0)
+            return 1;
+        struct TagItem emu_tags_2[9];
+        if (emu68k_tags_to_native(guest0, r->a[2], &emu_tagdomain_locale_open_catalog,
+                                     emu_tags_2, 9, err, errlen) < 0)
+            return 1;
+        APTR emu_result = (APTR)OpenCatalogA((const struct Locale *)emu_object_0,
+              (CONST_STRPTR)EMU_GPTR(guest0, r->a[1]),
+              (const struct TagItem *)(r->a[2] ? emu_tags_2 : NULL));
+        if (emu68k_object_to_guest(guest0, emu_result, EMU_OBJ_Catalog,
+                                      base, emu_object_cleanup_Catalog,
+                                      "Catalog", &r->d[0], err, errlen) < 0)
+            return 1;
+            return 0;
+    }
+    case 26:  /* OpenLocale(CONST_STRPTR name) -> struct Locale *  [-156] */
+    {
+        APTR emu_result = (APTR)OpenLocale((CONST_STRPTR)EMU_GPTR(guest0, r->a[0]));
+        if (emu68k_object_to_guest(guest0, emu_result, EMU_OBJ_Locale,
+                                      base, emu_object_cleanup_Locale,
+                                      "Locale", &r->d[0], err, errlen) < 0)
+            return 1;
+            return 0;
+    }
     }
     return 1;   /* no safe generated crossing for this vector */
 }

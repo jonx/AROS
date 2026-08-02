@@ -35,6 +35,19 @@ ULONG emu68k_handle_token(APTR guest0, BPTR b);
 #define EMU_HANDLE(g0, t)  emu68k_handle_bptr((g0), (ULONG)(t))
 #define EMU_TOKEN(g0, b)   emu68k_handle_token((g0), (b))
 
+/* Native OS objects cross as typed, per-run tokens. The table preserves
+ * identity and reference counts, rejects stale/wrong-type tokens, and owns a
+ * cleanup callback so objects still live at program exit are released. */
+typedef void (*EmuObjectCleanup)(APTR base, APTR object);
+LONG emu68k_object_from_guest(APTR guest0, ULONG token, UWORD type,
+                              BOOL nullable, const char *type_name,
+                              APTR *native, char *err, ULONG errlen);
+LONG emu68k_object_to_guest(APTR guest0, APTR native, UWORD type,
+                            APTR base, EmuObjectCleanup cleanup,
+                            const char *type_name, ULONG *token,
+                            char *err, ULONG errlen);
+void emu68k_object_release(APTR guest0, ULONG token, UWORD type);
+
 /* Policy-compiled TagItem values. A domain names every accepted tag and the
  * type of ti_Data. Unknown/refused tags fail the crossing; they are never
  * forwarded as if every IPTR were a scalar. */
@@ -66,6 +79,11 @@ void emu68k_from_guest(APTR guest0, ULONG gbase, void *native,
                        const struct EmuField *fields, int count);
 #define EMU_NFIELDS(a) ((int)(sizeof(a) / sizeof((a)[0])))
 
+enum
+{
+    EMU_OBJ_Catalog = 1,
+    EMU_OBJ_Locale = 2,
+};
 int emu68k_gen_exec(int lvo, struct Emu68kRegs *r,
                   APTR guest0, APTR base,
                   char *err, ULONG errlen);

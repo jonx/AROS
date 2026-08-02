@@ -19,7 +19,7 @@ int emu68k_gen_commodities(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base
 
     switch (lvo)
     {
-    case 32:  /* BrokerCommand(STRPTR name, ULONG command) -> ULONG  [-192] */
+    case 33:  /* BrokerCommand(STRPTR name, ULONG command) -> ULONG  [-198] */
         r->d[0] = (ULONG)BrokerCommand((STRPTR)EMU_GPTR(guest0, r->a[0]),
               (ULONG)r->d[0]);
         return 0;

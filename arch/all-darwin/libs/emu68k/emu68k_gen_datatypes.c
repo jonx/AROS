@@ -19,7 +19,7 @@ int emu68k_gen_datatypes(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
 
     switch (lvo)
     {
-    case 47:  /* GetDTTriggerMethodDataFlags(ULONG method) -> ULONG  [-282] */
+    case 48:  /* GetDTTriggerMethodDataFlags(ULONG method) -> ULONG  [-288] */
         r->d[0] = (ULONG)GetDTTriggerMethodDataFlags((ULONG)r->a[0]);
         return 0;
     }

@@ -564,6 +564,19 @@ int Emu68k_OSCall(const char *libname, int lvo, APTR regs, APTR guest0,
                     rs->scans[i].guest = gap;
                     rs->scans[i].nap   = nap;
                 }
+                /* A guest that passes a NULL pattern is a guest bug, but it
+                 * must not become OUR crash: native MatchFirst dereferences it
+                 * and the whole run dies inside a library call, reported as a
+                 * fault in translated code with no obvious cause. Fail it the
+                 * AmigaOS way and let the program see an error. */
+                if (!r->d[1])
+                {
+                    FreeVec(nap);
+                    scan_drop(rs, gap);
+                    SetIoErr(ERROR_OBJECT_NOT_FOUND);
+                    r->d[0] = ERROR_OBJECT_NOT_FOUND;
+                    return 0;
+                }
                 rc = MatchFirst((CONST_STRPTR)gptr(guest0, r->d[1]), nap);
             }
             else

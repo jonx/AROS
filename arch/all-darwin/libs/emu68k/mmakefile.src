@@ -18,7 +18,11 @@ USER_INCLUDES += -isystem $(GENINCDIR)
     modname=emu68k modtype=library \
     files="emu68k_init emu68k_runseg emu68k_oscall \
            emu68k_gen_dos emu68k_gen_exec emu68k_gen_utility \
-           emu68k_gen_intuition emu68k_gen_graphics emu68k_gen_icon \
-           emu68k_gen_commodities"
+           emu68k_gen_intuition emu68k_gen_graphics emu68k_gen_layers \
+           emu68k_gen_gadtools emu68k_gen_asl emu68k_gen_icon \
+           emu68k_gen_iffparse emu68k_gen_commodities emu68k_gen_diskfont \
+           emu68k_gen_locale emu68k_gen_keymap emu68k_gen_datatypes \
+           emu68k_gen_expansion emu68k_gen_cybergraphics emu68k_gen_mathffp \
+           emu68k_gen_mathieeesingbas emu68k_gen_mathieeedoubbas"
 
 %common

@@ -23,9 +23,9 @@ struct Emu68kRegs
  * inside the guest arena may be handed to a native call this way. */
 #define EMU_GPTR(g0, a)  ((APTR)((a) ? (UBYTE *)(g0) + (ULONG)(a) : NULL))
 
-int emu68k_gen_dos(int lvo, struct Emu68kRegs *r,
-                  APTR guest0, APTR base);
 int emu68k_gen_exec(int lvo, struct Emu68kRegs *r,
+                  APTR guest0, APTR base);
+int emu68k_gen_dos(int lvo, struct Emu68kRegs *r,
                   APTR guest0, APTR base);
 int emu68k_gen_utility(int lvo, struct Emu68kRegs *r,
                   APTR guest0, APTR base);
@@ -33,8 +33,34 @@ int emu68k_gen_intuition(int lvo, struct Emu68kRegs *r,
                   APTR guest0, APTR base);
 int emu68k_gen_graphics(int lvo, struct Emu68kRegs *r,
                   APTR guest0, APTR base);
+int emu68k_gen_layers(int lvo, struct Emu68kRegs *r,
+                  APTR guest0, APTR base);
+int emu68k_gen_gadtools(int lvo, struct Emu68kRegs *r,
+                  APTR guest0, APTR base);
+int emu68k_gen_asl(int lvo, struct Emu68kRegs *r,
+                  APTR guest0, APTR base);
 int emu68k_gen_icon(int lvo, struct Emu68kRegs *r,
                   APTR guest0, APTR base);
+int emu68k_gen_iffparse(int lvo, struct Emu68kRegs *r,
+                  APTR guest0, APTR base);
 int emu68k_gen_commodities(int lvo, struct Emu68kRegs *r,
+                  APTR guest0, APTR base);
+int emu68k_gen_diskfont(int lvo, struct Emu68kRegs *r,
+                  APTR guest0, APTR base);
+int emu68k_gen_locale(int lvo, struct Emu68kRegs *r,
+                  APTR guest0, APTR base);
+int emu68k_gen_keymap(int lvo, struct Emu68kRegs *r,
+                  APTR guest0, APTR base);
+int emu68k_gen_datatypes(int lvo, struct Emu68kRegs *r,
+                  APTR guest0, APTR base);
+int emu68k_gen_expansion(int lvo, struct Emu68kRegs *r,
+                  APTR guest0, APTR base);
+int emu68k_gen_cybergraphics(int lvo, struct Emu68kRegs *r,
+                  APTR guest0, APTR base);
+int emu68k_gen_mathffp(int lvo, struct Emu68kRegs *r,
+                  APTR guest0, APTR base);
+int emu68k_gen_mathieeesingbas(int lvo, struct Emu68kRegs *r,
+                  APTR guest0, APTR base);
+int emu68k_gen_mathieeedoubbas(int lvo, struct Emu68kRegs *r,
                   APTR guest0, APTR base);
 #endif /* EMU68K_GEN_H */

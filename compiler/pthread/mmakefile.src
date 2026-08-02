@@ -41,7 +41,8 @@ PTHREADFUNCS :=  \
     pthread_key_create \
     pthread_cond_broadcast \
     pthread_cond_wait \
-    pthread_mutex_trylock
+    pthread_mutex_trylock \
+    pthread_sigmask
 
 #%build_module mmake=compiler-pthread \
 #    modname=pthread modtype=library \

@@ -22,6 +22,7 @@
 
 #include "emu68k_intern.h"
 #include "emu68k_gen.h"
+#include "emu68k_layouts.h"
 #include LC_LIBDEFS_FILE
 
 #include <aros/debug.h>
@@ -44,6 +45,10 @@
 #define DOS_LVO_DUPLOCK       16   /* -96  */
 #define DOS_LVO_CREATEDIR     20   /* -120 */
 #define DOS_LVO_CURRENTDIR    21   /* -126 */
+#define DOS_LVO_EXAMINE       17   /* -102 */
+#define DOS_LVO_EXNEXT        18   /* -108 */
+#define DOS_LVO_FILEPART     145   /* -870 */
+#define DOS_LVO_PATHPART     146   /* -876 */
 #define DOS_LVO_IOERR   22    /* -132: what every failed dos call is followed by */
 #define DOS_LVO_GETPROGRAMNAME 96   /* -576 */
 #define DOS_LVO_GETVAR        151   /* -906 */
@@ -116,6 +121,57 @@ static void handle_release(ULONG token)
 {
     int i = handle_index(token);
     if (i >= 0) g_handles[i].bptr = BNULL;
+}
+
+/* ---- GUEST-SIDE STRUCTURE WRITES ------------------------------------------
+ * Guest memory is BIG-ENDIAN with 32-bit fields; this side is little-endian
+ * with 64-bit ones. So a structure is never copied, it is rebuilt a field at a
+ * time, and every offset comes from emu68k_layouts.h - generated from the AROS
+ * headers for both targets, never counted by hand. */
+static void gw8(APTR guest0, ULONG addr, UBYTE v)
+{
+    ((UBYTE *)guest0)[addr] = v;
+}
+
+static void gw16(APTR guest0, ULONG addr, UWORD v)
+{
+    UBYTE *p = (UBYTE *)guest0 + addr;
+    p[0] = (UBYTE)(v >> 8); p[1] = (UBYTE)v;
+}
+
+static void gw32(APTR guest0, ULONG addr, ULONG v)
+{
+    UBYTE *p = (UBYTE *)guest0 + addr;
+    p[0] = (UBYTE)(v >> 24); p[1] = (UBYTE)(v >> 16);
+    p[2] = (UBYTE)(v >> 8);  p[3] = (UBYTE)v;
+}
+
+static void gwbytes(APTR guest0, ULONG addr, const UBYTE *src, ULONG n)
+{
+    CopyMem((APTR)src, (UBYTE *)guest0 + addr, n);
+}
+
+/* A native FileInfoBlock, as the guest's AmigaOS one. 14 of its 15 fields sit
+ * at a different offset on the two sides, so this is the whole conversion. */
+#define FIB_F(f)  (base + M68K_FileInfoBlock_##f)
+static void fib_to_guest(APTR guest0, ULONG base, const struct FileInfoBlock *n)
+{
+    gw32(guest0, FIB_F(fib_DiskKey),      (ULONG)n->fib_DiskKey);
+    gw32(guest0, FIB_F(fib_DirEntryType), (ULONG)n->fib_DirEntryType);
+    gwbytes(guest0, FIB_F(fib_FileName),  (const UBYTE *)n->fib_FileName,
+            sizeof n->fib_FileName > 108 ? 108 : sizeof n->fib_FileName);
+    gw32(guest0, FIB_F(fib_Protection),   (ULONG)n->fib_Protection);
+    gw32(guest0, FIB_F(fib_EntryType),    (ULONG)n->fib_EntryType);
+    gw32(guest0, FIB_F(fib_Size),         (ULONG)n->fib_Size);
+    gw32(guest0, FIB_F(fib_NumBlocks),    (ULONG)n->fib_NumBlocks);
+    gw32(guest0, FIB_F(ds_Days),          (ULONG)n->fib_Date.ds_Days);
+    gw32(guest0, FIB_F(ds_Minute),        (ULONG)n->fib_Date.ds_Minute);
+    gw32(guest0, FIB_F(ds_Tick),          (ULONG)n->fib_Date.ds_Tick);
+    gwbytes(guest0, FIB_F(fib_Comment),   (const UBYTE *)n->fib_Comment,
+            sizeof n->fib_Comment > 80 ? 80 : sizeof n->fib_Comment);
+    gw16(guest0, FIB_F(fib_OwnerUID),     (UWORD)n->fib_OwnerUID);
+    gw16(guest0, FIB_F(fib_OwnerGID),     (UWORD)n->fib_OwnerGID);
+    (void)gw8;
 }
 
 /* ---- THE GENERATED TABLE --------------------------------------------------
@@ -298,6 +354,50 @@ int Emu68k_OSCall(const char *libname, int lvo, APTR regs, APTR guest0,
         case DOS_LVO_CREATEDIR:       /* CreateDir(STRPTR name D1)                */
             r->d[0] = handle_token(CreateDir((CONST_STRPTR)gptr(guest0, r->d[1])));
             return 0;
+
+        /* [T3b] Examine/ExNext: call the NATIVE one into a NATIVE
+         * FileInfoBlock and copy the fields back into the guest's own. The
+         * guest's fib is 260 bytes in AmigaOS layout and this side's is 264 in
+         * another; handing the guest pointer to dos.library directly would let
+         * it write native-shaped fields into a guest-shaped structure. */
+        case DOS_LVO_EXAMINE:
+        case DOS_LVO_EXNEXT:
+        {
+            struct FileInfoBlock *nfib = AllocDosObject(DOS_FIB, NULL);
+            ULONG gfib = r->d[2];
+            if (!nfib) { r->d[0] = DOSFALSE; return 0; }
+            /* ExNext continues a scan the guest started, so the position it is
+             * resuming from lives in the guest's fib: carry it over. */
+            if (lvo == DOS_LVO_EXNEXT)
+            {
+                const UBYTE *p = (const UBYTE *)guest0 + gfib
+                               + M68K_FileInfoBlock_fib_DiskKey;
+                nfib->fib_DiskKey = (IPTR)(((ULONG)p[0] << 24) |
+                                           ((ULONG)p[1] << 16) |
+                                           ((ULONG)p[2] << 8) | p[3]);
+            }
+            r->d[0] = (ULONG)((lvo == DOS_LVO_EXAMINE)
+                              ? Examine(handle_bptr(r->d[1]), nfib)
+                              : ExNext(handle_bptr(r->d[1]), nfib));
+            if (r->d[0])
+                fib_to_guest(guest0, gfib, nfib);
+            FreeDosObject(DOS_FIB, nfib);
+            return 0;
+        }
+
+        /* FilePart/PathPart return a pointer INTO the string they were given.
+         * A native pointer is meaningless to the guest and does not fit a 68k
+         * register, but the OFFSET is exactly the same on both sides, so the
+         * answer is the guest's own pointer advanced by it. */
+        case DOS_LVO_FILEPART:
+        case DOS_LVO_PATHPART:
+        {
+            STRPTR p = (STRPTR)gptr(guest0, r->d[1]), q;
+            if (!p) { r->d[0] = 0; return 0; }
+            q = (lvo == DOS_LVO_FILEPART) ? FilePart(p) : PathPart(p);
+            r->d[0] = q ? (ULONG)(r->d[1] + (ULONG)(q - p)) : 0;
+            return 0;
+        }
 
         case DOS_LVO_CURRENTDIR:      /* CurrentDir(BPTR lock D1) -> the old one  */
             r->d[0] = handle_token(CurrentDir(handle_bptr(r->d[1])));

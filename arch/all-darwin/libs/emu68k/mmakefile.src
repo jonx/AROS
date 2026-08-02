@@ -25,6 +25,6 @@ USER_INCLUDES += -isystem $(GENINCDIR)
            emu68k_gen_expansion emu68k_gen_cybergraphics emu68k_gen_mathffp \
            emu68k_gen_mathieeesingbas emu68k_gen_mathieeedoubbas \
            emu68k_gen_mathieeesingtrans emu68k_gen_mathieeedoubtrans \
-           emu68k_gen_mathtrans"
+           emu68k_gen_mathtrans emu68k_gen_workbench"
 
 %common

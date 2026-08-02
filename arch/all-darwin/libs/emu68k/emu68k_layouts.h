@@ -398,6 +398,15 @@ struct EmuField
 #define M68K_Preferences_wb_Depth 230
 #define M68K_Preferences_ext_size 231
 
+/* struct BitMap: 40 bytes on m68k (BitMap), 72 native (BitMap) */
+#define M68K_BitMap_SIZEOF 40
+#define M68K_BitMap_BytesPerRow 0
+#define M68K_BitMap_Rows 2
+#define M68K_BitMap_Flags 4
+#define M68K_BitMap_Depth 5
+#define M68K_BitMap_pad 6
+#define M68K_BitMap_Planes 8
+
 /* The conversion tables. Each row is one field: where it lives on
  * each side, how wide it is on each side, and what may be done to it.
  * A generic walker (emu68k_marshal.c) is all that is needed to convert
@@ -777,5 +786,16 @@ static const struct EmuField emu_fields_Preferences[] = {
     {  230,  230,    1, 1, 1, EMU_F_SCALAR },   /* wb_Depth                 UBYTE */
     {  231,  231,    1, 1, 1, EMU_F_SCALAR },   /* ext_size                 UBYTE */
 };
+
+static const struct EmuField emu_fields_BitMap[] = {
+    {    0,    0,    1, 2, 2, EMU_F_SCALAR },   /* BytesPerRow              UWORD */
+    {    2,    2,    1, 2, 2, EMU_F_SCALAR },   /* Rows                     UWORD */
+    {    4,    4,    1, 1, 1, EMU_F_SCALAR },   /* Flags                    UBYTE */
+    {    5,    5,    1, 1, 1, EMU_F_SCALAR },   /* Depth                    UBYTE */
+    {    6,    6,    1, 2, 2, EMU_F_SCALAR },   /* pad                      UWORD */
+};
+/* NOT converted, and deliberately not guessed at:
+ *   Planes (PLANEPTR[8])
+ */
 
 #endif /* EMU68K_LAYOUTS_H */

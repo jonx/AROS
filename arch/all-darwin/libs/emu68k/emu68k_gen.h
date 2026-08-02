@@ -227,4 +227,7 @@ int emu68k_gen_mathieeedoubtrans(int lvo, struct Emu68kRegs *r,
 int emu68k_gen_mathtrans(int lvo, struct Emu68kRegs *r,
                   APTR guest0, APTR base,
                   char *err, ULONG errlen);
+int emu68k_gen_workbench(int lvo, struct Emu68kRegs *r,
+                  APTR guest0, APTR base,
+                  char *err, ULONG errlen);
 #endif /* EMU68K_GEN_H */

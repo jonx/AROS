@@ -58,6 +58,21 @@ int emu68k_gen_graphics(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
     case 64:  /* VBeamPos(void) -> LONG  [-384] */
         r->d[0] = (ULONG)VBeamPos();
         return 0;
+    case 65:  /* InitBitMap(struct BitMap * bm, BYTE depth, UWORD width, UWORD height) -> void  [-390] */
+    {
+        struct BitMap emu_struct_0;
+        if (emu68k_require_guest_range(r->a[0], M68K_BitMap_SIZEOF,
+                                         "InitBitMap.bm", err, errlen) < 0)
+            return 1;
+        memset(&emu_struct_0, 0, sizeof(emu_struct_0));
+            InitBitMap((struct BitMap *)&emu_struct_0,
+              (BYTE)r->d[0],
+              (UWORD)r->d[1],
+              (UWORD)r->d[2]);
+        emu68k_to_guest_sized(guest0, r->a[0], &emu_struct_0,
+                           emu_fields_BitMap, EMU_NFIELDS(emu_fields_BitMap), M68K_BitMap_SIZEOF);
+            return 0;
+    }
     case 69:  /* FreeSprite(WORD pick) -> void  [-414] */
         FreeSprite((WORD)r->d[0]);
         return 0;

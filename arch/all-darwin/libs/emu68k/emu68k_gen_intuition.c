@@ -160,7 +160,7 @@ int emu68k_gen_intuition(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
     case 106:  /* NewObjectA(struct IClass * classPtr, UBYTE * classID, struct TagItem * tagList) -> APTR  [-636] */
     {
         APTR emu_object_0;
-        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_Class, 0,
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_Class, 1,
                                         "Class", &emu_object_0, err, errlen) < 0)
             return 1;
         struct Emu68kBoopsiBridge emu_boopsi_0;
@@ -209,6 +209,34 @@ int emu68k_gen_intuition(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
                                              emu_fields_IClass, EMU_NFIELDS(emu_fields_IClass),
                                              &r->d[0], err, errlen) < 0)
             return 1;
+            return 0;
+    }
+    case 114:  /* AddClass(struct IClass * classPtr) -> void  [-684] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_Class, 0,
+                                        "Class", &emu_object_0, err, errlen) < 0)
+            return 1;
+            AddClass((struct IClass *)emu_object_0);
+            return 0;
+    }
+    case 118:  /* RemoveClass(struct IClass * classPtr) -> void  [-708] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_Class, 0,
+                                        "Class", &emu_object_0, err, errlen) < 0)
+            return 1;
+            RemoveClass((struct IClass *)emu_object_0);
+            return 0;
+    }
+    case 119:  /* FreeClass(struct IClass * iclass) -> BOOL  [-714] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_Class, 0,
+                                        "Class", &emu_object_0, err, errlen) < 0)
+            return 1;
+            r->d[0] = (ULONG)FreeClass((struct IClass *)emu_object_0);
+        emu68k_object_consume(guest0, r->a[0], EMU_OBJ_Class);
             return 0;
     }
     case 137:  /* TimedDisplayAlert(ULONG alertnumber, UBYTE * string, UWORD height, ULONG time) -> BOOL  [-822] */

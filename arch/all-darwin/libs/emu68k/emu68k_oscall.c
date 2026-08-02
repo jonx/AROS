@@ -73,6 +73,55 @@ static ULONG gr32(APTR guest0, ULONG addr)
            ((ULONG)p[2] << 8) | (ULONG)p[3];
 }
 
+/* A guest string, only if the whole of it is inside the arena. Returns NULL
+ * rather than a truncated or runaway string. */
+static const char *guest_cstr(APTR guest0, ULONG addr, ULONG max)
+{
+    ULONG n;
+    if (!addr)
+        return NULL;
+    for (n = 0; n < max; n++)
+    {
+        if (emu68k_require_guest_range(addr + n, 1, "string", NULL, 0) < 0)
+            return NULL;
+        if (!((const UBYTE *)guest0)[addr + n])
+            return (const char *)guest0 + addr;
+    }
+    return NULL;
+}
+
+/* Say what a requester ASKED before answering it.
+ *
+ * The answer given below is "no", which is the only safe reply when there is
+ * nobody to ask, but a program that then tidies up and exits looks identical to
+ * one that failed for no reason. The question is the difference, so it is
+ * reported. struct EasyStruct is read at its AmigaOS offsets: it is not in the
+ * AROS headers to derive a layout from, and the guest's copy is the one being
+ * described anyway.
+ *
+ * The format strings are shown as the program wrote them. Substituting the
+ * argument list would mean widening a 32-bit RAWARG array to native varargs
+ * against the format, which is real work and belongs with the decision to
+ * display requesters for real. */
+#define EASY_TITLE   8
+#define EASY_TEXT    12
+#define EASY_GADGETS 16
+#define EASY_SIZEOF  20
+
+static void report_easyrequest(APTR guest0, ULONG easy)
+{
+    const char *title, *text, *gadgets;
+
+    if (emu68k_require_guest_range(easy, EASY_SIZEOF, "EasyStruct", NULL, 0) < 0)
+        return;
+    title   = guest_cstr(guest0, gr32(guest0, easy + EASY_TITLE), 256);
+    text    = guest_cstr(guest0, gr32(guest0, easy + EASY_TEXT), 1024);
+    gadgets = guest_cstr(guest0, gr32(guest0, easy + EASY_GADGETS), 256);
+
+    bug("[emu68k] requester answered no: \"%s\" / \"%s\" [%s]\n",
+        title ? title : "", text ? text : "", gadgets ? gadgets : "");
+}
+
 UQUAD emu68k_scalar_from_guest(APTR guest0, ULONG addr, UBYTE width)
 {
     const UBYTE *p = (const UBYTE *)guest0 + addr;
@@ -285,8 +334,17 @@ LONG emu68k_boopsi_prepare(APTR guest0, ULONG guest_class, APTR native_class,
     struct Emu68kRunState *rs;
     ULONG entry;
 
-    if (!bridge || !cl ||
-        emu68k_require_guest_range(guest_class, M68K_IClass_SIZEOF,
+    if (!bridge) return -1;
+    /* No class pointer means the class was named by string instead, which is
+     * the ordinary way to make an object of one of the system's own classes.
+     * There is no guest dispatcher behind it, so there is nothing to bridge:
+     * an empty bridge that emu68k_boopsi_finish leaves alone. */
+    if (!guest_class || !cl)
+    {
+        memset(bridge, 0, sizeof *bridge);
+        return 0;
+    }
+    if (emu68k_require_guest_range(guest_class, M68K_IClass_SIZEOF,
                                    "BOOPSI Class", err, errlen) < 0)
         return -1;
     entry = gr32(guest0, guest_class + M68K_IClass_cl_Dispatcher_h_Entry);
@@ -1022,7 +1080,12 @@ int Emu68k_OSCall(const char *libname, int lvo, APTR regs, APTR guest0,
          * and formatting a RAWARG list, which is separate work.
          */
         if (lvo == 58) { r->d[0] = DOSFALSE; return 0; }   /* AutoRequest      */
-        if (lvo == 98) { r->d[0] = 0;        return 0; }   /* EasyRequestArgs  */
+        if (lvo == 98)                                     /* EasyRequestArgs  */
+        {
+            report_easyrequest(guest0, r->a[1]);
+            r->d[0] = 0;
+            return 0;
+        }
     }
 
     if (strcmp(libname, "icon.library") == 0)

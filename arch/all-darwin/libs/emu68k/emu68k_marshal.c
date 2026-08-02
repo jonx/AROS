@@ -7,6 +7,7 @@
 */
 
 #include <exec/types.h>
+#include <exec/memory.h>
 #include <proto/exec.h>
 #include <utility/tagitem.h>
 #include <string.h>
@@ -55,11 +56,33 @@ LONG emu68k_require_guest_range(ULONG guest_addr, ULONG length,
     return -1;
 }
 
+APTR emu68k_scratch_alloc(ULONG size, char *err, ULONG errlen)
+{
+    APTR scratch = size ? AllocMem(size, MEMF_ANY) : NULL;
+
+    if (!scratch && size && err && errlen)
+        snprintf(err, errlen, "native bridge scratch allocation of %lu bytes failed",
+                 (unsigned long)size);
+    return scratch;
+}
+
+void emu68k_scratch_free(APTR scratch, ULONG size)
+{
+    if (scratch)
+        FreeMem(scratch, size);
+}
+
 static ULONG guest_be32(APTR guest0, ULONG addr)
 {
     const UBYTE *p = (const UBYTE *)guest0 + addr;
     return ((ULONG)p[0] << 24) | ((ULONG)p[1] << 16) |
            ((ULONG)p[2] << 8) | (ULONG)p[3];
+}
+
+static UWORD guest_be16(APTR guest0, ULONG addr)
+{
+    const UBYTE *p = (const UBYTE *)guest0 + addr;
+    return ((UWORD)p[0] << 8) | (UWORD)p[1];
 }
 
 static const struct EmuTagDesc *tag_desc(const struct EmuTagDomain *domain,
@@ -147,6 +170,13 @@ LONG emu68k_tags_to_native(APTR guest0, ULONG guest_tags,
                          desc->name, domain->name);
             return -1;
         }
+        if (desc->kind == EMU_TAG_NULL && data)
+        {
+            if (err && errlen)
+                snprintf(err, errlen, "capability gap: tag %s in %s needs pointer policy",
+                         desc->name, domain->name);
+            return -1;
+        }
         if (out + 1 >= capacity)
         {
             if (err && errlen)
@@ -184,6 +214,98 @@ LONG emu68k_tags_to_native(APTR guest0, ULONG guest_tags,
             used += need;
             memset(slot, 0, desc->native_size);
             emu68k_from_guest(guest0, data, slot, desc->fields, desc->nfields);
+            native_tags[out].ti_Data = (IPTR)slot;
+        }
+        else if (desc->kind == EMU_TAG_U16_FFFF)
+        {
+            ULONG count, need = ((ULONG)desc->guest_size * sizeof(UWORD) + 7u) & ~7u;
+            UWORD *slot;
+
+            if (!data)
+            {
+                native_tags[out].ti_Data = 0;
+                out++; p += 8;
+                continue;
+            }
+            if (used + need > scratch_size || !scratch)
+            {
+                if (err && errlen)
+                    snprintf(err, errlen, "tag %s has no room to rebuild UWORD array",
+                             desc->name);
+                return -1;
+            }
+            slot = (UWORD *)((UBYTE *)scratch + used);
+            used += need;
+            for (count = 0; count < desc->guest_size; count++)
+            {
+                if (emu68k_require_guest_range(data + count * 2, 2,
+                                               desc->name, err, errlen) < 0)
+                    return -1;
+                slot[count] = guest_be16(guest0, data + count * 2);
+                if (slot[count] == (UWORD)~0)
+                    break;
+            }
+            if (count == desc->guest_size)
+            {
+                if (err && errlen)
+                    snprintf(err, errlen, "tag %s UWORD array has no terminator",
+                             desc->name);
+                return -1;
+            }
+            native_tags[out].ti_Data = (IPTR)slot;
+        }
+        else if (desc->kind == EMU_TAG_RGB32)
+        {
+            ULONG count, remaining = 0;
+            ULONG need = ((ULONG)desc->guest_size * sizeof(ULONG) + 7u) & ~7u;
+            ULONG *slot;
+            BOOL ended = FALSE;
+
+            if (!data)
+            {
+                native_tags[out].ti_Data = 0;
+                out++; p += 8;
+                continue;
+            }
+            if (used + need > scratch_size || !scratch)
+            {
+                if (err && errlen)
+                    snprintf(err, errlen, "tag %s has no room to rebuild RGB32 stream",
+                             desc->name);
+                return -1;
+            }
+            slot = (ULONG *)((UBYTE *)scratch + used);
+            used += need;
+            for (count = 0; count < desc->guest_size; count++)
+            {
+                ULONG value;
+                if (emu68k_require_guest_range(data + count * 4, 4,
+                                               desc->name, err, errlen) < 0)
+                    return -1;
+                value = guest_be32(guest0, data + count * 4);
+                slot[count] = value;
+                if (remaining)
+                    remaining--;
+                else if (!value)
+                {
+                    ended = TRUE;
+                    break;
+                }
+                else
+                {
+                    ULONG colors = value >> 16;
+                    if (!colors || colors > (desc->guest_size - count - 1) / 3)
+                        break;
+                    remaining = colors * 3;
+                }
+            }
+            if (!ended)
+            {
+                if (err && errlen)
+                    snprintf(err, errlen, "tag %s RGB32 stream is malformed or unterminated",
+                             desc->name);
+                return -1;
+            }
             native_tags[out].ti_Data = (IPTR)slot;
         }
         else if (desc->kind == EMU_TAG_CSTR)

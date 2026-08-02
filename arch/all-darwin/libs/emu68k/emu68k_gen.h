@@ -78,6 +78,8 @@ static inline void emu68k_double_out(double v, ULONG *hi, ULONG *lo)
 
 UQUAD emu68k_scalar_from_guest(APTR guest0, ULONG addr, UBYTE width);
 void  emu68k_scalar_to_guest(APTR guest0, ULONG addr, UBYTE width, UQUAD value);
+APTR  emu68k_scratch_alloc(ULONG size, char *err, ULONG errlen);
+void  emu68k_scratch_free(APTR scratch, ULONG size);
 
 /* Native OS objects cross as typed, per-run tokens. The table preserves
  * identity and reference counts, rejects stale/wrong-type tokens, and owns a
@@ -115,6 +117,9 @@ LONG emu68k_boopsi_finish(struct Emu68kBoopsiBridge *bridge,
 #define EMU_TAG_CSTR    1
 #define EMU_TAG_REFUSE  2
 #define EMU_TAG_STRUCT  3   /* ti_Data is a guest pointer to a value structure */
+#define EMU_TAG_NULL    4   /* pointer-valued tag accepted only when NULL       */
+#define EMU_TAG_U16_FFFF 5  /* guest UWORD array terminated by 0xffff           */
+#define EMU_TAG_RGB32    6  /* LoadRGB32 block stream terminated by zero         */
 struct EmuTagDesc
 {
     ULONG tag;

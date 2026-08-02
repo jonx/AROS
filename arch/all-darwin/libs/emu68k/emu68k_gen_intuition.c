@@ -9,11 +9,36 @@
 #include <exec/types.h>
 #include <proto/intuition.h>
 #include <string.h>
+#include <stdio.h>
+#include <intuition/screens.h>
 #include <intuition/classes.h>
 #include <intuition/pointerclass.h>
 
 #include "emu68k_gen.h"
 #include "emu68k_layouts.h"
+
+static const struct EmuTagDesc emu_tagdesc_intuition_open_screen[] =
+{
+    { SA_AutoScroll, EMU_TAG_U32, "SA_AutoScroll", NULL, 0, 0, 0 },
+    { SA_Pens, EMU_TAG_U16_FFFF, "SA_Pens", NULL, 0, 32, 0 },
+    { SA_Width, EMU_TAG_U32, "SA_Width", NULL, 0, 0, 0 },
+    { SA_Height, EMU_TAG_U32, "SA_Height", NULL, 0, 0, 0 },
+    { SA_Depth, EMU_TAG_U32, "SA_Depth", NULL, 0, 0, 0 },
+    { SA_Overscan, EMU_TAG_U32, "SA_Overscan", NULL, 0, 0, 0 },
+    { SA_DisplayID, EMU_TAG_U32, "SA_DisplayID", NULL, 0, 0, 0 },
+    { SA_Interleaved, EMU_TAG_U32, "SA_Interleaved", NULL, 0, 0, 0 },
+    { SA_Title, EMU_TAG_CSTR, "SA_Title", NULL, 0, 0, 0 },
+    { SA_ShowTitle, EMU_TAG_U32, "SA_ShowTitle", NULL, 0, 0, 0 },
+    { SA_Colors32, EMU_TAG_RGB32, "SA_Colors32", NULL, 0, 1024, 0 },
+    { SA_SharePens, EMU_TAG_U32, "SA_SharePens", NULL, 0, 0, 0 },
+    { SA_PubName, EMU_TAG_CSTR, "SA_PubName", NULL, 0, 0, 0 },
+    { SA_Font, EMU_TAG_STRUCT, "SA_Font", emu_fields_TextAttr, EMU_NFIELDS(emu_fields_TextAttr),
+      M68K_TextAttr_SIZEOF, sizeof(struct TextAttr) },
+};
+static const struct EmuTagDomain emu_tagdomain_intuition_open_screen =
+{
+    emu_tagdesc_intuition_open_screen, 14, "intuition.open_screen"
+};
 
 static const struct EmuTagDesc emu_tagdesc_intuition_new_object[] =
 {
@@ -29,6 +54,12 @@ static const struct EmuTagDomain emu_tagdomain_intuition_new_object =
 {
     emu_tagdesc_intuition_new_object, 6, "intuition.new_object"
 };
+
+static void emu_object_cleanup_Screen(APTR emu_base, APTR emu_object)
+{
+    struct IntuitionBase *IntuitionBase = emu_base;
+    CloseScreen((struct Screen *)emu_object);
+}
 
 static void emu_object_cleanup_Class(APTR emu_base, APTR emu_object)
 {
@@ -50,6 +81,16 @@ int emu68k_gen_intuition(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
 
     switch (lvo)
     {
+    case 11:  /* CloseScreen(struct Screen * screen) -> BOOL  [-66] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_Screen, 0,
+                                        "Screen", &emu_object_0, err, errlen) < 0)
+            return 1;
+            r->d[0] = (ULONG)CloseScreen((struct Screen *)emu_object_0);
+        emu68k_object_consume(guest0, r->a[0], EMU_OBJ_Screen);
+            return 0;
+    }
     case 13:  /* CloseWorkBench(void) -> LONG  [-78] */
         r->d[0] = (ULONG)CloseWorkBench();
         return 0;
@@ -164,6 +205,79 @@ int emu68k_gen_intuition(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
     case 91:  /* SetPubScreenModes(UWORD modes) -> UWORD  [-546] */
         r->d[0] = (ULONG)SetPubScreenModes((UWORD)r->d[0]);
         return 0;
+    case 92:  /* PubScreenStatus(struct Screen * Scr, UWORD StatusFlags) -> UWORD  [-552] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_Screen, 0,
+                                        "Screen", &emu_object_0, err, errlen) < 0)
+            return 1;
+            r->d[0] = (ULONG)PubScreenStatus((struct Screen *)emu_object_0,
+              (UWORD)r->d[0]);
+            return 0;
+    }
+    case 102:  /* OpenScreenTagList(struct NewScreen * newScreen, struct TagItem * tagList) -> struct Screen *  [-612] */
+    {
+        if (r->a[0])
+        {
+            if (err && errlen)
+                snprintf(err, errlen, "OpenScreenTagList.newScreen currently requires NULL");
+            return 1;
+        }
+        struct TagItem emu_tags_1[25];
+        ULONG emu_tagscratch_size_1 = sizeof(UQUAD) * ((sizeof(struct TextAttr) + 7) / 8 + (sizeof(UWORD) * 32 + 7) / 8 + (sizeof(ULONG) * 1024 + 7) / 8);
+        APTR emu_tagscratch_1 = emu68k_scratch_alloc(emu_tagscratch_size_1, err, errlen);
+        if (!emu_tagscratch_1)
+            return 1;
+        if (emu68k_tags_to_native(guest0, r->a[1], &emu_tagdomain_intuition_open_screen,
+                                     emu_tags_1, 25, emu_tagscratch_1, emu_tagscratch_size_1, err, errlen) < 0)
+        {
+            emu68k_scratch_free(emu_tagscratch_1, emu_tagscratch_size_1);
+            return 1;
+        }
+        APTR emu_result = (APTR)OpenScreenTagList((struct NewScreen *)NULL,
+              (struct TagItem *)(r->a[1] ? emu_tags_1 : NULL));
+        if (!emu_result)
+        {
+            BOOL emu_fallback_changed = FALSE;
+            for (ULONG emu_fallback_i = 0;
+                 emu_tags_1[emu_fallback_i].ti_Tag != TAG_DONE;
+                 emu_fallback_i++)
+                if (emu_tags_1[emu_fallback_i].ti_Tag == SA_Font)
+                {
+                    struct TextAttr *emu_fallback_value =
+                        (struct TextAttr *)emu_tags_1[emu_fallback_i].ti_Data;
+                    if (emu_fallback_value)
+                    {
+                        emu_fallback_value->ta_Name = (STRPTR)"Vera Mono.font";
+                        emu_fallback_changed = TRUE;
+                    }
+                }
+            if (emu_fallback_changed)
+                emu_result = (APTR)OpenScreenTagList((struct NewScreen *)NULL,
+              (struct TagItem *)(r->a[1] ? emu_tags_1 : NULL));
+        }
+        if (!emu_result)
+        {
+            BOOL emu_fallback_changed = FALSE;
+            for (ULONG emu_fallback_i = 0;
+                 emu_tags_1[emu_fallback_i].ti_Tag != TAG_DONE;
+                 emu_fallback_i++)
+                if (emu_tags_1[emu_fallback_i].ti_Tag == SA_DisplayID)
+                {
+                    emu_tags_1[emu_fallback_i].ti_Tag = TAG_IGNORE;
+                    emu_fallback_changed = TRUE;
+                }
+            if (emu_fallback_changed)
+                emu_result = (APTR)OpenScreenTagList((struct NewScreen *)NULL,
+              (struct TagItem *)(r->a[1] ? emu_tags_1 : NULL));
+        }
+        emu68k_scratch_free(emu_tagscratch_1, emu_tagscratch_size_1);
+        if (emu68k_object_to_guest(guest0, emu_result, EMU_OBJ_Screen,
+                                      base, emu_object_cleanup_Screen,
+                                      "Screen", &r->d[0], err, errlen) < 0)
+            return 1;
+            return 0;
+    }
     case 106:  /* NewObjectA(struct IClass * classPtr, UBYTE * classID, struct TagItem * tagList) -> APTR  [-636] */
     {
         APTR emu_object_0;

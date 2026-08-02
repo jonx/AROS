@@ -38,6 +38,7 @@
 #define DOS_LVO_DELAY   33    /* -198 */
 #define DOS_LVO_WAITFORCHAR   34   /* -204 */
 #define DOS_LVO_ISINTERACTIVE 36   /* -216 */
+#define DOS_LVO_FLUSH         60   /* -360 */
 #define DOS_LVO_IOERR   22    /* -132: what every failed dos call is followed by */
 #define DOS_LVO_GETPROGRAMNAME 96   /* -576 */
 #define DOS_LVO_GETVAR        151   /* -906 */
@@ -266,6 +267,10 @@ int Emu68k_OSCall(const char *libname, int lvo, APTR regs, APTR guest0,
 
         case DOS_LVO_WAITFORCHAR:     /* WaitForChar(BPTR file D1, LONG tmo D2)   */
             r->d[0] = (ULONG)WaitForChar(handle_bptr(r->d[1]), (LONG)r->d[2]);
+            return 0;
+
+        case DOS_LVO_FLUSH:           /* Flush(BPTR file D1)                      */
+            r->d[0] = (ULONG)Flush(handle_bptr(r->d[1]));
             return 0;
 
         case DOS_LVO_GETVAR:

@@ -46,8 +46,6 @@
 #define DOS_LVO_DUPLOCK       16   /* -96  */
 #define DOS_LVO_CREATEDIR     20   /* -120 */
 #define DOS_LVO_CURRENTDIR    21   /* -126 */
-#define DOS_LVO_EXAMINE       17   /* -102 */
-#define DOS_LVO_EXNEXT        18   /* -108 */
 #define DOS_LVO_FILEPART     145   /* -870 */
 #define DOS_LVO_PATHPART     146   /* -876 */
 #define DOS_LVO_MATCHFIRST   137   /* -822 */
@@ -575,16 +573,6 @@ void emu68k_from_guest(APTR guest0, ULONG gbase, void *native,
 
 #define EMU_NFIELDS(t) ((int)(sizeof (t) / sizeof (t)[0]))
 
-/* A native FileInfoBlock, as the guest's AmigaOS one. The field-by-field work
- * is the generated table's, not this file's: 14 of its 15 fields sit at a
- * different offset and several are a different width, and none of those
- * numbers should ever be typed here. */
-static void fib_to_guest(APTR guest0, ULONG base, const struct FileInfoBlock *n)
-{
-    emu68k_to_guest(guest0, base, n, emu_fields_FileInfoBlock,
-                    EMU_NFIELDS(emu_fields_FileInfoBlock));
-}
-
 /* ---- ANCHORPATH: A RETAINED SHADOW ----------------------------------------
  * MatchFirst/MatchNext/MatchEnd are one operation, not three calls: the
  * AnchorPath carries the live state of a directory scan between them,
@@ -860,36 +848,6 @@ int Emu68k_OSCall(const char *libname, int lvo, APTR regs, APTR guest0,
         case DOS_LVO_CREATEDIR:       /* CreateDir(STRPTR name D1)                */
             r->d[0] = handle_token(rs, CreateDir((CONST_STRPTR)gptr(guest0, r->d[1])));
             return 0;
-
-        /* [T3b] Examine/ExNext: call the NATIVE one into a NATIVE
-         * FileInfoBlock and copy the fields back into the guest's own. The
-         * guest's fib is 260 bytes in AmigaOS layout and this side's is 264 in
-         * another; handing the guest pointer to dos.library directly would let
-         * it write native-shaped fields into a guest-shaped structure. */
-        case DOS_LVO_EXAMINE:
-        case DOS_LVO_EXNEXT:
-        {
-            struct FileInfoBlock *nfib = AllocDosObject(DOS_FIB, NULL);
-            ULONG gfib = r->d[2];
-            if (!nfib) { r->d[0] = DOSFALSE; return 0; }
-            /* ExNext continues a scan the guest started, so the position it is
-             * resuming from lives in the guest's fib: carry it over. */
-            if (lvo == DOS_LVO_EXNEXT)
-            {
-                const UBYTE *p = (const UBYTE *)guest0 + gfib
-                               + M68K_FileInfoBlock_fib_DiskKey;
-                nfib->fib_DiskKey = (IPTR)(((ULONG)p[0] << 24) |
-                                           ((ULONG)p[1] << 16) |
-                                           ((ULONG)p[2] << 8) | p[3]);
-            }
-            r->d[0] = (ULONG)((lvo == DOS_LVO_EXAMINE)
-                              ? Examine(handle_bptr(rs, r->d[1]), nfib)
-                              : ExNext(handle_bptr(rs, r->d[1]), nfib));
-            if (r->d[0])
-                fib_to_guest(guest0, gfib, nfib);
-            FreeDosObject(DOS_FIB, nfib);
-            return 0;
-        }
 
         /* FilePart/PathPart return a pointer INTO the string they were given.
          * A native pointer is meaningless to the guest and does not fit a 68k

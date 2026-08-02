@@ -10,17 +10,24 @@
 #include <proto/intuition.h>
 #include <string.h>
 #include <intuition/classes.h>
+#include <intuition/pointerclass.h>
 
 #include "emu68k_gen.h"
 #include "emu68k_layouts.h"
 
 static const struct EmuTagDesc emu_tagdesc_intuition_new_object[] =
 {
-    { 0, EMU_TAG_REFUSE, NULL },
+    { POINTERA_BitMap, EMU_TAG_STRUCT, "POINTERA_BitMap", emu_fields_BitMap, EMU_NFIELDS(emu_fields_BitMap),
+      M68K_BitMap_SIZEOF, sizeof(struct BitMap) },
+    { POINTERA_XOffset, EMU_TAG_U32, "POINTERA_XOffset", NULL, 0, 0, 0 },
+    { POINTERA_YOffset, EMU_TAG_U32, "POINTERA_YOffset", NULL, 0, 0, 0 },
+    { POINTERA_WordWidth, EMU_TAG_U32, "POINTERA_WordWidth", NULL, 0, 0, 0 },
+    { POINTERA_XResolution, EMU_TAG_U32, "POINTERA_XResolution", NULL, 0, 0, 0 },
+    { POINTERA_YResolution, EMU_TAG_U32, "POINTERA_YResolution", NULL, 0, 0, 0 },
 };
 static const struct EmuTagDomain emu_tagdomain_intuition_new_object =
 {
-    emu_tagdesc_intuition_new_object, 0, "intuition.new_object"
+    emu_tagdesc_intuition_new_object, 6, "intuition.new_object"
 };
 
 static void emu_object_cleanup_Class(APTR emu_base, APTR emu_object)
@@ -164,9 +171,10 @@ int emu68k_gen_intuition(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
                                         "Class", &emu_object_0, err, errlen) < 0)
             return 1;
         struct Emu68kBoopsiBridge emu_boopsi_0;
-        struct TagItem emu_tags_2[2];
+        struct TagItem emu_tags_2[33];
+        UQUAD emu_tagscratch_2[(sizeof(struct BitMap) + 7) / 8];
         if (emu68k_tags_to_native(guest0, r->a[2], &emu_tagdomain_intuition_new_object,
-                                     emu_tags_2, 2, err, errlen) < 0)
+                                     emu_tags_2, 33, emu_tagscratch_2, sizeof emu_tagscratch_2, err, errlen) < 0)
             return 1;
         if (emu68k_boopsi_prepare(guest0, r->a[0], emu_object_0,
                                    &emu_boopsi_0, err, errlen) < 0)

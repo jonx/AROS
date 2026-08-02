@@ -58,6 +58,8 @@
 #define DOS_LVO_PRINTFAULT 79 /* -474 */
 #define DOS_LVO_SETIOERR   77 /* -462 */
 #define ICON_LVO_FINDTOOLTYPE  16   /* -96  */
+#define GFX_LVO_ALLOCRASTER    82   /* -492 */
+#define GFX_LVO_FREERASTER     83   /* -498 */
 
 /* A guest pointer becomes a host pointer by adding the guest base. Only memory
  * INSIDE the guest arena may be handed to a native call this way. */
@@ -727,29 +729,31 @@ struct EmuGenLib
     APTR        base;
 };
 
+/* Written from the generated list, so a library cannot be generated for and
+ * then not routed here - which is silent, and looks exactly like the library
+ * having no crossing for the vector that was called. */
+#define EMU_GENLIB_ROW(name, fn, basekind) { name, fn, basekind, 0, NULL },
 static struct EmuGenLib g_genlibs[] =
 {
-    { "dos.library",         emu68k_gen_dos,         GENBASE_DOS,  0, NULL },
-    { "exec.library",        emu68k_gen_exec,        GENBASE_EXEC, 0, NULL },
-    { "utility.library",        emu68k_gen_utility,        GENBASE_OPEN, 0, NULL },
-    { "intuition.library",      emu68k_gen_intuition,      GENBASE_OPEN, 0, NULL },
-    { "graphics.library",       emu68k_gen_graphics,       GENBASE_OPEN, 0, NULL },
-    { "layers.library",         emu68k_gen_layers,         GENBASE_OPEN, 0, NULL },
-    { "gadtools.library",       emu68k_gen_gadtools,       GENBASE_OPEN, 0, NULL },
-    { "asl.library",            emu68k_gen_asl,            GENBASE_OPEN, 0, NULL },
-    { "icon.library",           emu68k_gen_icon,           GENBASE_OPEN, 0, NULL },
-    { "iffparse.library",       emu68k_gen_iffparse,       GENBASE_OPEN, 0, NULL },
-    { "commodities.library",    emu68k_gen_commodities,    GENBASE_OPEN, 0, NULL },
-    { "diskfont.library",       emu68k_gen_diskfont,       GENBASE_OPEN, 0, NULL },
-    { "locale.library",         emu68k_gen_locale,         GENBASE_OPEN, 0, NULL },
-    { "keymap.library",         emu68k_gen_keymap,         GENBASE_OPEN, 0, NULL },
-    { "datatypes.library",      emu68k_gen_datatypes,      GENBASE_OPEN, 0, NULL },
-    { "expansion.library",      emu68k_gen_expansion,      GENBASE_OPEN, 0, NULL },
-    { "cybergraphics.library",  emu68k_gen_cybergraphics,  GENBASE_OPEN, 0, NULL },
-    { "mathffp.library",        emu68k_gen_mathffp,        GENBASE_OPEN, 0, NULL },
-    { "mathieeesingbas.library", emu68k_gen_mathieeesingbas, GENBASE_OPEN, 0, NULL },
-    { "mathieeedoubbas.library", emu68k_gen_mathieeedoubbas, GENBASE_OPEN, 0, NULL },
+    EMU68K_GEN_LIBS(EMU_GENLIB_ROW)
 };
+#undef EMU_GENLIB_ROW
+
+/* Called from the run's own process, before the guest starts. See the caller
+ * for why the difference in context matters. Failures are not reported here:
+ * a library nothing calls is not a problem, and one that IS called reports
+ * itself precisely at the crossing. */
+void Emu68k_OSCallPreopen(void)
+{
+    unsigned i;
+
+    for (i = 0; i < sizeof(g_genlibs) / sizeof(g_genlibs[0]); i++)
+    {
+        struct EmuGenLib *g = &g_genlibs[i];
+        if (g->kind == GENBASE_OPEN && !g->base)
+            g->base = OpenLibrary(g->name, 0);
+    }
+}
 
 static int gen_dispatch(const char *libname, int lvo, struct Emu68kRegs *r,
                         APTR guest0, APTR DOSBase, char *err, ULONG errlen)
@@ -763,18 +767,27 @@ static int gen_dispatch(const char *libname, int lvo, struct Emu68kRegs *r,
         if (strcmp(libname, g->name) != 0)
             continue;
 
-        if (!g->tried)
+        if (!g->base)
         {
-            g->tried = 1;
             switch (g->kind)
             {
             case GENBASE_DOS:  g->base = DOSBase;                    break;
             case GENBASE_EXEC: g->base = SysBase;                    break;
             default:           g->base = OpenLibrary(g->name, 0);    break;
             }
+            g->tried = 1;
+            if (!g->base)
+                bug("[emu68k] OpenLibrary(\"%s\") failed\n", g->name);
         }
         if (!g->base)
+        {
+            /* Not the same thing as having no crossing for the vector, and it
+             * used to be reported as if it were: the crossings are all here
+             * and the library they call into is what is missing. */
+            if (err && errlen)
+                snprintf(err, errlen, "%s could not be opened natively", g->name);
             return 1;
+        }
         return g->fn(lvo, r, guest0, g->base, err, errlen);
     }
     return 1;
@@ -1083,6 +1096,37 @@ int Emu68k_OSCall(const char *libname, int lvo, APTR regs, APTR guest0,
         if (lvo == 98)                                     /* EasyRequestArgs  */
         {
             report_easyrequest(guest0, r->a[1]);
+            r->d[0] = 0;
+            return 0;
+        }
+    }
+
+    if (strcmp(libname, "graphics.library") == 0)
+    {
+        /* AllocRaster hands back an address the PROGRAM writes bitplanes into,
+         * so it has to be an address the program can hold and reach: a native
+         * one is 64 bits and outside the arena on both counts. The raster is
+         * therefore allocated IN the guest, which is also where the generated
+         * BitMap crossing expects to find planes it can rebase for a native
+         * call. The size is the AmigaOS one, rows of whole words. */
+        if (lvo == GFX_LVO_ALLOCRASTER)
+        {
+            struct Emu68kRunState *rs = run_state(guest0);
+            ULONG bytesperrow = ((((ULONG)(UWORD)r->d[0] + 15) >> 3) & ~1UL);
+            ULONG size = bytesperrow * (ULONG)(UWORD)r->d[1];
+
+            if (!rs || !rs->guest_alloc || !size)
+            {
+                r->d[0] = 0;
+                return 0;
+            }
+            r->d[0] = rs->guest_alloc(rs->run, size);
+            return 0;
+        }
+        /* The guest heap is a bump allocator, so a raster is released when the
+         * run ends. Saying so beats refusing a call the program must make. */
+        if (lvo == GFX_LVO_FREERASTER)
+        {
             r->d[0] = 0;
             return 0;
         }

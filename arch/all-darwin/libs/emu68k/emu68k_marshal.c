@@ -79,9 +79,10 @@ static const struct EmuTagDesc *tag_desc(const struct EmuTagDomain *domain,
 LONG emu68k_tags_to_native(APTR guest0, ULONG guest_tags,
                            const struct EmuTagDomain *domain,
                            struct TagItem *native_tags, ULONG capacity,
+                           APTR scratch, ULONG scratch_size,
                            char *err, ULONG errlen)
 {
-    ULONG p = guest_tags, out = 0, steps = 0;
+    ULONG p = guest_tags, out = 0, steps = 0, used = 0;
 
     if (!domain || !native_tags || capacity < 1)
         return -1;
@@ -155,7 +156,37 @@ LONG emu68k_tags_to_native(APTR guest0, ULONG guest_tags,
         }
 
         native_tags[out].ti_Tag = desc->tag;
-        if (desc->kind == EMU_TAG_CSTR)
+        if (desc->kind == EMU_TAG_STRUCT)
+        {
+            /* The value is a guest pointer to a structure, so the callee is
+             * given a native one built from it, living in the caller's scratch
+             * for exactly the length of the call. */
+            ULONG need = (desc->native_size + 7u) & ~7u;
+            UBYTE *slot;
+
+            if (!data)
+            {
+                native_tags[out].ti_Data = 0;
+                out++; p += 8;
+                continue;
+            }
+            if (used + need > scratch_size || !scratch)
+            {
+                if (err && errlen)
+                    snprintf(err, errlen, "tag %s has no room to rebuild %s",
+                             desc->name, domain->name);
+                return -1;
+            }
+            if (emu68k_require_guest_range(data, desc->guest_size,
+                                           desc->name, err, errlen) < 0)
+                return -1;
+            slot = (UBYTE *)scratch + used;
+            used += need;
+            memset(slot, 0, desc->native_size);
+            emu68k_from_guest(guest0, data, slot, desc->fields, desc->nfields);
+            native_tags[out].ti_Data = (IPTR)slot;
+        }
+        else if (desc->kind == EMU_TAG_CSTR)
         {
             ULONG n;
             if (!data)
@@ -275,6 +306,10 @@ void emu68k_to_guest_sized(APTR guest0, ULONG gbase, const void *native,
     for (i = 0; i < n; i++, f++)
     {
         count = fits(f, limit);
+        /* A native address has no guest form, so a rebased pointer is not
+         * written back: what the guest put there is still what it means. */
+        if (f->kind == EMU_F_GUESTPTR)
+            continue;
         if (f->kind == EMU_F_BYTES)
             CopyMem((APTR)(nat + f->n_off), g + f->g_off, count);
         else
@@ -306,8 +341,14 @@ void emu68k_from_guest_sized(APTR guest0, ULONG gbase, void *native,
             CopyMem((APTR)(g + f->g_off), nat + f->n_off, count);
         else
             for (e = 0; e < count; e++)
-                native_write(nat + f->n_off + e * f->n_w, f->n_w,
-                             guest_read(g + f->g_off + e * f->g_w, f->g_w));
+            {
+                ULONG v = guest_read(g + f->g_off + e * f->g_w, f->g_w);
+                if (f->kind == EMU_F_GUESTPTR)
+                    *(APTR *)(void *)(nat + f->n_off + e * f->n_w) =
+                        v ? (APTR)((UBYTE *)guest0 + v) : NULL;
+                else
+                    native_write(nat + f->n_off + e * f->n_w, f->n_w, v);
+            }
     }
 }
 

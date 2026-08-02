@@ -14,10 +14,10 @@
 
 static const struct EmuTagDesc emu_tagdesc_locale_open_catalog[] =
 {
-    { OC_BuiltInLanguage, EMU_TAG_CSTR, "OC_BuiltInLanguage" },
-    { OC_BuiltInCodeSet, EMU_TAG_U32, "OC_BuiltInCodeSet" },
-    { OC_Version, EMU_TAG_U32, "OC_Version" },
-    { OC_Language, EMU_TAG_CSTR, "OC_Language" },
+    { OC_BuiltInLanguage, EMU_TAG_CSTR, "OC_BuiltInLanguage", NULL, 0, 0, 0 },
+    { OC_BuiltInCodeSet, EMU_TAG_U32, "OC_BuiltInCodeSet", NULL, 0, 0, 0 },
+    { OC_Version, EMU_TAG_U32, "OC_Version", NULL, 0, 0, 0 },
+    { OC_Language, EMU_TAG_CSTR, "OC_Language", NULL, 0, 0, 0 },
 };
 static const struct EmuTagDomain emu_tagdomain_locale_open_catalog =
 {
@@ -92,7 +92,7 @@ int emu68k_gen_locale(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
             return 1;
         struct TagItem emu_tags_2[9];
         if (emu68k_tags_to_native(guest0, r->a[2], &emu_tagdomain_locale_open_catalog,
-                                     emu_tags_2, 9, err, errlen) < 0)
+                                     emu_tags_2, 9, NULL, 0, err, errlen) < 0)
             return 1;
         APTR emu_result = (APTR)OpenCatalogA((const struct Locale *)emu_object_0,
               (CONST_STRPTR)EMU_GPTR(guest0, r->a[1]),

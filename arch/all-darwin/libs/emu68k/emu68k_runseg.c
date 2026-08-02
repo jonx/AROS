@@ -21,6 +21,7 @@
 #include <aros/debug.h>
 
 void Emu68k_OSCallEndRun(APTR guest0);
+void Emu68k_OSCallPreopen(void);
 int Emu68k_OSCall(const char *libname, int lvo, APTR regs, APTR guest0,
                   APTR user, char *err, ULONG errlen);
 
@@ -112,6 +113,17 @@ AROS_LH2(LONG, Emu68k_RunSeg,
         CloseLibrary(DOSBase);
         return DOSTRUE;               /* handled: a routing decision, not a decline */
     }
+
+    /* Open the libraries the bridge crosses into BEFORE the guest starts.
+     *
+     * A library that is not already resident has to be loaded from disk, and
+     * that load runs on whoever asked. Inside a bridge call the asker is the
+     * engine's callback rather than this process going about its business, and
+     * the load does not survive it: a library nothing else had opened yet
+     * failed there while opening perfectly from a shell in the same boot.
+     * Here we are an ordinary process, so the load is an ordinary one, and
+     * from then on every bridge call only bumps a reference. */
+    Emu68k_OSCallPreopen();
 
     err[0] = 0;
     run = Emu68kBase->host.run_new(ctx->elc_Image, ctx->elc_ImageSize,

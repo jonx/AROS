@@ -114,11 +114,20 @@ LONG emu68k_boopsi_finish(struct Emu68kBoopsiBridge *bridge,
 #define EMU_TAG_U32     0
 #define EMU_TAG_CSTR    1
 #define EMU_TAG_REFUSE  2
+#define EMU_TAG_STRUCT  3   /* ti_Data is a guest pointer to a value structure */
 struct EmuTagDesc
 {
     ULONG tag;
     UBYTE kind;
     const char *name;
+    /* EMU_TAG_STRUCT only: how to rebuild what ti_Data points at. The native
+     * copy lives in the caller's scratch and is valid for the call, which is
+     * why a structure tag is only described for calls that consume it rather
+     * than retain it. */
+    const struct EmuField *fields;
+    UWORD nfields;
+    UWORD guest_size;
+    UWORD native_size;
 };
 struct EmuTagDomain
 {
@@ -129,6 +138,7 @@ struct EmuTagDomain
 LONG emu68k_tags_to_native(APTR guest0, ULONG guest_tags,
                            const struct EmuTagDomain *domain,
                            struct TagItem *native_tags, ULONG capacity,
+                           APTR scratch, ULONG scratch_size,
                            char *err, ULONG errlen);
 
 LONG emu68k_require_guest_range(ULONG guest_addr, ULONG length,
@@ -230,4 +240,31 @@ int emu68k_gen_mathtrans(int lvo, struct Emu68kRegs *r,
 int emu68k_gen_workbench(int lvo, struct Emu68kRegs *r,
                   APTR guest0, APTR base,
                   char *err, ULONG errlen);
+/* name, generated entry point, and where its base comes from. */
+#define EMU68K_GEN_LIBS(X) \
+    X("exec.library", emu68k_gen_exec, GENBASE_EXEC) \
+    X("dos.library", emu68k_gen_dos, GENBASE_DOS) \
+    X("utility.library", emu68k_gen_utility, GENBASE_OPEN) \
+    X("intuition.library", emu68k_gen_intuition, GENBASE_OPEN) \
+    X("graphics.library", emu68k_gen_graphics, GENBASE_OPEN) \
+    X("layers.library", emu68k_gen_layers, GENBASE_OPEN) \
+    X("gadtools.library", emu68k_gen_gadtools, GENBASE_OPEN) \
+    X("asl.library", emu68k_gen_asl, GENBASE_OPEN) \
+    X("icon.library", emu68k_gen_icon, GENBASE_OPEN) \
+    X("iffparse.library", emu68k_gen_iffparse, GENBASE_OPEN) \
+    X("commodities.library", emu68k_gen_commodities, GENBASE_OPEN) \
+    X("diskfont.library", emu68k_gen_diskfont, GENBASE_OPEN) \
+    X("locale.library", emu68k_gen_locale, GENBASE_OPEN) \
+    X("keymap.library", emu68k_gen_keymap, GENBASE_OPEN) \
+    X("datatypes.library", emu68k_gen_datatypes, GENBASE_OPEN) \
+    X("expansion.library", emu68k_gen_expansion, GENBASE_OPEN) \
+    X("cybergraphics.library", emu68k_gen_cybergraphics, GENBASE_OPEN) \
+    X("mathffp.library", emu68k_gen_mathffp, GENBASE_OPEN) \
+    X("mathieeesingbas.library", emu68k_gen_mathieeesingbas, GENBASE_OPEN) \
+    X("mathieeedoubbas.library", emu68k_gen_mathieeedoubbas, GENBASE_OPEN) \
+    X("mathieeesingtrans.library", emu68k_gen_mathieeesingtrans, GENBASE_OPEN) \
+    X("mathieeedoubtrans.library", emu68k_gen_mathieeedoubtrans, GENBASE_OPEN) \
+    X("mathtrans.library", emu68k_gen_mathtrans, GENBASE_OPEN) \
+    X("workbench.library", emu68k_gen_workbench, GENBASE_OPEN) \
+    /* end */
 #endif /* EMU68K_GEN_H */

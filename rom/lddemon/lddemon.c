@@ -102,6 +102,60 @@ AROS_LH1(BPTR, LDLoadSeg,
    Pairs with the C:TestLib load-tester; see docs/features/debug-tools/README.md. */
 volatile int __lddemon_trace = 0;
 
+#ifndef __mc68000
+/* Does this seglist hold a resident, i.e. is it the kind of object being
+ * looked for at all?
+ *
+ * A file with the right name in the right place is not necessarily the right
+ * file. A program's own directory may hold libraries built for a different
+ * machine, and one of those loads perfectly well and then has nothing to
+ * initialise. Accepting it ends the search on a file that cannot answer, while
+ * the real library sits unexamined in LIBS:.
+ *
+ * m68k keeps the old behaviour: there a resident-less seglist is run as code,
+ * which some Workbench 1.x objects rely on, so it is a legitimate candidate. */
+static BOOL LDHasResident(BPTR seglist)
+{
+    const int sizeofresident = offsetof(struct Resident, rt_Init) + sizeof(APTR);
+    BPTR seg = seglist;
+
+    while (seg)
+    {
+        STRPTR addr = (STRPTR)((IPTR)BADDR(seg) - sizeof(ULONG));
+        ULONG size = *(ULONG *)addr;
+
+        for (addr += sizeof(BPTR) + sizeof(ULONG),
+                 size -= sizeof(BPTR) + sizeof(ULONG);
+             size >= sizeofresident;
+             size -= 2, addr += 2)
+        {
+            struct Resident *res = (struct Resident *)addr;
+            if (res->rt_MatchWord == RTC_MATCHWORD && res->rt_MatchTag == res)
+                return TRUE;
+        }
+        seg = *(BPTR *)BADDR(seg);
+    }
+    return FALSE;
+}
+
+static BPTR LDLoadCandidate(struct IntLDDemonBase *ldBase, STRPTR path,
+                            struct ExecBase *SysBase)
+{
+    struct Library *DOSBase = ldBase->dl_DOSBase;
+    BPTR seglist = LDLoadSeg(path);
+
+    if (seglist && !LDHasResident(seglist))
+    {
+        if (__lddemon_trace)
+            bug("[LDDiag] LDLoad %s has no resident, continuing the search\n", path);
+        UnLoadSeg(seglist);
+        seglist = BNULL;
+    }
+    return seglist;
+}
+#define LDLoadSeg(p) LDLoadCandidate(ldBase, (p), SysBase)
+#endif
+
 /*
   BPTR LDLoad( caller, name, basedir, DOSBase )
     Try and load a segment from disk for the object <name>, relative

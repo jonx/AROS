@@ -16,13 +16,13 @@
 
 static const struct EmuTagDesc emu_tagdesc_icon_duplicate[] =
 {
-    { ICONDUPA_DuplicateDrawerData, EMU_TAG_U32, "ICONDUPA_DuplicateDrawerData" },
-    { ICONDUPA_DuplicateImages, EMU_TAG_U32, "ICONDUPA_DuplicateImages" },
-    { ICONDUPA_DuplicateImageData, EMU_TAG_U32, "ICONDUPA_DuplicateImageData" },
-    { ICONDUPA_DuplicateDefaultTool, EMU_TAG_U32, "ICONDUPA_DuplicateDefaultTool" },
-    { ICONDUPA_DuplicateToolTypes, EMU_TAG_U32, "ICONDUPA_DuplicateToolTypes" },
-    { ICONDUPA_DuplicateToolWindow, EMU_TAG_U32, "ICONDUPA_DuplicateToolWindow" },
-    { ICONDUPA_ActivateImageData, EMU_TAG_U32, "ICONDUPA_ActivateImageData" },
+    { ICONDUPA_DuplicateDrawerData, EMU_TAG_U32, "ICONDUPA_DuplicateDrawerData", NULL, 0, 0, 0 },
+    { ICONDUPA_DuplicateImages, EMU_TAG_U32, "ICONDUPA_DuplicateImages", NULL, 0, 0, 0 },
+    { ICONDUPA_DuplicateImageData, EMU_TAG_U32, "ICONDUPA_DuplicateImageData", NULL, 0, 0, 0 },
+    { ICONDUPA_DuplicateDefaultTool, EMU_TAG_U32, "ICONDUPA_DuplicateDefaultTool", NULL, 0, 0, 0 },
+    { ICONDUPA_DuplicateToolTypes, EMU_TAG_U32, "ICONDUPA_DuplicateToolTypes", NULL, 0, 0, 0 },
+    { ICONDUPA_DuplicateToolWindow, EMU_TAG_U32, "ICONDUPA_DuplicateToolWindow", NULL, 0, 0, 0 },
+    { ICONDUPA_ActivateImageData, EMU_TAG_U32, "ICONDUPA_ActivateImageData", NULL, 0, 0, 0 },
 };
 static const struct EmuTagDomain emu_tagdomain_icon_duplicate =
 {
@@ -101,7 +101,7 @@ int emu68k_gen_icon(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
             return 1;
         struct TagItem emu_tags_1[9];
         if (emu68k_tags_to_native(guest0, r->a[1], &emu_tagdomain_icon_duplicate,
-                                     emu_tags_1, 9, err, errlen) < 0)
+                                     emu_tags_1, 9, NULL, 0, err, errlen) < 0)
             return 1;
         APTR emu_result = (APTR)DupDiskObjectA((struct DiskObject *)emu_object_0,
               (struct TagItem *)(r->a[1] ? emu_tags_1 : NULL));

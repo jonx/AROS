@@ -14,11 +14,11 @@
 
 static const struct EmuTagDesc emu_tagdesc_cybergraphics_best_mode[] =
 {
-    { CYBRBIDTG_Depth, EMU_TAG_U32, "CYBRBIDTG_Depth" },
-    { CYBRBIDTG_NominalWidth, EMU_TAG_U32, "CYBRBIDTG_NominalWidth" },
-    { CYBRBIDTG_NominalHeight, EMU_TAG_U32, "CYBRBIDTG_NominalHeight" },
-    { CYBRBIDTG_MonitorID, EMU_TAG_U32, "CYBRBIDTG_MonitorID" },
-    { CYBRBIDTG_BoardName, EMU_TAG_CSTR, "CYBRBIDTG_BoardName" },
+    { CYBRBIDTG_Depth, EMU_TAG_U32, "CYBRBIDTG_Depth", NULL, 0, 0, 0 },
+    { CYBRBIDTG_NominalWidth, EMU_TAG_U32, "CYBRBIDTG_NominalWidth", NULL, 0, 0, 0 },
+    { CYBRBIDTG_NominalHeight, EMU_TAG_U32, "CYBRBIDTG_NominalHeight", NULL, 0, 0, 0 },
+    { CYBRBIDTG_MonitorID, EMU_TAG_U32, "CYBRBIDTG_MonitorID", NULL, 0, 0, 0 },
+    { CYBRBIDTG_BoardName, EMU_TAG_CSTR, "CYBRBIDTG_BoardName", NULL, 0, 0, 0 },
 };
 static const struct EmuTagDomain emu_tagdomain_cybergraphics_best_mode =
 {
@@ -40,7 +40,7 @@ int emu68k_gen_cybergraphics(int lvo, struct Emu68kRegs *r, APTR guest0, APTR ba
     {
         struct TagItem emu_tags_0[17];
         if (emu68k_tags_to_native(guest0, r->a[0], &emu_tagdomain_cybergraphics_best_mode,
-                                     emu_tags_0, 17, err, errlen) < 0)
+                                     emu_tags_0, 17, NULL, 0, err, errlen) < 0)
             return 1;
             r->d[0] = (ULONG)BestCModeIDTagList((struct TagItem *)(r->a[0] ? emu_tags_0 : NULL));
             return 0;

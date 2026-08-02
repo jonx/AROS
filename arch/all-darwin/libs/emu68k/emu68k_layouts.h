@@ -414,6 +414,9 @@ struct EmuField
 #define EMU_F_SCALAR 0   /* byte-swapped, narrowed to the guest width */
 #define EMU_F_BYTES  1   /* copied verbatim: no byte order to change  */
 #define EMU_F_ARRAY  2   /* count scalars, each one byte-swapped       */
+#define EMU_F_GUESTPTR 3 /* guest addresses of raw bytes, rebased;
+                          * guest -> native only, since a native
+                          * address has no guest form to write back  */
 
 static const struct EmuField emu_fields_FileInfoBlock[] = {
     {    0,    0,    1, 4, 8, EMU_F_SCALAR },   /* fib_DiskKey              IPTR */
@@ -793,9 +796,7 @@ static const struct EmuField emu_fields_BitMap[] = {
     {    4,    4,    1, 1, 1, EMU_F_SCALAR },   /* Flags                    UBYTE */
     {    5,    5,    1, 1, 1, EMU_F_SCALAR },   /* Depth                    UBYTE */
     {    6,    6,    1, 2, 2, EMU_F_SCALAR },   /* pad                      UWORD */
+    {    8,    8,    8, 4, 8, EMU_F_GUESTPTR },   /* Planes                   PLANEPTR[8] */
 };
-/* NOT converted, and deliberately not guessed at:
- *   Planes (PLANEPTR[8])
- */
 
 #endif /* EMU68K_LAYOUTS_H */

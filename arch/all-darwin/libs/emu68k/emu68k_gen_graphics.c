@@ -16,19 +16,19 @@
 
 static const struct EmuTagDesc emu_tagdesc_graphics_best_mode[] =
 {
-    { BIDTAG_DIPFMustHave, EMU_TAG_U32, "BIDTAG_DIPFMustHave" },
-    { BIDTAG_DIPFMustNotHave, EMU_TAG_U32, "BIDTAG_DIPFMustNotHave" },
-    { BIDTAG_ViewPort, EMU_TAG_REFUSE, "BIDTAG_ViewPort" },
-    { BIDTAG_NominalWidth, EMU_TAG_U32, "BIDTAG_NominalWidth" },
-    { BIDTAG_NominalHeight, EMU_TAG_U32, "BIDTAG_NominalHeight" },
-    { BIDTAG_DesiredWidth, EMU_TAG_U32, "BIDTAG_DesiredWidth" },
-    { BIDTAG_DesiredHeight, EMU_TAG_U32, "BIDTAG_DesiredHeight" },
-    { BIDTAG_Depth, EMU_TAG_U32, "BIDTAG_Depth" },
-    { BIDTAG_MonitorID, EMU_TAG_U32, "BIDTAG_MonitorID" },
-    { BIDTAG_SourceID, EMU_TAG_U32, "BIDTAG_SourceID" },
-    { BIDTAG_RedBits, EMU_TAG_U32, "BIDTAG_RedBits" },
-    { BIDTAG_BlueBits, EMU_TAG_U32, "BIDTAG_BlueBits" },
-    { BIDTAG_GreenBits, EMU_TAG_U32, "BIDTAG_GreenBits" },
+    { BIDTAG_DIPFMustHave, EMU_TAG_U32, "BIDTAG_DIPFMustHave", NULL, 0, 0, 0 },
+    { BIDTAG_DIPFMustNotHave, EMU_TAG_U32, "BIDTAG_DIPFMustNotHave", NULL, 0, 0, 0 },
+    { BIDTAG_ViewPort, EMU_TAG_REFUSE, "BIDTAG_ViewPort", NULL, 0, 0, 0 },
+    { BIDTAG_NominalWidth, EMU_TAG_U32, "BIDTAG_NominalWidth", NULL, 0, 0, 0 },
+    { BIDTAG_NominalHeight, EMU_TAG_U32, "BIDTAG_NominalHeight", NULL, 0, 0, 0 },
+    { BIDTAG_DesiredWidth, EMU_TAG_U32, "BIDTAG_DesiredWidth", NULL, 0, 0, 0 },
+    { BIDTAG_DesiredHeight, EMU_TAG_U32, "BIDTAG_DesiredHeight", NULL, 0, 0, 0 },
+    { BIDTAG_Depth, EMU_TAG_U32, "BIDTAG_Depth", NULL, 0, 0, 0 },
+    { BIDTAG_MonitorID, EMU_TAG_U32, "BIDTAG_MonitorID", NULL, 0, 0, 0 },
+    { BIDTAG_SourceID, EMU_TAG_U32, "BIDTAG_SourceID", NULL, 0, 0, 0 },
+    { BIDTAG_RedBits, EMU_TAG_U32, "BIDTAG_RedBits", NULL, 0, 0, 0 },
+    { BIDTAG_BlueBits, EMU_TAG_U32, "BIDTAG_BlueBits", NULL, 0, 0, 0 },
+    { BIDTAG_GreenBits, EMU_TAG_U32, "BIDTAG_GreenBits", NULL, 0, 0, 0 },
 };
 static const struct EmuTagDomain emu_tagdomain_graphics_best_mode =
 {
@@ -196,7 +196,7 @@ int emu68k_gen_graphics(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
     {
         struct TagItem emu_tags_0[33];
         if (emu68k_tags_to_native(guest0, r->a[0], &emu_tagdomain_graphics_best_mode,
-                                     emu_tags_0, 33, err, errlen) < 0)
+                                     emu_tags_0, 33, NULL, 0, err, errlen) < 0)
             return 1;
             r->d[0] = (ULONG)BestModeIDA((struct TagItem *)(r->a[0] ? emu_tags_0 : NULL));
             return 0;

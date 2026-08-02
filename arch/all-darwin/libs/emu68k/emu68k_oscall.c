@@ -36,6 +36,8 @@
 #define DOS_LVO_OUTPUT  10    /* -60  */
 #define DOS_LVO_SEEK    11    /* -66  */
 #define DOS_LVO_DELAY   33    /* -198 */
+#define DOS_LVO_WAITFORCHAR   34   /* -204 */
+#define DOS_LVO_ISINTERACTIVE 36   /* -216 */
 #define DOS_LVO_IOERR   22    /* -132: what every failed dos call is followed by */
 #define DOS_LVO_GETPROGRAMNAME 96   /* -576 */
 #define DOS_LVO_GETVAR        151   /* -906 */
@@ -239,6 +241,18 @@ int Emu68k_OSCall(const char *libname, int lvo, APTR regs, APTR guest0,
 
         case DOS_LVO_DELAY:      /* Delay(LONG ticks D1)                          */
             Delay((LONG)r->d[1]);
+            return 0;
+
+        /* Both take a file handle, so they are hand-written rather than derived:
+         * the BPTR has to go through the token table before it means anything
+         * native. A program asks IsInteractive to decide whether it is talking
+         * to a terminal, which is the first thing an archiver does. */
+        case DOS_LVO_ISINTERACTIVE:   /* IsInteractive(BPTR file D1)              */
+            r->d[0] = (ULONG)IsInteractive(handle_bptr(r->d[1]));
+            return 0;
+
+        case DOS_LVO_WAITFORCHAR:     /* WaitForChar(BPTR file D1, LONG tmo D2)   */
+            r->d[0] = (ULONG)WaitForChar(handle_bptr(r->d[1]), (LONG)r->d[2]);
             return 0;
 
         case DOS_LVO_GETVAR:

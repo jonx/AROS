@@ -31,6 +31,12 @@ int emu68k_gen_diskfont(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
         emu68k_from_guest_sized(guest0, r->a[0], &emu_struct_0,
                              emu_fields_TextAttr, EMU_NFIELDS(emu_fields_TextAttr), M68K_TextAttr_SIZEOF);
         APTR emu_result = (APTR)OpenDiskFont((struct TextAttr *)&emu_struct_0);
+        if (!emu_result)
+        {
+            struct TextAttr emu_fallback_attr = emu_struct_0;
+            emu_fallback_attr.ta_Name = (STRPTR)"Vera Mono.font";
+            emu_result = (APTR)OpenDiskFont((struct TextAttr *)&emu_fallback_attr);
+        }
         if (emu68k_object_to_guest_facade(guest0, emu_result, EMU_OBJ_TextFont,
                                              base, NULL,
                                              "TextFont", M68K_TextFont_SIZEOF,

@@ -628,6 +628,24 @@ int Emu68k_OSCall(const char *libname, int lvo, APTR regs, APTR guest0,
         }
     }
 
+    if (strcmp(libname, "intuition.library") == 0)
+    {
+        /* The requesters. Both ASK THE USER, and a 68k program driven from a
+         * script or headlessly has nobody to ask - which is the same situation
+         * pr_WindowPtr = -1 already handles for dos, so the answer is the same:
+         * do not display anything, and give the negative reply.
+         *
+         * AutoRequest returns FALSE for the negative gadget; EasyRequestArgs
+         * returns 0, which is its rightmost gadget and conventionally Cancel.
+         * A program that asks "proceed?" therefore stops, which is the safe
+         * reading of no answer - it does not silently proceed on the user's
+         * behalf. Showing the text would mean converting IntuiText/EasyStruct
+         * and formatting a RAWARG list, which is separate work.
+         */
+        if (lvo == 58) { r->d[0] = DOSFALSE; return 0; }   /* AutoRequest      */
+        if (lvo == 98) { r->d[0] = 0;        return 0; }   /* EasyRequestArgs  */
+    }
+
     if (strcmp(libname, "icon.library") == 0)
     {
         /* FindToolType on a program launched from the Shell has no tool types

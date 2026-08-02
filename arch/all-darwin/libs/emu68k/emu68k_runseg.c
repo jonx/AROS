@@ -50,6 +50,8 @@ AROS_LH2(LONG, Emu68k_RunSeg,
     AROS_LIBFUNC_INIT
 
     APTR DOSBase;
+    struct Process *me;
+    APTR saved_winptr;
     struct emu68k_sinkctx sc;
     emu68k_run_h run;
     char err[256];
@@ -66,6 +68,17 @@ AROS_LH2(LONG, Emu68k_RunSeg,
     DOSBase = OpenLibrary("dos.library", 36);
     if (!DOSBase)
         return DOSFALSE;
+
+    /* A 68k program's dos calls are performed by THIS process, so a path it
+     * cannot resolve raises the usual AmigaDOS "please insert volume"
+     * requester - and a guest that is being driven headlessly, or from a
+     * script, then blocks inside a native call forever, somewhere the run's
+     * own wall-clock guard cannot reach. -1 is the standard way to say "fail
+     * the call instead of asking"; the guest sees an ordinary error, which is
+     * what it is equipped to handle. Restored before returning. */
+    me = (struct Process *)FindTask(NULL);
+    saved_winptr = me->pr_WindowPtr;
+    me->pr_WindowPtr = (APTR)-1;
 
     sc.dosbase = DOSBase;
     sc.out     = Output();
@@ -93,6 +106,7 @@ AROS_LH2(LONG, Emu68k_RunSeg,
         bug("[emu68k.library] \"%s\": routed FULL (%s)\n",
             ctx->elc_Name ? (const char *)ctx->elc_Name : "", err);
         *result = RETURN_FAIL;
+        me->pr_WindowPtr = saved_winptr;
         CloseLibrary(DOSBase);
         return DOSTRUE;               /* handled: a routing decision, not a decline */
     }
@@ -115,6 +129,7 @@ AROS_LH2(LONG, Emu68k_RunSeg,
             FPuts(sc.out, "\n");
         }
         *result = RETURN_FAIL;
+        me->pr_WindowPtr = saved_winptr;
         CloseLibrary(DOSBase);
         return DOSTRUE;                  /* handled: reported, not silently declined */
     }
@@ -195,7 +210,8 @@ AROS_LH2(LONG, Emu68k_RunSeg,
     }
 
     Emu68kBase->host.run_free(run);
-    CloseLibrary(DOSBase);
+    me->pr_WindowPtr = saved_winptr;
+        CloseLibrary(DOSBase);
     return ran;
 
     AROS_LIBFUNC_EXIT

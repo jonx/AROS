@@ -39,6 +39,11 @@
 #define DOS_LVO_WAITFORCHAR   34   /* -204 */
 #define DOS_LVO_ISINTERACTIVE 36   /* -216 */
 #define DOS_LVO_FLUSH         60   /* -360 */
+#define DOS_LVO_LOCK          14   /* -84  */
+#define DOS_LVO_UNLOCK        15   /* -90  */
+#define DOS_LVO_DUPLOCK       16   /* -96  */
+#define DOS_LVO_CREATEDIR     20   /* -120 */
+#define DOS_LVO_CURRENTDIR    21   /* -126 */
 #define DOS_LVO_IOERR   22    /* -132: what every failed dos call is followed by */
 #define DOS_LVO_GETPROGRAMNAME 96   /* -576 */
 #define DOS_LVO_GETVAR        151   /* -906 */
@@ -271,6 +276,31 @@ int Emu68k_OSCall(const char *libname, int lvo, APTR regs, APTR guest0,
 
         case DOS_LVO_FLUSH:           /* Flush(BPTR file D1)                      */
             r->d[0] = (ULONG)Flush(handle_bptr(r->d[1]));
+            return 0;
+
+        /* A lock is a BPTR like a file handle, so it crosses through the same
+         * table. What a program may NOT be handed is the native BPTR itself:
+         * it is 64-bit and a 68k register is not. */
+        case DOS_LVO_LOCK:            /* Lock(STRPTR name D1, LONG mode D2)       */
+            r->d[0] = handle_token(Lock((CONST_STRPTR)gptr(guest0, r->d[1]),
+                                        (LONG)r->d[2]));
+            return 0;
+
+        case DOS_LVO_UNLOCK:          /* UnLock(BPTR lock D1)                     */
+            UnLock(handle_bptr(r->d[1]));
+            handle_release(r->d[1]);
+            return 0;
+
+        case DOS_LVO_DUPLOCK:         /* DupLock(BPTR lock D1)                    */
+            r->d[0] = handle_token(DupLock(handle_bptr(r->d[1])));
+            return 0;
+
+        case DOS_LVO_CREATEDIR:       /* CreateDir(STRPTR name D1)                */
+            r->d[0] = handle_token(CreateDir((CONST_STRPTR)gptr(guest0, r->d[1])));
+            return 0;
+
+        case DOS_LVO_CURRENTDIR:      /* CurrentDir(BPTR lock D1) -> the old one  */
+            r->d[0] = handle_token(CurrentDir(handle_bptr(r->d[1])));
             return 0;
 
         case DOS_LVO_GETVAR:

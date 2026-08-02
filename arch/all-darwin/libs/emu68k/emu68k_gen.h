@@ -58,6 +58,24 @@ ULONG emu68k_handle_token(APTR guest0, BPTR b);
 #define EMU_HANDLE(g0, t)  emu68k_handle_bptr((g0), (ULONG)(t))
 #define EMU_TOKEN(g0, b)   emu68k_handle_token((g0), (b))
 
+/* A 68k IEEE double is the raw bit pattern in a register pair, high half first.
+ * Nothing is converted: the same 64 bits are handed to a native double, which is
+ * the same format. The union is there so it is a reinterpretation and not a
+ * numeric conversion. */
+static inline double emu68k_double_in(ULONG hi, ULONG lo)
+{
+    union { double d; UQUAD q; } u;
+    u.q = ((UQUAD)hi << 32) | (UQUAD)lo;
+    return u.d;
+}
+static inline void emu68k_double_out(double v, ULONG *hi, ULONG *lo)
+{
+    union { double d; UQUAD q; } u;
+    u.d = v;
+    *hi = (ULONG)(u.q >> 32);
+    *lo = (ULONG)u.q;
+}
+
 UQUAD emu68k_scalar_from_guest(APTR guest0, ULONG addr, UBYTE width);
 void  emu68k_scalar_to_guest(APTR guest0, ULONG addr, UBYTE width, UQUAD value);
 
@@ -138,6 +156,7 @@ enum
     EMU_OBJ_SignalSemaphore = 6,
     EMU_OBJ_MsgPort = 7,
     EMU_OBJ_Region = 8,
+    EMU_OBJ_Screen = 9,
 };
 int emu68k_gen_exec(int lvo, struct Emu68kRegs *r,
                   APTR guest0, APTR base,
@@ -197,6 +216,15 @@ int emu68k_gen_mathieeesingbas(int lvo, struct Emu68kRegs *r,
                   APTR guest0, APTR base,
                   char *err, ULONG errlen);
 int emu68k_gen_mathieeedoubbas(int lvo, struct Emu68kRegs *r,
+                  APTR guest0, APTR base,
+                  char *err, ULONG errlen);
+int emu68k_gen_mathieeesingtrans(int lvo, struct Emu68kRegs *r,
+                  APTR guest0, APTR base,
+                  char *err, ULONG errlen);
+int emu68k_gen_mathieeedoubtrans(int lvo, struct Emu68kRegs *r,
+                  APTR guest0, APTR base,
+                  char *err, ULONG errlen);
+int emu68k_gen_mathtrans(int lvo, struct Emu68kRegs *r,
                   APTR guest0, APTR base,
                   char *err, ULONG errlen);
 #endif /* EMU68K_GEN_H */

@@ -128,6 +128,26 @@ int emu68k_gen_intuition(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
     case 70:  /* UnlockIBase(ULONG ibLock) -> void  [-420] */
         UnlockIBase((ULONG)r->a[0]);
         return 0;
+    case 85:  /* LockPubScreen(CONST_STRPTR name) -> struct Screen *  [-510] */
+    {
+        APTR emu_result = (APTR)LockPubScreen((CONST_STRPTR)EMU_GPTR(guest0, r->a[0]));
+        if (emu68k_object_to_guest(guest0, emu_result, EMU_OBJ_Screen,
+                                      base, NULL,
+                                      "Screen", &r->d[0], err, errlen) < 0)
+            return 1;
+            return 0;
+    }
+    case 86:  /* UnlockPubScreen(UBYTE * name, struct Screen * screen) -> void  [-516] */
+    {
+        APTR emu_object_1;
+        if (emu68k_object_from_guest(guest0, r->a[1], EMU_OBJ_Screen, 1,
+                                        "Screen", &emu_object_1, err, errlen) < 0)
+            return 1;
+            UnlockPubScreen((UBYTE *)EMU_GPTR(guest0, r->a[0]),
+              (struct Screen *)emu_object_1);
+        emu68k_object_release(guest0, r->a[1], EMU_OBJ_Screen);
+            return 0;
+    }
     case 88:  /* UnlockPubScreenList(void) -> void  [-528] */
         UnlockPubScreenList();
         return 0;

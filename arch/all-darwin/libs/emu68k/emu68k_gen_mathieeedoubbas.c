@@ -19,6 +19,47 @@ int emu68k_gen_mathieeedoubbas(int lvo, struct Emu68kRegs *r, APTR guest0, APTR 
 
     switch (lvo)
     {
+    case 5:  /* IEEEDPFix(double y) -> LONG  [-30] */
+        r->d[0] = (ULONG)IEEEDPFix(emu68k_double_in(r->d[0], r->d[1]));
+        return 0;
+    case 6:  /* IEEEDPFlt(LONG y) -> double  [-36] */
+        emu68k_double_out(IEEEDPFlt((LONG)r->d[0]), &r->d[0], &r->d[1]);
+        return 0;
+    case 7:  /* IEEEDPCmp(double y, double z) -> LONG  [-42] */
+        r->d[0] = (ULONG)IEEEDPCmp(emu68k_double_in(r->d[0], r->d[1]),
+              emu68k_double_in(r->d[2], r->d[3]));
+        return 0;
+    case 8:  /* IEEEDPTst(double y) -> LONG  [-48] */
+        r->d[0] = (ULONG)IEEEDPTst(emu68k_double_in(r->d[0], r->d[1]));
+        return 0;
+    case 9:  /* IEEEDPAbs(double y) -> double  [-54] */
+        emu68k_double_out(IEEEDPAbs(emu68k_double_in(r->d[0], r->d[1])), &r->d[0], &r->d[1]);
+        return 0;
+    case 10:  /* IEEEDPNeg(double y) -> double  [-60] */
+        emu68k_double_out(IEEEDPNeg(emu68k_double_in(r->d[0], r->d[1])), &r->d[0], &r->d[1]);
+        return 0;
+    case 11:  /* IEEEDPAdd(double y, double z) -> double  [-66] */
+        emu68k_double_out(IEEEDPAdd(emu68k_double_in(r->d[0], r->d[1]),
+              emu68k_double_in(r->d[2], r->d[3])), &r->d[0], &r->d[1]);
+        return 0;
+    case 12:  /* IEEEDPSub(double y, double z) -> double  [-72] */
+        emu68k_double_out(IEEEDPSub(emu68k_double_in(r->d[0], r->d[1]),
+              emu68k_double_in(r->d[2], r->d[3])), &r->d[0], &r->d[1]);
+        return 0;
+    case 13:  /* IEEEDPMul(double y, double z) -> double  [-78] */
+        emu68k_double_out(IEEEDPMul(emu68k_double_in(r->d[0], r->d[1]),
+              emu68k_double_in(r->d[2], r->d[3])), &r->d[0], &r->d[1]);
+        return 0;
+    case 14:  /* IEEEDPDiv(double y, double z) -> double  [-84] */
+        emu68k_double_out(IEEEDPDiv(emu68k_double_in(r->d[0], r->d[1]),
+              emu68k_double_in(r->d[2], r->d[3])), &r->d[0], &r->d[1]);
+        return 0;
+    case 15:  /* IEEEDPFloor(double y) -> double  [-90] */
+        emu68k_double_out(IEEEDPFloor(emu68k_double_in(r->d[0], r->d[1])), &r->d[0], &r->d[1]);
+        return 0;
+    case 16:  /* IEEEDPCeil(double y) -> double  [-96] */
+        emu68k_double_out(IEEEDPCeil(emu68k_double_in(r->d[0], r->d[1])), &r->d[0], &r->d[1]);
+        return 0;
     }
     return 1;   /* no safe generated crossing for this vector */
 }

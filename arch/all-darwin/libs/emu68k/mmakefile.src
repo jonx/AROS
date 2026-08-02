@@ -23,6 +23,8 @@ USER_INCLUDES += -isystem $(GENINCDIR)
            emu68k_gen_iffparse emu68k_gen_commodities emu68k_gen_diskfont \
            emu68k_gen_locale emu68k_gen_keymap emu68k_gen_datatypes \
            emu68k_gen_expansion emu68k_gen_cybergraphics emu68k_gen_mathffp \
-           emu68k_gen_mathieeesingbas emu68k_gen_mathieeedoubbas"
+           emu68k_gen_mathieeesingbas emu68k_gen_mathieeedoubbas \
+           emu68k_gen_mathieeesingtrans emu68k_gen_mathieeedoubtrans \
+           emu68k_gen_mathtrans"
 
 %common

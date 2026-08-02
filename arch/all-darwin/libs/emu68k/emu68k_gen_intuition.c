@@ -119,7 +119,7 @@ int emu68k_gen_intuition(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
                                         "Object", &emu_object_0, err, errlen) < 0)
             return 1;
             DisposeObject((APTR)emu_object_0);
-        emu68k_object_release(guest0, r->a[0], EMU_OBJ_Object);
+        emu68k_object_consume(guest0, r->a[0], EMU_OBJ_Object);
             return 0;
     }
     case 113:  /* MakeClass(ClassID classID, ClassID superClassID, struct IClass * superClassPtr, ULONG instanceSize, ULONG flags) -> struct IClass *  [-678] */

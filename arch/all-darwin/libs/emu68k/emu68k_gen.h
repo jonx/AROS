@@ -75,6 +75,7 @@ LONG emu68k_object_to_guest_facade(APTR guest0, APTR native, UWORD type,
                                    const struct EmuField *fields, int field_count,
                                    ULONG *token, char *err, ULONG errlen);
 void emu68k_object_release(APTR guest0, ULONG token, UWORD type);
+void emu68k_object_consume(APTR guest0, ULONG token, UWORD type);
 LONG emu68k_hook_prepare(APTR guest0, ULONG guest_hook,
                          struct Emu68kHookBridge *bridge,
                          char *err, ULONG errlen);
@@ -124,6 +125,9 @@ enum
     EMU_OBJ_DiskObject = 3,
     EMU_OBJ_Class = 4,
     EMU_OBJ_Object = 5,
+    EMU_OBJ_SignalSemaphore = 6,
+    EMU_OBJ_MsgPort = 7,
+    EMU_OBJ_Region = 8,
 };
 int emu68k_gen_exec(int lvo, struct Emu68kRegs *r,
                   APTR guest0, APTR base,

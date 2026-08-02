@@ -61,7 +61,7 @@ int emu68k_gen_icon(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
                                         "DiskObject", &emu_object_0, err, errlen) < 0)
             return 1;
             FreeDiskObject((struct DiskObject *)emu_object_0);
-        emu68k_object_release(guest0, r->a[0], EMU_OBJ_DiskObject);
+        emu68k_object_consume(guest0, r->a[0], EMU_OBJ_DiskObject);
             return 0;
     }
     case 17:  /* MatchToolValue(UBYTE * typeString, UBYTE * value) -> BOOL  [-102] */

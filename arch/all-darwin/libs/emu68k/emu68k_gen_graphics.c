@@ -8,9 +8,11 @@
 
 #include <exec/types.h>
 #include <proto/graphics.h>
+#include <string.h>
 #include <graphics/modeid.h>
 
 #include "emu68k_gen.h"
+#include "emu68k_layouts.h"
 
 static const struct EmuTagDesc emu_tagdesc_graphics_best_mode[] =
 {
@@ -32,6 +34,12 @@ static const struct EmuTagDomain emu_tagdomain_graphics_best_mode =
 {
     emu_tagdesc_graphics_best_mode, 13, "graphics.best_mode"
 };
+
+static void emu_object_cleanup_Region(APTR emu_base, APTR emu_object)
+{
+    struct GfxBase *GfxBase = emu_base;
+    DisposeRegion((struct Region *)emu_object);
+}
 
 int emu68k_gen_graphics(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
                   char *err, ULONG errlen)
@@ -59,6 +67,102 @@ int emu68k_gen_graphics(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
     case 77:  /* DisownBlitter(void) -> void  [-462] */
         DisownBlitter();
         return 0;
+    case 84:  /* AndRectRegion(struct Region * Reg, struct Rectangle * Rect) -> void  [-504] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_Region, 0,
+                                        "Region", &emu_object_0, err, errlen) < 0)
+            return 1;
+        struct Rectangle emu_struct_1;
+        if (emu68k_require_guest_range(r->a[1], M68K_Rectangle_SIZEOF,
+                                         "AndRectRegion.Rect", err, errlen) < 0)
+            return 1;
+        memset(&emu_struct_1, 0, sizeof(emu_struct_1));
+        emu68k_from_guest(guest0, r->a[1], &emu_struct_1,
+                             emu_fields_Rectangle, EMU_NFIELDS(emu_fields_Rectangle));
+            AndRectRegion((struct Region *)emu_object_0,
+              (struct Rectangle *)&emu_struct_1);
+            return 0;
+    }
+    case 85:  /* OrRectRegion(struct Region * Reg, struct Rectangle * Rect) -> BOOL  [-510] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_Region, 0,
+                                        "Region", &emu_object_0, err, errlen) < 0)
+            return 1;
+        struct Rectangle emu_struct_1;
+        if (emu68k_require_guest_range(r->a[1], M68K_Rectangle_SIZEOF,
+                                         "OrRectRegion.Rect", err, errlen) < 0)
+            return 1;
+        memset(&emu_struct_1, 0, sizeof(emu_struct_1));
+        emu68k_from_guest(guest0, r->a[1], &emu_struct_1,
+                             emu_fields_Rectangle, EMU_NFIELDS(emu_fields_Rectangle));
+            r->d[0] = (ULONG)OrRectRegion((struct Region *)emu_object_0,
+              (struct Rectangle *)&emu_struct_1);
+            return 0;
+    }
+    case 86:  /* NewRegion(void) -> struct Region *  [-516] */
+    {
+        APTR emu_result = (APTR)NewRegion();
+        if (emu68k_object_to_guest(guest0, emu_result, EMU_OBJ_Region,
+                                      base, emu_object_cleanup_Region,
+                                      "Region", &r->d[0], err, errlen) < 0)
+            return 1;
+            return 0;
+    }
+    case 87:  /* ClearRectRegion(struct Region * Reg, struct Rectangle * Rect) -> BOOL  [-522] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_Region, 0,
+                                        "Region", &emu_object_0, err, errlen) < 0)
+            return 1;
+        struct Rectangle emu_struct_1;
+        if (emu68k_require_guest_range(r->a[1], M68K_Rectangle_SIZEOF,
+                                         "ClearRectRegion.Rect", err, errlen) < 0)
+            return 1;
+        memset(&emu_struct_1, 0, sizeof(emu_struct_1));
+        emu68k_from_guest(guest0, r->a[1], &emu_struct_1,
+                             emu_fields_Rectangle, EMU_NFIELDS(emu_fields_Rectangle));
+            r->d[0] = (ULONG)ClearRectRegion((struct Region *)emu_object_0,
+              (struct Rectangle *)&emu_struct_1);
+            return 0;
+    }
+    case 88:  /* ClearRegion(struct Region * region) -> void  [-528] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_Region, 0,
+                                        "Region", &emu_object_0, err, errlen) < 0)
+            return 1;
+            ClearRegion((struct Region *)emu_object_0);
+            return 0;
+    }
+    case 89:  /* DisposeRegion(struct Region * region) -> void  [-534] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_Region, 1,
+                                        "Region", &emu_object_0, err, errlen) < 0)
+            return 1;
+            DisposeRegion((struct Region *)emu_object_0);
+        emu68k_object_consume(guest0, r->a[0], EMU_OBJ_Region);
+            return 0;
+    }
+    case 93:  /* XorRectRegion(struct Region * Reg, struct Rectangle * Rect) -> BOOL  [-558] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_Region, 0,
+                                        "Region", &emu_object_0, err, errlen) < 0)
+            return 1;
+        struct Rectangle emu_struct_1;
+        if (emu68k_require_guest_range(r->a[1], M68K_Rectangle_SIZEOF,
+                                         "XorRectRegion.Rect", err, errlen) < 0)
+            return 1;
+        memset(&emu_struct_1, 0, sizeof(emu_struct_1));
+        emu68k_from_guest(guest0, r->a[1], &emu_struct_1,
+                             emu_fields_Rectangle, EMU_NFIELDS(emu_fields_Rectangle));
+            r->d[0] = (ULONG)XorRectRegion((struct Region *)emu_object_0,
+              (struct Rectangle *)&emu_struct_1);
+            return 0;
+    }
     case 114:  /* ScalerDiv(UWORD factor, UWORD numerator, UWORD denominator) -> UWORD  [-684] */
         r->d[0] = (ULONG)ScalerDiv((UWORD)r->d[0],
               (UWORD)r->d[1],
@@ -80,6 +184,45 @@ int emu68k_gen_graphics(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
                                      emu_tags_0, 33, err, errlen) < 0)
             return 1;
             r->d[0] = (ULONG)BestModeIDA((struct TagItem *)(r->a[0] ? emu_tags_0 : NULL));
+            return 0;
+    }
+    case 181:  /* SetRegion(struct Region * src, struct Region * dest) -> BOOL  [-1086] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_Region, 0,
+                                        "Region", &emu_object_0, err, errlen) < 0)
+            return 1;
+        APTR emu_object_1;
+        if (emu68k_object_from_guest(guest0, r->a[1], EMU_OBJ_Region, 0,
+                                        "Region", &emu_object_1, err, errlen) < 0)
+            return 1;
+            r->d[0] = (ULONG)SetRegion((struct Region *)emu_object_0,
+              (struct Region *)emu_object_1);
+            return 0;
+    }
+    case 183:  /* AreRegionsEqual(struct Region * R1, struct Region * R2) -> BOOL  [-1098] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_Region, 0,
+                                        "Region", &emu_object_0, err, errlen) < 0)
+            return 1;
+        APTR emu_object_1;
+        if (emu68k_object_from_guest(guest0, r->a[1], EMU_OBJ_Region, 0,
+                                        "Region", &emu_object_1, err, errlen) < 0)
+            return 1;
+            r->d[0] = (ULONG)AreRegionsEqual((struct Region *)emu_object_0,
+              (struct Region *)emu_object_1);
+            return 0;
+    }
+    case 184:  /* IsPointInRegion(struct Region * Reg, WORD x, WORD y) -> BOOL  [-1104] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_Region, 0,
+                                        "Region", &emu_object_0, err, errlen) < 0)
+            return 1;
+            r->d[0] = (ULONG)IsPointInRegion((struct Region *)emu_object_0,
+              (WORD)r->d[0],
+              (WORD)r->d[1]);
             return 0;
     }
     }

@@ -254,6 +254,13 @@ struct EmuField
 #define M68K_IClass_cl_ObjectSize 52   /* native @92 - CONVERT */
 #define M68K_IClass_cl_MemoryPool 56   /* native @96 - CONVERT */
 
+/* struct Rectangle: 8 bytes on m68k (Rectangle), 8 native (Rectangle) */
+#define M68K_Rectangle_SIZEOF 8
+#define M68K_Rectangle_MinX 0
+#define M68K_Rectangle_MinY 2
+#define M68K_Rectangle_MaxX 4
+#define M68K_Rectangle_MaxY 6
+
 /* The conversion tables. Each row is one field: where it lives on
  * each side, how wide it is on each side, and what may be done to it.
  * A generic walker (emu68k_marshal.c) is all that is needed to convert
@@ -485,5 +492,12 @@ static const struct EmuField emu_fields_IClass[] = {
  *   cl_UserData (IPTR)
  *   cl_MemoryPool (APTR)
  */
+
+static const struct EmuField emu_fields_Rectangle[] = {
+    {    0,    0, 2, 2, EMU_F_SCALAR },   /* MinX                 WORD */
+    {    2,    2, 2, 2, EMU_F_SCALAR },   /* MinY                 WORD */
+    {    4,    4, 2, 2, EMU_F_SCALAR },   /* MaxX                 WORD */
+    {    6,    6, 2, 2, EMU_F_SCALAR },   /* MaxY                 WORD */
+};
 
 #endif /* EMU68K_LAYOUTS_H */

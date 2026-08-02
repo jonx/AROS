@@ -556,6 +556,13 @@ void emu68k_object_release(APTR guest0, ULONG token, UWORD type)
         memset(o, 0, sizeof *o);
 }
 
+void emu68k_object_consume(APTR guest0, ULONG token, UWORD type)
+{
+    struct Emu68kObject *o = object_by_token(run_state(guest0), token);
+    if (!o || o->type != type) return;
+    memset(o, 0, sizeof *o);
+}
+
 /* ---- GUEST-SIDE STRUCTURE WRITES ------------------------------------------
  * Guest memory is BIG-ENDIAN with 32-bit fields; this side is little-endian
  * with 64-bit ones. So a structure is never copied, it is rebuilt a field at a

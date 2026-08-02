@@ -22,6 +22,60 @@ int emu68k_gen_exec(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
     case 36:  /* AvailMem(ULONG attributes) -> IPTR  [-216] */
         r->d[0] = (ULONG)AvailMem((ULONG)r->d[1]);   /* narrowed: an integer, never an address */
         return 0;
+    case 94:  /* ObtainSemaphore(struct SignalSemaphore * sigSem) -> void  [-564] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_SignalSemaphore, 0,
+                                        "SignalSemaphore", &emu_object_0, err, errlen) < 0)
+            return 1;
+            ObtainSemaphore((struct SignalSemaphore *)emu_object_0);
+            return 0;
+    }
+    case 95:  /* ReleaseSemaphore(struct SignalSemaphore * sigSem) -> void  [-570] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_SignalSemaphore, 0,
+                                        "SignalSemaphore", &emu_object_0, err, errlen) < 0)
+            return 1;
+            ReleaseSemaphore((struct SignalSemaphore *)emu_object_0);
+            return 0;
+    }
+    case 96:  /* AttemptSemaphore(struct SignalSemaphore * sigSem) -> ULONG  [-576] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_SignalSemaphore, 0,
+                                        "SignalSemaphore", &emu_object_0, err, errlen) < 0)
+            return 1;
+            r->d[0] = (ULONG)AttemptSemaphore((struct SignalSemaphore *)emu_object_0);
+            return 0;
+    }
+    case 99:  /* FindSemaphore(CONST_STRPTR name) -> struct SignalSemaphore *  [-594] */
+    {
+        APTR emu_result = (APTR)FindSemaphore((CONST_STRPTR)EMU_GPTR(guest0, r->a[1]));
+        if (emu68k_object_to_guest(guest0, emu_result, EMU_OBJ_SignalSemaphore,
+                                      base, NULL,
+                                      "SignalSemaphore", &r->d[0], err, errlen) < 0)
+            return 1;
+            return 0;
+    }
+    case 113:  /* ObtainSemaphoreShared(struct SignalSemaphore * sigSem) -> void  [-678] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_SignalSemaphore, 0,
+                                        "SignalSemaphore", &emu_object_0, err, errlen) < 0)
+            return 1;
+            ObtainSemaphoreShared((struct SignalSemaphore *)emu_object_0);
+            return 0;
+    }
+    case 120:  /* AttemptSemaphoreShared(struct SignalSemaphore * sigSem) -> ULONG  [-720] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_SignalSemaphore, 0,
+                                        "SignalSemaphore", &emu_object_0, err, errlen) < 0)
+            return 1;
+            r->d[0] = (ULONG)AttemptSemaphoreShared((struct SignalSemaphore *)emu_object_0);
+            return 0;
+    }
     }
     return 1;   /* no safe generated crossing for this vector */
 }

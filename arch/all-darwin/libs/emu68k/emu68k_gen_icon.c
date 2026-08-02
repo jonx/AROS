@@ -8,8 +8,32 @@
 
 #include <exec/types.h>
 #include <proto/icon.h>
+#include <string.h>
+#include <workbench/icon.h>
 
 #include "emu68k_gen.h"
+#include "emu68k_layouts.h"
+
+static const struct EmuTagDesc emu_tagdesc_icon_duplicate[] =
+{
+    { ICONDUPA_DuplicateDrawerData, EMU_TAG_U32, "ICONDUPA_DuplicateDrawerData" },
+    { ICONDUPA_DuplicateImages, EMU_TAG_U32, "ICONDUPA_DuplicateImages" },
+    { ICONDUPA_DuplicateImageData, EMU_TAG_U32, "ICONDUPA_DuplicateImageData" },
+    { ICONDUPA_DuplicateDefaultTool, EMU_TAG_U32, "ICONDUPA_DuplicateDefaultTool" },
+    { ICONDUPA_DuplicateToolTypes, EMU_TAG_U32, "ICONDUPA_DuplicateToolTypes" },
+    { ICONDUPA_DuplicateToolWindow, EMU_TAG_U32, "ICONDUPA_DuplicateToolWindow" },
+    { ICONDUPA_ActivateImageData, EMU_TAG_U32, "ICONDUPA_ActivateImageData" },
+};
+static const struct EmuTagDomain emu_tagdomain_icon_duplicate =
+{
+    emu_tagdesc_icon_duplicate, (UWORD)(sizeof(emu_tagdesc_icon_duplicate) / sizeof(emu_tagdesc_icon_duplicate[0])), "icon.duplicate"
+};
+
+static void emu_object_cleanup_DiskObject(APTR emu_base, APTR emu_object)
+{
+    struct Library *IconBase = emu_base;
+    FreeDiskObject((struct DiskObject *)emu_object);
+}
 
 int emu68k_gen_icon(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
                   char *err, ULONG errlen)
@@ -19,13 +43,87 @@ int emu68k_gen_icon(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
 
     switch (lvo)
     {
+    case 13:  /* GetDiskObject(CONST_STRPTR name) -> struct DiskObject *  [-78] */
+    {
+        APTR emu_result = (APTR)GetDiskObject((CONST_STRPTR)EMU_GPTR(guest0, r->a[0]));
+        if (emu68k_object_to_guest_facade(guest0, emu_result, EMU_OBJ_DiskObject,
+                                             base, emu_object_cleanup_DiskObject,
+                                             "DiskObject", M68K_DiskObject_SIZEOF,
+                                             emu_fields_DiskObject, EMU_NFIELDS(emu_fields_DiskObject),
+                                             &r->d[0], err, errlen) < 0)
+            return 1;
+            return 0;
+    }
+    case 15:  /* FreeDiskObject(struct DiskObject * diskobj) -> void  [-90] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_DiskObject, 1,
+                                        "DiskObject", &emu_object_0, err, errlen) < 0)
+            return 1;
+            FreeDiskObject((struct DiskObject *)emu_object_0);
+        emu68k_object_release(guest0, r->a[0], EMU_OBJ_DiskObject);
+            return 0;
+    }
     case 17:  /* MatchToolValue(UBYTE * typeString, UBYTE * value) -> BOOL  [-102] */
         r->d[0] = (ULONG)MatchToolValue((UBYTE *)EMU_GPTR(guest0, r->a[0]),
               (UBYTE *)EMU_GPTR(guest0, r->a[1]));
         return 0;
+    case 20:  /* GetDefDiskObject(LONG type) -> struct DiskObject *  [-120] */
+    {
+        APTR emu_result = (APTR)GetDefDiskObject((LONG)r->d[0]);
+        if (emu68k_object_to_guest_facade(guest0, emu_result, EMU_OBJ_DiskObject,
+                                             base, emu_object_cleanup_DiskObject,
+                                             "DiskObject", M68K_DiskObject_SIZEOF,
+                                             emu_fields_DiskObject, EMU_NFIELDS(emu_fields_DiskObject),
+                                             &r->d[0], err, errlen) < 0)
+            return 1;
+            return 0;
+    }
+    case 22:  /* GetDiskObjectNew(CONST_STRPTR name) -> struct DiskObject *  [-132] */
+    {
+        APTR emu_result = (APTR)GetDiskObjectNew((CONST_STRPTR)EMU_GPTR(guest0, r->a[0]));
+        if (emu68k_object_to_guest_facade(guest0, emu_result, EMU_OBJ_DiskObject,
+                                             base, emu_object_cleanup_DiskObject,
+                                             "DiskObject", M68K_DiskObject_SIZEOF,
+                                             emu_fields_DiskObject, EMU_NFIELDS(emu_fields_DiskObject),
+                                             &r->d[0], err, errlen) < 0)
+            return 1;
+            return 0;
+    }
     case 23:  /* DeleteDiskObject(UBYTE * name) -> BOOL  [-138] */
         r->d[0] = (ULONG)DeleteDiskObject((UBYTE *)EMU_GPTR(guest0, r->a[0]));
         return 0;
+    case 25:  /* DupDiskObjectA(struct DiskObject * icon, struct TagItem * tags) -> struct DiskObject *  [-150] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_DiskObject, 0,
+                                        "DiskObject", &emu_object_0, err, errlen) < 0)
+            return 1;
+        struct TagItem emu_tags_1[9];
+        if (emu68k_tags_to_native(guest0, r->a[1], &emu_tagdomain_icon_duplicate,
+                                     emu_tags_1, 9, err, errlen) < 0)
+            return 1;
+        APTR emu_result = (APTR)DupDiskObjectA((struct DiskObject *)emu_object_0,
+              (struct TagItem *)(r->a[1] ? emu_tags_1 : NULL));
+        if (emu68k_object_to_guest_facade(guest0, emu_result, EMU_OBJ_DiskObject,
+                                             base, emu_object_cleanup_DiskObject,
+                                             "DiskObject", M68K_DiskObject_SIZEOF,
+                                             emu_fields_DiskObject, EMU_NFIELDS(emu_fields_DiskObject),
+                                             &r->d[0], err, errlen) < 0)
+            return 1;
+            return 0;
+    }
+    case 29:  /* NewDiskObject(ULONG type) -> struct DiskObject *  [-174] */
+    {
+        APTR emu_result = (APTR)NewDiskObject((ULONG)r->d[0]);
+        if (emu68k_object_to_guest_facade(guest0, emu_result, EMU_OBJ_DiskObject,
+                                             base, emu_object_cleanup_DiskObject,
+                                             "DiskObject", M68K_DiskObject_SIZEOF,
+                                             emu_fields_DiskObject, EMU_NFIELDS(emu_fields_DiskObject),
+                                             &r->d[0], err, errlen) < 0)
+            return 1;
+            return 0;
+    }
     }
     return 1;   /* no safe generated crossing for this vector */
 }

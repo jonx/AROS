@@ -48,6 +48,14 @@ struct Emu68kHostIf
                                  APTR guest0, APTR user, char *err, ULONG errlen),
                        APTR user);
     APTR (*run_guest0)(emu68k_run_h r);
+    ULONG (*run_guest_alloc)(emu68k_run_h r, unsigned long size);
+};
+
+struct Emu68kOSCallCtx
+{
+    APTR dosbase;
+    emu68k_run_h run;
+    ULONG (*guest_alloc)(emu68k_run_h r, unsigned long size);
 };
 
 struct Emu68kBase

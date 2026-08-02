@@ -54,6 +54,7 @@ AROS_LH2(LONG, Emu68k_RunSeg,
     struct Process *me;
     APTR saved_winptr;
     struct emu68k_sinkctx sc;
+    struct Emu68kOSCallCtx osctx;
     emu68k_run_h run;
     char err[256];
     unsigned int d0 = 0;
@@ -137,11 +138,14 @@ AROS_LH2(LONG, Emu68k_RunSeg,
     if (ctx->elc_Name)
         Emu68kBase->host.run_set_name(run, (const char *)ctx->elc_Name);
 
-    /* [T3] Library calls the engine cannot serve itself come back to us, and we
-     * perform them as real native AROS calls. DOSBase rides along as the user
-     * pointer so the bridge does not have to open its own. */
+    /* [T3] Library calls the engine cannot serve itself come back to us. The
+     * context carries DOSBase plus the current run's guest allocator, which is
+     * how native-created readable façades receive real guest addresses. */
+    osctx.dosbase = DOSBase;
+    osctx.run = run;
+    osctx.guest_alloc = Emu68kBase->host.run_guest_alloc;
     if (Emu68kBase->host.set_oscall)
-        Emu68kBase->host.set_oscall(Emu68k_OSCall, DOSBase);
+        Emu68kBase->host.set_oscall(Emu68k_OSCall, &osctx);
 
     D(bug("[emu68k.library] run \"%s\" origin=%lu args=%lub\n",
           ctx->elc_Name ? (const char *)ctx->elc_Name : "",

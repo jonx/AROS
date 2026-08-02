@@ -281,7 +281,6 @@ static const struct EmuField emu_fields_AnchorPath[] = {
  */
 
 static const struct EmuField emu_fields_AChain[] = {
-    {    8,   16, 4, 8, EMU_F_SCALAR },   /* an_Lock              BPTR */
     {   12,   24, 4, 8, EMU_F_SCALAR },   /* fib_DiskKey          IPTR */
     {   16,   32, 4, 4, EMU_F_SCALAR },   /* fib_DirEntryType     LONG */
     {   20,   36, 108, 108, EMU_F_BYTES },   /* fib_FileName         UBYTE[108] */
@@ -302,6 +301,7 @@ static const struct EmuField emu_fields_AChain[] = {
 /* NOT converted, and deliberately not guessed at:
  *   an_Child (struct AChain *)
  *   an_Parent (struct AChain *)
+ *   an_Lock (BPTR)
  *   an_Info (struct FileInfoBlock32)
  *   fib_Date (struct DateStamp)
  */
@@ -320,14 +320,11 @@ static const struct EmuField emu_fields_InfoData[] = {
     {   16,   16, 4, 4, EMU_F_SCALAR },   /* id_NumBlocksUsed     LONG */
     {   20,   20, 4, 4, EMU_F_SCALAR },   /* id_BytesPerBlock     LONG */
     {   24,   24, 4, 4, EMU_F_SCALAR },   /* id_DiskType          LONG */
-    {   28,   32, 4, 8, EMU_F_SCALAR },   /* id_VolumeNode        BPTR */
     {   32,   40, 4, 8, EMU_F_SCALAR },   /* id_InUse             IPTR */
 };
-
-static const struct EmuField emu_fields_TagItem[] = {
-    {    0,    0, 4, 8, EMU_F_SCALAR },   /* ti_Tag               Tag */
-    {    4,    8, 4, 8, EMU_F_SCALAR },   /* ti_Data              IPTR */
-};
+/* NOT converted, and deliberately not guessed at:
+ *   id_VolumeNode (BPTR)
+ */
 
 static const struct EmuField emu_fields_Node[] = {
     {    8,   16, 1, 1, EMU_F_SCALAR },   /* ln_Type              UBYTE */
@@ -399,25 +396,25 @@ static const struct EmuField emu_fields_DiskObject[] = {
     {   16,   24, 2, 2, EMU_F_SCALAR },   /* Flags                UWORD */
     {   18,   26, 2, 2, EMU_F_SCALAR },   /* Activation           UWORD */
     {   20,   28, 2, 2, EMU_F_SCALAR },   /* GadgetType           UWORD */
-    {   22,   32, 4, 8, EMU_F_SCALAR },   /* GadgetRender         APTR */
-    {   26,   40, 4, 8, EMU_F_SCALAR },   /* SelectRender         APTR */
-    {   34,   56, 4, 8, EMU_F_SCALAR },   /* MutualExclude        IPTR */
-    {   38,   64, 4, 8, EMU_F_SCALAR },   /* SpecialInfo          APTR */
     {   42,   72, 2, 2, EMU_F_SCALAR },   /* GadgetID             UWORD */
-    {   44,   80, 4, 8, EMU_F_SCALAR },   /* UserData             APTR */
     {   48,   88, 1, 1, EMU_F_SCALAR },   /* do_Type              UBYTE */
-    {   50,   96, 4, 8, EMU_F_SCALAR },   /* do_DefaultTool       STRPTR */
     {   58,  112, 4, 4, EMU_F_SCALAR },   /* do_CurrentX          LONG */
     {   62,  116, 4, 4, EMU_F_SCALAR },   /* do_CurrentY          LONG */
-    {   70,  128, 4, 8, EMU_F_SCALAR },   /* do_ToolWindow        STRPTR */
     {   74,  136, 4, 4, EMU_F_SCALAR },   /* do_StackSize         LONG */
 };
 /* NOT converted, and deliberately not guessed at:
  *   do_Gadget (struct Gadget)
  *   NextGadget (struct Gadget *)
+ *   GadgetRender (APTR)
+ *   SelectRender (APTR)
  *   GadgetText (struct IntuiText *)
+ *   MutualExclude (IPTR)
+ *   SpecialInfo (APTR)
+ *   UserData (APTR)
+ *   do_DefaultTool (STRPTR)
  *   do_ToolTypes (STRPTR *)
  *   do_DrawerData (struct DrawerData *)
+ *   do_ToolWindow (STRPTR)
  */
 
 static const struct EmuField emu_fields_ExAllData[] = {

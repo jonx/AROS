@@ -33,6 +33,59 @@ int emu68k_gen_dos(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
         r->d[0] = (ULONG)Rename((CONST_STRPTR)EMU_GPTR(guest0, r->d[1]),
               (CONST_STRPTR)EMU_GPTR(guest0, r->d[2]));
         return 0;
+    case 17:  /* Examine(BPTR lock, struct FileInfoBlock* fib) -> LONG  [-102] */
+    {
+        struct FileInfoBlock emu_struct_1;
+        if (emu68k_require_guest_range(r->d[2], M68K_FileInfoBlock_SIZEOF,
+                                         "Examine.fib", err, errlen) < 0)
+            return 1;
+        memset(&emu_struct_1, 0, sizeof(emu_struct_1));
+            r->d[0] = (ULONG)Examine(EMU_HANDLE(guest0, r->d[1]),
+              (struct FileInfoBlock*)&emu_struct_1);
+        if (r->d[0])
+        {
+            memset(EMU_GPTR(guest0, r->d[2]), 0, M68K_FileInfoBlock_SIZEOF);
+            emu68k_to_guest(guest0, r->d[2], &emu_struct_1,
+                               emu_fields_FileInfoBlock, EMU_NFIELDS(emu_fields_FileInfoBlock));
+        }
+            return 0;
+    }
+    case 18:  /* ExNext(BPTR lock, struct FileInfoBlock* fileInfoBlock) -> LONG  [-108] */
+    {
+        struct FileInfoBlock emu_struct_1;
+        if (emu68k_require_guest_range(r->d[2], M68K_FileInfoBlock_SIZEOF,
+                                         "ExNext.fileInfoBlock", err, errlen) < 0)
+            return 1;
+        memset(&emu_struct_1, 0, sizeof(emu_struct_1));
+        emu68k_from_guest(guest0, r->d[2], &emu_struct_1,
+                             emu_fields_FileInfoBlock, EMU_NFIELDS(emu_fields_FileInfoBlock));
+            r->d[0] = (ULONG)ExNext(EMU_HANDLE(guest0, r->d[1]),
+              (struct FileInfoBlock*)&emu_struct_1);
+        if (r->d[0])
+        {
+            memset(EMU_GPTR(guest0, r->d[2]), 0, M68K_FileInfoBlock_SIZEOF);
+            emu68k_to_guest(guest0, r->d[2], &emu_struct_1,
+                               emu_fields_FileInfoBlock, EMU_NFIELDS(emu_fields_FileInfoBlock));
+        }
+            return 0;
+    }
+    case 19:  /* Info(BPTR lock, struct InfoData* parameterBlock) -> LONG  [-114] */
+    {
+        struct InfoData emu_struct_1;
+        if (emu68k_require_guest_range(r->d[2], M68K_InfoData_SIZEOF,
+                                         "Info.parameterBlock", err, errlen) < 0)
+            return 1;
+        memset(&emu_struct_1, 0, sizeof(emu_struct_1));
+            r->d[0] = (ULONG)Info(EMU_HANDLE(guest0, r->d[1]),
+              (struct InfoData*)&emu_struct_1);
+        if (r->d[0])
+        {
+            memset(EMU_GPTR(guest0, r->d[2]), 0, M68K_InfoData_SIZEOF);
+            emu68k_to_guest(guest0, r->d[2], &emu_struct_1,
+                               emu_fields_InfoData, EMU_NFIELDS(emu_fields_InfoData));
+        }
+            return 0;
+    }
     case 22:  /* IoErr(void) -> SIPTR  [-132] */
         r->d[0] = (ULONG)IoErr();   /* narrowed: an integer, never an address */
         return 0;
@@ -52,6 +105,7 @@ int emu68k_gen_dos(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
             return 1;
         memset(&emu_struct_0, 0, sizeof(emu_struct_0));
         APTR emu_result = (APTR)DateStamp((struct DateStamp *)&emu_struct_0);
+        memset(EMU_GPTR(guest0, r->d[1]), 0, M68K_DateStamp_SIZEOF);
         emu68k_to_guest(guest0, r->d[1], &emu_struct_0,
                            emu_fields_DateStamp, EMU_NFIELDS(emu_fields_DateStamp));
         r->d[0] = emu_result ? r->d[1] : 0;

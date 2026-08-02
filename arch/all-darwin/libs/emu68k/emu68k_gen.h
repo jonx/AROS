@@ -46,6 +46,11 @@ LONG emu68k_object_to_guest(APTR guest0, APTR native, UWORD type,
                             APTR base, EmuObjectCleanup cleanup,
                             const char *type_name, ULONG *token,
                             char *err, ULONG errlen);
+LONG emu68k_object_to_guest_facade(APTR guest0, APTR native, UWORD type,
+                                   APTR base, EmuObjectCleanup cleanup,
+                                   const char *type_name, ULONG facade_size,
+                                   const struct EmuField *fields, int field_count,
+                                   ULONG *token, char *err, ULONG errlen);
 void emu68k_object_release(APTR guest0, ULONG token, UWORD type);
 
 /* Policy-compiled TagItem values. A domain names every accepted tag and the
@@ -83,6 +88,7 @@ enum
 {
     EMU_OBJ_Catalog = 1,
     EMU_OBJ_Locale = 2,
+    EMU_OBJ_DiskObject = 3,
 };
 int emu68k_gen_exec(int lvo, struct Emu68kRegs *r,
                   APTR guest0, APTR base,

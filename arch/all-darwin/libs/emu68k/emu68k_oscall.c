@@ -106,6 +106,8 @@ struct Emu68kObject
 struct Emu68kRunState
 {
     APTR  guest0;                                    /* NULL = a free slot     */
+    emu68k_run_h run;
+    ULONG (*guest_alloc)(emu68k_run_h r, unsigned long size);
     struct { BPTR bptr; } handles[EMU68K_MAX_HANDLES];
     struct { ULONG guest; struct AnchorPath *nap; } scans[EMU68K_MAX_SCANS];
     struct Emu68kObject objects[EMU68K_MAX_OBJECTS];
@@ -308,6 +310,68 @@ LONG emu68k_object_to_guest(APTR guest0, APTR native, UWORD type,
     return 0;
 }
 
+LONG emu68k_object_to_guest_facade(APTR guest0, APTR native, UWORD type,
+                                   APTR base, EmuObjectCleanup cleanup,
+                                   const char *type_name, ULONG facade_size,
+                                   const struct EmuField *fields, int field_count,
+                                   ULONG *token, char *err, ULONG errlen)
+{
+    struct Emu68kRunState *rs = run_state(guest0);
+    int i, free_slot = -1;
+    ULONG facade;
+
+    if (token) *token = 0;
+    if (!native) return 0;
+    if (!rs || !rs->guest_alloc)
+    {
+        if (cleanup) cleanup(base, native);
+        if (err && errlen)
+            snprintf(err, errlen, "no guest allocator for %s facade",
+                     type_name ? type_name : "native");
+        return -1;
+    }
+    for (i = 0; i < EMU68K_MAX_OBJECTS; i++)
+    {
+        struct Emu68kObject *o = &rs->objects[i];
+        if (o->native == native && o->type == type)
+        {
+            o->refs++;
+            memset((UBYTE *)guest0 + o->token, 0, facade_size);
+            emu68k_to_guest(guest0, o->token, native, fields, field_count);
+            if (token) *token = o->token;
+            return 0;
+        }
+        if (!o->native && free_slot < 0) free_slot = i;
+    }
+    if (free_slot < 0)
+    {
+        if (cleanup) cleanup(base, native);
+        if (err && errlen)
+            snprintf(err, errlen, "more live %s facades than this bridge keeps",
+                     type_name ? type_name : "native");
+        return -1;
+    }
+    facade = rs->guest_alloc(rs->run, facade_size);
+    if (!facade)
+    {
+        if (cleanup) cleanup(base, native);
+        if (err && errlen)
+            snprintf(err, errlen, "guest memory exhausted for %s facade",
+                     type_name ? type_name : "native");
+        return -1;
+    }
+    rs->objects[free_slot].native = native;
+    rs->objects[free_slot].base = base;
+    rs->objects[free_slot].cleanup = cleanup;
+    rs->objects[free_slot].token = facade;
+    rs->objects[free_slot].refs = 1;
+    rs->objects[free_slot].type = type;
+    memset((UBYTE *)guest0 + facade, 0, facade_size);
+    emu68k_to_guest(guest0, facade, native, fields, field_count);
+    if (token) *token = facade;
+    return 0;
+}
+
 void emu68k_object_release(APTR guest0, ULONG token, UWORD type)
 {
     struct Emu68kObject *o = object_by_token(run_state(guest0), token);
@@ -326,24 +390,6 @@ void emu68k_object_release(APTR guest0, ULONG token, UWORD type)
 static void gw8(APTR guest0, ULONG addr, UBYTE v)
 {
     ((UBYTE *)guest0)[addr] = v;
-}
-
-static void gw16(APTR guest0, ULONG addr, UWORD v)
-{
-    UBYTE *p = (UBYTE *)guest0 + addr;
-    p[0] = (UBYTE)(v >> 8); p[1] = (UBYTE)v;
-}
-
-static void gw32(APTR guest0, ULONG addr, ULONG v)
-{
-    UBYTE *p = (UBYTE *)guest0 + addr;
-    p[0] = (UBYTE)(v >> 24); p[1] = (UBYTE)(v >> 16);
-    p[2] = (UBYTE)(v >> 8);  p[3] = (UBYTE)v;
-}
-
-static void gwbytes(APTR guest0, ULONG addr, const UBYTE *src, ULONG n)
-{
-    CopyMem((APTR)src, (UBYTE *)guest0 + addr, n);
 }
 
 void emu68k_to_guest(APTR guest0, ULONG gbase, const void *native,
@@ -398,9 +444,11 @@ static void scan_drop(struct Emu68kRunState *rs, ULONG guest)
 static void ap_to_guest(APTR guest0, ULONG gap, const struct AnchorPath *n,
                         UWORD strlen_)
 {
-    fib_to_guest(guest0, gap + M68K_AnchorPath_ap_Info, &n->ap_Info);
-    gw8(guest0,  gap + M68K_AnchorPath_ap_Flags,      (UBYTE)n->ap_Flags);
-    gw32(guest0, gap + M68K_AnchorPath_ap_FoundBreak, (ULONG)n->ap_FoundBreak);
+    /* The fixed façade, including the nested FileInfoBlock, comes entirely
+     * from the generated dual-ABI field table. Only the variable trailing
+     * path buffer needs the scan length kept by this retained shadow. */
+    emu68k_to_guest(guest0, gap, n, emu_fields_AnchorPath,
+                    EMU_NFIELDS(emu_fields_AnchorPath));
     if (strlen_)
     {
         UWORD i;
@@ -531,7 +579,8 @@ int Emu68k_OSCall(const char *libname, int lvo, APTR regs, APTR guest0,
                   APTR user, char *err, ULONG errlen)
 {
     struct Emu68kRegs *r = regs;
-    APTR DOSBase = user;
+    struct Emu68kOSCallCtx *ctx = user;
+    APTR DOSBase = ctx ? ctx->dosbase : NULL;
     struct Emu68kRunState *rs = run_state(guest0);
 
     if (!rs)
@@ -541,6 +590,8 @@ int Emu68k_OSCall(const char *libname, int lvo, APTR regs, APTR guest0,
                      "bridge keeps state for");
         return 1;
     }
+    rs->run = ctx ? ctx->run : NULL;
+    rs->guest_alloc = ctx ? ctx->guest_alloc : NULL;
 
     if (strcmp(libname, "dos.library") == 0)
     {

@@ -8,8 +8,10 @@
 
 #include <exec/types.h>
 #include <proto/diskfont.h>
+#include <string.h>
 
 #include "emu68k_gen.h"
+#include "emu68k_layouts.h"
 
 int emu68k_gen_diskfont(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
                   char *err, ULONG errlen)
@@ -19,6 +21,24 @@ int emu68k_gen_diskfont(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
 
     switch (lvo)
     {
+    case 5:  /* OpenDiskFont(struct TextAttr * textAttr) -> struct TextFont *  [-30] */
+    {
+        struct TextAttr emu_struct_0;
+        if (emu68k_require_guest_range(r->a[0], M68K_TextAttr_SIZEOF,
+                                         "OpenDiskFont.textAttr", err, errlen) < 0)
+            return 1;
+        memset(&emu_struct_0, 0, sizeof(emu_struct_0));
+        emu68k_from_guest_sized(guest0, r->a[0], &emu_struct_0,
+                             emu_fields_TextAttr, EMU_NFIELDS(emu_fields_TextAttr), M68K_TextAttr_SIZEOF);
+        APTR emu_result = (APTR)OpenDiskFont((struct TextAttr *)&emu_struct_0);
+        if (emu68k_object_to_guest_facade(guest0, emu_result, EMU_OBJ_TextFont,
+                                             base, NULL,
+                                             "TextFont", M68K_TextFont_SIZEOF,
+                                             emu_fields_TextFont, EMU_NFIELDS(emu_fields_TextFont),
+                                             &r->d[0], err, errlen) < 0)
+            return 1;
+            return 0;
+    }
     case 6:  /* AvailFonts(STRPTR buffer, LONG bufBytes, LONG flags) -> LONG  [-36] */
         r->d[0] = (ULONG)AvailFonts((STRPTR)EMU_GPTR(guest0, r->a[0]),
               (LONG)r->d[0],

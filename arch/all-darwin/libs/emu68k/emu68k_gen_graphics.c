@@ -35,6 +35,12 @@ static const struct EmuTagDomain emu_tagdomain_graphics_best_mode =
     emu_tagdesc_graphics_best_mode, 13, "graphics.best_mode"
 };
 
+static void emu_object_cleanup_TextFont(APTR emu_base, APTR emu_object)
+{
+    struct GfxBase *GfxBase = emu_base;
+    CloseFont((struct TextFont *)emu_object);
+}
+
 static void emu_object_cleanup_Region(APTR emu_base, APTR emu_object)
 {
     struct GfxBase *GfxBase = emu_base;
@@ -49,6 +55,34 @@ int emu68k_gen_graphics(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
 
     switch (lvo)
     {
+    case 12:  /* OpenFont(const struct TextAttr * textAttr) -> struct TextFont *  [-72] */
+    {
+        struct TextAttr emu_struct_0;
+        if (emu68k_require_guest_range(r->a[0], M68K_TextAttr_SIZEOF,
+                                         "OpenFont.textAttr", err, errlen) < 0)
+            return 1;
+        memset(&emu_struct_0, 0, sizeof(emu_struct_0));
+        emu68k_from_guest_sized(guest0, r->a[0], &emu_struct_0,
+                             emu_fields_TextAttr, EMU_NFIELDS(emu_fields_TextAttr), M68K_TextAttr_SIZEOF);
+        APTR emu_result = (APTR)OpenFont((const struct TextAttr *)&emu_struct_0);
+        if (emu68k_object_to_guest_facade(guest0, emu_result, EMU_OBJ_TextFont,
+                                             base, emu_object_cleanup_TextFont,
+                                             "TextFont", M68K_TextFont_SIZEOF,
+                                             emu_fields_TextFont, EMU_NFIELDS(emu_fields_TextFont),
+                                             &r->d[0], err, errlen) < 0)
+            return 1;
+            return 0;
+    }
+    case 13:  /* CloseFont(struct TextFont * textFont) -> void  [-78] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[1], EMU_OBJ_TextFont, 0,
+                                        "TextFont", &emu_object_0, err, errlen) < 0)
+            return 1;
+            CloseFont((struct TextFont *)emu_object_0);
+        emu68k_object_consume(guest0, r->a[1], EMU_OBJ_TextFont);
+            return 0;
+    }
     case 33:  /* InitRastPort(struct RastPort * rp) -> void  [-198] */
     {
         struct RastPort emu_struct_0;

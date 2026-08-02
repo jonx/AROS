@@ -407,6 +407,37 @@ struct EmuField
 #define M68K_BitMap_pad 6
 #define M68K_BitMap_Planes 8
 
+/* struct TextAttr: 8 bytes on m68k (TextAttr), 16 native (TextAttr) */
+#define M68K_TextAttr_SIZEOF 8
+#define M68K_TextAttr_ta_Name 0
+#define M68K_TextAttr_ta_YSize 4   /* native @8 - CONVERT */
+#define M68K_TextAttr_ta_Style 6   /* native @10 - CONVERT */
+#define M68K_TextAttr_ta_Flags 7   /* native @11 - CONVERT */
+
+/* struct TextFont: 52 bytes on m68k (TextFont), 104 native (TextFont) */
+#define M68K_TextFont_SIZEOF 52
+#define M68K_TextFont_tf_Message_mn_Node_ln_Succ 0
+#define M68K_TextFont_tf_Message_mn_Node_ln_Pred 4   /* native @8 - CONVERT */
+#define M68K_TextFont_tf_Message_mn_Node_ln_Type 8   /* native @16 - CONVERT */
+#define M68K_TextFont_tf_Message_mn_Node_ln_Pri 9   /* native @17 - CONVERT */
+#define M68K_TextFont_tf_Message_mn_Node_ln_Name 10   /* native @24 - CONVERT */
+#define M68K_TextFont_tf_Message_mn_ReplyPort 14   /* native @32 - CONVERT */
+#define M68K_TextFont_tf_Message_mn_Length 18   /* native @40 - CONVERT */
+#define M68K_TextFont_tf_YSize 20   /* native @48 - CONVERT */
+#define M68K_TextFont_tf_Style 22   /* native @50 - CONVERT */
+#define M68K_TextFont_tf_Flags 23   /* native @51 - CONVERT */
+#define M68K_TextFont_tf_XSize 24   /* native @52 - CONVERT */
+#define M68K_TextFont_tf_Baseline 26   /* native @54 - CONVERT */
+#define M68K_TextFont_tf_BoldSmear 28   /* native @56 - CONVERT */
+#define M68K_TextFont_tf_Accessors 30   /* native @58 - CONVERT */
+#define M68K_TextFont_tf_LoChar 32   /* native @60 - CONVERT */
+#define M68K_TextFont_tf_HiChar 33   /* native @61 - CONVERT */
+#define M68K_TextFont_tf_CharData 34   /* native @64 - CONVERT */
+#define M68K_TextFont_tf_Modulo 38   /* native @72 - CONVERT */
+#define M68K_TextFont_tf_CharLoc 40   /* native @80 - CONVERT */
+#define M68K_TextFont_tf_CharSpace 44   /* native @88 - CONVERT */
+#define M68K_TextFont_tf_CharKern 48   /* native @96 - CONVERT */
+
 /* The conversion tables. Each row is one field: where it lives on
  * each side, how wide it is on each side, and what may be done to it.
  * A generic walker (emu68k_marshal.c) is all that is needed to convert
@@ -798,5 +829,38 @@ static const struct EmuField emu_fields_BitMap[] = {
     {    6,    6,    1, 2, 2, EMU_F_SCALAR },   /* pad                      UWORD */
     {    8,    8,    8, 4, 8, EMU_F_GUESTPTR },   /* Planes                   PLANEPTR[8] */
 };
+
+static const struct EmuField emu_fields_TextAttr[] = {
+    {    0,    0,    1, 4, 8, EMU_F_GUESTPTR },   /* ta_Name                  STRPTR */
+    {    4,    8,    1, 2, 2, EMU_F_SCALAR },   /* ta_YSize                 UWORD */
+    {    6,   10,    1, 1, 1, EMU_F_SCALAR },   /* ta_Style                 UBYTE */
+    {    7,   11,    1, 1, 1, EMU_F_SCALAR },   /* ta_Flags                 UBYTE */
+};
+
+static const struct EmuField emu_fields_TextFont[] = {
+    {    8,   16,    1, 1, 1, EMU_F_SCALAR },   /* tf_Message_mn_Node_ln_Type UBYTE */
+    {    9,   17,    1, 1, 1, EMU_F_SCALAR },   /* tf_Message_mn_Node_ln_Pri BYTE */
+    {   18,   40,    1, 2, 2, EMU_F_SCALAR },   /* tf_Message_mn_Length     UWORD */
+    {   20,   48,    1, 2, 2, EMU_F_SCALAR },   /* tf_YSize                 UWORD */
+    {   22,   50,    1, 1, 1, EMU_F_SCALAR },   /* tf_Style                 UBYTE */
+    {   23,   51,    1, 1, 1, EMU_F_SCALAR },   /* tf_Flags                 UBYTE */
+    {   24,   52,    1, 2, 2, EMU_F_SCALAR },   /* tf_XSize                 UWORD */
+    {   26,   54,    1, 2, 2, EMU_F_SCALAR },   /* tf_Baseline              UWORD */
+    {   28,   56,    1, 2, 2, EMU_F_SCALAR },   /* tf_BoldSmear             UWORD */
+    {   30,   58,    1, 2, 2, EMU_F_SCALAR },   /* tf_Accessors             UWORD */
+    {   32,   60,    1, 1, 1, EMU_F_SCALAR },   /* tf_LoChar                UBYTE */
+    {   33,   61,    1, 1, 1, EMU_F_SCALAR },   /* tf_HiChar                UBYTE */
+    {   38,   72,    1, 2, 2, EMU_F_SCALAR },   /* tf_Modulo                UWORD */
+};
+/* NOT converted, and deliberately not guessed at:
+ *   tf_Message_mn_Node_ln_Succ (struct Node *)
+ *   tf_Message_mn_Node_ln_Pred (struct Node *)
+ *   tf_Message_mn_Node_ln_Name (char *)
+ *   tf_Message_mn_ReplyPort (struct MsgPort *)
+ *   tf_CharData (APTR)
+ *   tf_CharLoc (APTR)
+ *   tf_CharSpace (APTR)
+ *   tf_CharKern (APTR)
+ */
 
 #endif /* EMU68K_LAYOUTS_H */

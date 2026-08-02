@@ -20,6 +20,7 @@
 
 #include <aros/debug.h>
 
+void Emu68k_OSCallEndRun(APTR guest0);
 int Emu68k_OSCall(const char *libname, int lvo, APTR regs, APTR guest0,
                   APTR user, char *err, ULONG errlen);
 
@@ -209,6 +210,11 @@ AROS_LH2(LONG, Emu68k_RunSeg,
         break;
     }
 
+    /* Drop the bridge's per-run state (file handles, any directory scan the
+     * program left open) BEFORE the arena goes away: it is keyed on the run's
+     * own base, and that address becomes reusable the moment the run is freed. */
+    if (Emu68kBase->host.run_guest0)
+        Emu68k_OSCallEndRun(Emu68kBase->host.run_guest0(run));
     Emu68kBase->host.run_free(run);
     me->pr_WindowPtr = saved_winptr;
         CloseLibrary(DOSBase);

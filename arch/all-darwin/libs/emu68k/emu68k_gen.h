@@ -27,10 +27,10 @@ struct Emu68kRegs
 /* A BPTR cannot cross as itself: a native one is 64-bit and a 68k register is
  * not. These map between the guest's 32-bit token and the native BPTR it
  * stands for; both live in emu68k_oscall.c, which owns the table. */
-BPTR  emu68k_handle_bptr(ULONG token);
-ULONG emu68k_handle_token(BPTR b);
-#define EMU_HANDLE(t)  emu68k_handle_bptr((ULONG)(t))
-#define EMU_TOKEN(b)   emu68k_handle_token(b)
+BPTR  emu68k_handle_bptr(APTR guest0, ULONG token);
+ULONG emu68k_handle_token(APTR guest0, BPTR b);
+#define EMU_HANDLE(g0, t)  emu68k_handle_bptr((g0), (ULONG)(t))
+#define EMU_TOKEN(g0, b)   emu68k_handle_token((g0), (b))
 
 int emu68k_gen_exec(int lvo, struct Emu68kRegs *r,
                   APTR guest0, APTR base);

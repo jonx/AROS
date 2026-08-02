@@ -47,6 +47,7 @@ struct Emu68kHostIf
     void (*set_oscall)(int (*fn)(const char *libname, int lvo, APTR regs,
                                  APTR guest0, APTR user, char *err, ULONG errlen),
                        APTR user);
+    APTR (*run_guest0)(emu68k_run_h r);
 };
 
 struct Emu68kBase

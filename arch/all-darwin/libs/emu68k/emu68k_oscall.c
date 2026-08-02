@@ -77,8 +77,43 @@ static APTR gptr(APTR guest0, ULONG addr)
  * Small and fixed: a 68k program with more than this many open files is not
  * the case we are serving yet, and it fails cleanly rather than corrupting. */
 #define EMU68K_MAX_HANDLES ((int)EMU68K_GUEST_FH_MAX)
+#define EMU68K_MAX_SCANS   4
+#define EMU68K_MAX_RUNS    4
 
-static struct { BPTR bptr; } g_handles[EMU68K_MAX_HANDLES];
+/* ---- PER-RUN STATE --------------------------------------------------------
+ * Handles and directory scans belong to ONE guest program, not to the library:
+ * two 68k programs running at once each have their own file handles, and a
+ * token is only meaningful against the run that issued it. Keeping these in
+ * file-scope tables worked only while a single guest ran at a time, and would
+ * have started handing one program another's files the moment that stopped
+ * being true. `guest0` is the run's own arena base, so it identifies the run
+ * uniquely and is already passed to every call.
+ *
+ * Library bases deliberately stay shared below: an open library is a refcounted
+ * OS resource, not guest state, and reopening it per run would be waste. */
+struct Emu68kRunState
+{
+    APTR  guest0;                                    /* NULL = a free slot     */
+    struct { BPTR bptr; } handles[EMU68K_MAX_HANDLES];
+    struct { ULONG guest; struct AnchorPath *nap; } scans[EMU68K_MAX_SCANS];
+};
+
+static struct Emu68kRunState g_runs[EMU68K_MAX_RUNS];
+
+static struct Emu68kRunState *run_state(APTR guest0)
+{
+    int i, free_slot = -1;
+
+    for (i = 0; i < EMU68K_MAX_RUNS; i++)
+    {
+        if (g_runs[i].guest0 == guest0) return &g_runs[i];
+        if (!g_runs[i].guest0 && free_slot < 0) free_slot = i;
+    }
+    if (free_slot < 0) return NULL;                  /* too many live guests   */
+    memset(&g_runs[free_slot], 0, sizeof g_runs[free_slot]);
+    g_runs[free_slot].guest0 = guest0;
+    return &g_runs[free_slot];
+}
 
 /* A handle crosses as a BPTR of a real guest structure, not as an opaque tag:
  * a program may dereference its handle, and BADDR of a tag lands nowhere. Slot
@@ -88,16 +123,16 @@ static ULONG handle_slot_bptr(int i)
     return (ULONG)((EMU68K_GUEST_FH_BASE + (ULONG)i * EMU68K_GUEST_FH_SLOT) >> 2);
 }
 
-static ULONG handle_token(BPTR b)
+static ULONG handle_token(struct Emu68kRunState *rs, BPTR b)
 {
     int i;
-    if (!b) return 0;
+    if (!b || !rs) return 0;
     for (i = 0; i < EMU68K_MAX_HANDLES; i++)
-        if (g_handles[i].bptr == b) return handle_slot_bptr(i);
+        if (rs->handles[i].bptr == b) return handle_slot_bptr(i);
     for (i = 0; i < EMU68K_MAX_HANDLES; i++)
-        if (!g_handles[i].bptr)
+        if (!rs->handles[i].bptr)
         {
-            g_handles[i].bptr = b;
+            rs->handles[i].bptr = b;
             return handle_slot_bptr(i);
         }
     return 0;                                    /* table full: NULL, cleanly  */
@@ -114,21 +149,28 @@ static int handle_index(ULONG token)
     return (off < EMU68K_GUEST_FH_MAX) ? (int)off : -1;
 }
 
-static BPTR handle_bptr(ULONG token)
+static BPTR handle_bptr(struct Emu68kRunState *rs, ULONG token)
 {
     int i = handle_index(token);
-    return (i < 0) ? BNULL : g_handles[i].bptr;
+    return (i < 0 || !rs) ? BNULL : rs->handles[i].bptr;
 }
 
 /* The generated crossings need the handle table too (a BPTR argument or
  * result); this file owns it, so it exports the two ends. */
-BPTR emu68k_handle_bptr(ULONG token)  { return handle_bptr(token); }
-ULONG emu68k_handle_token(BPTR b)     { return handle_token(b); }
+BPTR emu68k_handle_bptr(APTR guest0, ULONG token)
+{
+    return handle_bptr(run_state(guest0), token);
+}
 
-static void handle_release(ULONG token)
+ULONG emu68k_handle_token(APTR guest0, BPTR b)
+{
+    return handle_token(run_state(guest0), b);
+}
+
+static void handle_release(struct Emu68kRunState *rs, ULONG token)
 {
     int i = handle_index(token);
-    if (i >= 0) g_handles[i].bptr = BNULL;
+    if (i >= 0 && rs) rs->handles[i].bptr = BNULL;
 }
 
 /* ---- GUEST-SIDE STRUCTURE WRITES ------------------------------------------
@@ -196,27 +238,25 @@ static void fib_to_guest(APTR guest0, ULONG base, const struct FileInfoBlock *n)
  *
  * Small and fixed: a guest running more scans at once than this is not a case
  * being served yet, and it fails cleanly rather than corrupting one. */
-#define EMU68K_MAX_SCANS 4
-
-static struct { ULONG guest; struct AnchorPath *nap; } g_scans[EMU68K_MAX_SCANS];
-
-static struct AnchorPath *scan_find(ULONG guest)
+static struct AnchorPath *scan_find(struct Emu68kRunState *rs, ULONG guest)
 {
     int i;
+    if (!rs) return NULL;
     for (i = 0; i < EMU68K_MAX_SCANS; i++)
-        if (g_scans[i].guest == guest && g_scans[i].nap) return g_scans[i].nap;
+        if (rs->scans[i].guest == guest && rs->scans[i].nap) return rs->scans[i].nap;
     return NULL;
 }
 
-static void scan_drop(ULONG guest)
+static void scan_drop(struct Emu68kRunState *rs, ULONG guest)
 {
     int i;
+    if (!rs) return;
     for (i = 0; i < EMU68K_MAX_SCANS; i++)
-        if (g_scans[i].guest == guest)
+        if (rs->scans[i].guest == guest)
         {
-            if (g_scans[i].nap) FreeVec(g_scans[i].nap);
-            g_scans[i].nap = NULL;
-            g_scans[i].guest = 0;
+            if (rs->scans[i].nap) FreeVec(rs->scans[i].nap);
+            rs->scans[i].nap = NULL;
+            rs->scans[i].guest = 0;
         }
 }
 
@@ -310,6 +350,27 @@ static int gen_dispatch(const char *libname, int lvo, struct Emu68kRegs *r,
     return 1;
 }
 
+/* Called when a guest run finishes: drop its handles and abandon any scan it
+ * left open, so the slot is reusable and nothing outlives the program. */
+void Emu68k_OSCallEndRun(APTR guest0)
+{
+    struct Emu68kRunState *rs;
+    int i;
+
+    for (i = 0; i < EMU68K_MAX_RUNS; i++)
+    {
+        if (g_runs[i].guest0 != guest0) continue;
+        rs = &g_runs[i];
+        for (int j = 0; j < EMU68K_MAX_SCANS; j++)
+            if (rs->scans[j].nap)
+            {
+                MatchEnd(rs->scans[j].nap);
+                FreeVec(rs->scans[j].nap);
+            }
+        memset(rs, 0, sizeof *rs);
+    }
+}
+
 /* Released at expunge: the bases the table opened on demand. */
 void Emu68k_OSCallCleanup(void)
 {
@@ -329,6 +390,15 @@ int Emu68k_OSCall(const char *libname, int lvo, APTR regs, APTR guest0,
 {
     struct Emu68kRegs *r = regs;
     APTR DOSBase = user;
+    struct Emu68kRunState *rs = run_state(guest0);
+
+    if (!rs)
+    {
+        if (err && errlen)
+            snprintf(err, errlen, "more 68k programs running at once than this "
+                     "bridge keeps state for");
+        return 1;
+    }
 
     if (strcmp(libname, "dos.library") == 0)
     {
@@ -348,35 +418,35 @@ int Emu68k_OSCall(const char *libname, int lvo, APTR regs, APTR guest0,
             return 0;
 
         case DOS_LVO_OUTPUT:
-            r->d[0] = handle_token(Output());
+            r->d[0] = handle_token(rs, Output());
             return 0;
 
         case DOS_LVO_INPUT:
-            r->d[0] = handle_token(Input());
+            r->d[0] = handle_token(rs, Input());
             return 0;
 
         case DOS_LVO_WRITE:      /* Write(BPTR file D1, APTR buf D2, LONG len D3) */
-            r->d[0] = (ULONG)Write(handle_bptr(r->d[1]),
+            r->d[0] = (ULONG)Write(handle_bptr(rs, r->d[1]),
                                    gptr(guest0, r->d[2]), (LONG)r->d[3]);
             return 0;
 
         case DOS_LVO_READ:       /* Read(BPTR file D1, APTR buf D2, LONG len D3)  */
-            r->d[0] = (ULONG)Read(handle_bptr(r->d[1]),
+            r->d[0] = (ULONG)Read(handle_bptr(rs, r->d[1]),
                                   gptr(guest0, r->d[2]), (LONG)r->d[3]);
             return 0;
 
         case DOS_LVO_OPEN:       /* Open(STRPTR name D1, LONG mode D2) -> BPTR    */
-            r->d[0] = handle_token(Open((CONST_STRPTR)gptr(guest0, r->d[1]),
+            r->d[0] = handle_token(rs, Open((CONST_STRPTR)gptr(guest0, r->d[1]),
                                         (LONG)r->d[2]));
             return 0;
 
         case DOS_LVO_CLOSE:      /* Close(BPTR file D1)                           */
-            r->d[0] = (ULONG)Close(handle_bptr(r->d[1]));
-            handle_release(r->d[1]);
+            r->d[0] = (ULONG)Close(handle_bptr(rs, r->d[1]));
+            handle_release(rs, r->d[1]);
             return 0;
 
         case DOS_LVO_SEEK:       /* Seek(BPTR D1, LONG pos D2, LONG mode D3)      */
-            r->d[0] = (ULONG)Seek(handle_bptr(r->d[1]), (LONG)r->d[2],
+            r->d[0] = (ULONG)Seek(handle_bptr(rs, r->d[1]), (LONG)r->d[2],
                                   (LONG)r->d[3]);
             return 0;
 
@@ -389,36 +459,36 @@ int Emu68k_OSCall(const char *libname, int lvo, APTR regs, APTR guest0,
          * native. A program asks IsInteractive to decide whether it is talking
          * to a terminal, which is the first thing an archiver does. */
         case DOS_LVO_ISINTERACTIVE:   /* IsInteractive(BPTR file D1)              */
-            r->d[0] = (ULONG)IsInteractive(handle_bptr(r->d[1]));
+            r->d[0] = (ULONG)IsInteractive(handle_bptr(rs, r->d[1]));
             return 0;
 
         case DOS_LVO_WAITFORCHAR:     /* WaitForChar(BPTR file D1, LONG tmo D2)   */
-            r->d[0] = (ULONG)WaitForChar(handle_bptr(r->d[1]), (LONG)r->d[2]);
+            r->d[0] = (ULONG)WaitForChar(handle_bptr(rs, r->d[1]), (LONG)r->d[2]);
             return 0;
 
         case DOS_LVO_FLUSH:           /* Flush(BPTR file D1)                      */
-            r->d[0] = (ULONG)Flush(handle_bptr(r->d[1]));
+            r->d[0] = (ULONG)Flush(handle_bptr(rs, r->d[1]));
             return 0;
 
         /* A lock is a BPTR like a file handle, so it crosses through the same
          * table. What a program may NOT be handed is the native BPTR itself:
          * it is 64-bit and a 68k register is not. */
         case DOS_LVO_LOCK:            /* Lock(STRPTR name D1, LONG mode D2)       */
-            r->d[0] = handle_token(Lock((CONST_STRPTR)gptr(guest0, r->d[1]),
+            r->d[0] = handle_token(rs, Lock((CONST_STRPTR)gptr(guest0, r->d[1]),
                                         (LONG)r->d[2]));
             return 0;
 
         case DOS_LVO_UNLOCK:          /* UnLock(BPTR lock D1)                     */
-            UnLock(handle_bptr(r->d[1]));
-            handle_release(r->d[1]);
+            UnLock(handle_bptr(rs, r->d[1]));
+            handle_release(rs, r->d[1]);
             return 0;
 
         case DOS_LVO_DUPLOCK:         /* DupLock(BPTR lock D1)                    */
-            r->d[0] = handle_token(DupLock(handle_bptr(r->d[1])));
+            r->d[0] = handle_token(rs, DupLock(handle_bptr(rs, r->d[1])));
             return 0;
 
         case DOS_LVO_CREATEDIR:       /* CreateDir(STRPTR name D1)                */
-            r->d[0] = handle_token(CreateDir((CONST_STRPTR)gptr(guest0, r->d[1])));
+            r->d[0] = handle_token(rs, CreateDir((CONST_STRPTR)gptr(guest0, r->d[1])));
             return 0;
 
         /* [T3b] Examine/ExNext: call the NATIVE one into a NATIVE
@@ -443,8 +513,8 @@ int Emu68k_OSCall(const char *libname, int lvo, APTR regs, APTR guest0,
                                            ((ULONG)p[2] << 8) | p[3]);
             }
             r->d[0] = (ULONG)((lvo == DOS_LVO_EXAMINE)
-                              ? Examine(handle_bptr(r->d[1]), nfib)
-                              : ExNext(handle_bptr(r->d[1]), nfib));
+                              ? Examine(handle_bptr(rs, r->d[1]), nfib)
+                              : ExNext(handle_bptr(rs, r->d[1]), nfib));
             if (r->d[0])
                 fib_to_guest(guest0, gfib, nfib);
             FreeDosObject(DOS_FIB, nfib);
@@ -480,7 +550,7 @@ int Emu68k_OSCall(const char *libname, int lvo, APTR regs, APTR guest0,
 
             if (lvo == DOS_LVO_MATCHFIRST)
             {
-                scan_drop(gap);                    /* a restart on the same one */
+                scan_drop(rs, gap);                    /* a restart on the same one */
                 nap = AllocVec(sizeof(struct AnchorPath) + slen + 1,
                                MEMF_ANY | MEMF_CLEAR);
                 if (!nap) { r->d[0] = ERROR_NO_FREE_STORE; return 0; }
@@ -495,7 +565,7 @@ int Emu68k_OSCall(const char *libname, int lvo, APTR regs, APTR guest0,
                 {
                     int i;
                     for (i = 0; i < EMU68K_MAX_SCANS; i++)
-                        if (!g_scans[i].nap) break;
+                        if (!rs->scans[i].nap) break;
                     if (i == EMU68K_MAX_SCANS)
                     {
                         FreeVec(nap);
@@ -503,14 +573,14 @@ int Emu68k_OSCall(const char *libname, int lvo, APTR regs, APTR guest0,
                                  "than this bridge keeps state for");
                         return 1;
                     }
-                    g_scans[i].guest = gap;
-                    g_scans[i].nap   = nap;
+                    rs->scans[i].guest = gap;
+                    rs->scans[i].nap   = nap;
                 }
                 rc = MatchFirst((CONST_STRPTR)gptr(guest0, r->d[1]), nap);
             }
             else
             {
-                nap = scan_find(gap);
+                nap = scan_find(rs, gap);
                 if (!nap) { r->d[0] = ERROR_OBJECT_WRONG_TYPE; return 0; }
                 rc = MatchNext(nap);
             }
@@ -518,21 +588,21 @@ int Emu68k_OSCall(const char *libname, int lvo, APTR regs, APTR guest0,
             if (rc == 0)
                 ap_to_guest(guest0, gap, nap, slen);
             else
-                scan_drop(gap);                    /* the scan is over          */
+                scan_drop(rs, gap);                    /* the scan is over          */
             r->d[0] = (ULONG)rc;
             return 0;
         }
 
         case DOS_LVO_MATCHEND:
         {
-            struct AnchorPath *nap = scan_find(r->d[1]);
+            struct AnchorPath *nap = scan_find(rs, r->d[1]);
             if (nap) MatchEnd(nap);
-            scan_drop(r->d[1]);
+            scan_drop(rs, r->d[1]);
             return 0;
         }
 
         case DOS_LVO_CURRENTDIR:      /* CurrentDir(BPTR lock D1) -> the old one  */
-            r->d[0] = handle_token(CurrentDir(handle_bptr(r->d[1])));
+            r->d[0] = handle_token(rs, CurrentDir(handle_bptr(rs, r->d[1])));
             return 0;
 
         case DOS_LVO_GETVAR:

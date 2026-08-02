@@ -261,6 +261,99 @@ struct EmuField
 #define M68K_Rectangle_MaxX 4
 #define M68K_Rectangle_MaxY 6
 
+/* struct Window: 156 bytes on m68k (Window), 272 native (Window) */
+#define M68K_Window_SIZEOF 156
+#define M68K_Window_NextWindow 0
+#define M68K_Window_LeftEdge 4   /* native @8 - CONVERT */
+#define M68K_Window_TopEdge 6   /* native @10 - CONVERT */
+#define M68K_Window_Width 8   /* native @12 - CONVERT */
+#define M68K_Window_Height 10   /* native @14 - CONVERT */
+#define M68K_Window_MouseY 12   /* native @16 - CONVERT */
+#define M68K_Window_MouseX 14   /* native @18 - CONVERT */
+#define M68K_Window_MinWidth 16   /* native @20 - CONVERT */
+#define M68K_Window_MinHeight 18   /* native @22 - CONVERT */
+#define M68K_Window_MaxWidth 20   /* native @24 - CONVERT */
+#define M68K_Window_MaxHeight 22   /* native @26 - CONVERT */
+#define M68K_Window_Flags 24   /* native @28 - CONVERT */
+#define M68K_Window_MenuStrip 28   /* native @32 - CONVERT */
+#define M68K_Window_Title 32   /* native @40 - CONVERT */
+#define M68K_Window_FirstRequest 36   /* native @48 - CONVERT */
+#define M68K_Window_DMRequest 40   /* native @56 - CONVERT */
+#define M68K_Window_ReqCount 44   /* native @64 - CONVERT */
+#define M68K_Window_WScreen 46   /* native @72 - CONVERT */
+#define M68K_Window_RPort 50   /* native @80 - CONVERT */
+#define M68K_Window_BorderLeft 54   /* native @88 - CONVERT */
+#define M68K_Window_BorderTop 55   /* native @89 - CONVERT */
+#define M68K_Window_BorderRight 56   /* native @90 - CONVERT */
+#define M68K_Window_BorderBottom 57   /* native @91 - CONVERT */
+#define M68K_Window_BorderRPort 58   /* native @96 - CONVERT */
+#define M68K_Window_FirstGadget 62   /* native @104 - CONVERT */
+#define M68K_Window_Parent 66   /* native @112 - CONVERT */
+#define M68K_Window_Descendant 70   /* native @120 - CONVERT */
+#define M68K_Window_Pointer 74   /* native @128 - CONVERT */
+#define M68K_Window_PtrHeight 78   /* native @136 - CONVERT */
+#define M68K_Window_PtrWidth 79   /* native @137 - CONVERT */
+#define M68K_Window_XOffset 80   /* native @138 - CONVERT */
+#define M68K_Window_YOffset 81   /* native @139 - CONVERT */
+#define M68K_Window_IDCMPFlags 82   /* native @140 - CONVERT */
+#define M68K_Window_UserPort 86   /* native @144 - CONVERT */
+#define M68K_Window_WindowPort 90   /* native @152 - CONVERT */
+#define M68K_Window_MessageKey 94   /* native @160 - CONVERT */
+#define M68K_Window_DetailPen 98   /* native @168 - CONVERT */
+#define M68K_Window_BlockPen 99   /* native @169 - CONVERT */
+#define M68K_Window_CheckMark 100   /* native @176 - CONVERT */
+#define M68K_Window_ScreenTitle 104   /* native @184 - CONVERT */
+#define M68K_Window_GZZMouseX 108   /* native @192 - CONVERT */
+#define M68K_Window_GZZMouseY 110   /* native @194 - CONVERT */
+#define M68K_Window_GZZWidth 112   /* native @196 - CONVERT */
+#define M68K_Window_GZZHeight 114   /* native @198 - CONVERT */
+#define M68K_Window_ExtData 116   /* native @200 - CONVERT */
+#define M68K_Window_UserData 120   /* native @208 - CONVERT */
+#define M68K_Window_WLayer 124   /* native @216 - CONVERT */
+#define M68K_Window_IFont 128   /* native @224 - CONVERT */
+#define M68K_Window_MoreFlags 132   /* native @232 - CONVERT */
+#define M68K_Window_RelLeftEdge 136   /* native @236 - CONVERT */
+#define M68K_Window_RelTopEdge 138   /* native @238 - CONVERT */
+#define M68K_Window_firstchild 140   /* native @240 - CONVERT */
+#define M68K_Window_prevchild 144   /* native @248 - CONVERT */
+#define M68K_Window_nextchild 148   /* native @256 - CONVERT */
+#define M68K_Window_parent 152   /* native @264 - CONVERT */
+
+/* struct RastPort: 100 bytes on m68k (RastPort), 176 native (RastPort) */
+#define M68K_RastPort_SIZEOF 100
+#define M68K_RastPort_Layer 0
+#define M68K_RastPort_BitMap 4   /* native @8 - CONVERT */
+#define M68K_RastPort_AreaPtrn 8   /* native @16 - CONVERT */
+#define M68K_RastPort_TmpRas 12   /* native @24 - CONVERT */
+#define M68K_RastPort_AreaInfo 16   /* native @32 - CONVERT */
+#define M68K_RastPort_GelsInfo 20   /* native @40 - CONVERT */
+#define M68K_RastPort_Mask 24   /* native @48 - CONVERT */
+#define M68K_RastPort_FgPen 25   /* native @49 - CONVERT */
+#define M68K_RastPort_BgPen 26   /* native @50 - CONVERT */
+#define M68K_RastPort_AOlPen 27   /* native @51 - CONVERT */
+#define M68K_RastPort_DrawMode 28   /* native @52 - CONVERT */
+#define M68K_RastPort_AreaPtSz 29   /* native @53 - CONVERT */
+#define M68K_RastPort_linpatcnt 30   /* native @54 - CONVERT */
+#define M68K_RastPort_dummy 31   /* native @55 - CONVERT */
+#define M68K_RastPort_Flags 32   /* native @56 - CONVERT */
+#define M68K_RastPort_LinePtrn 34   /* native @58 - CONVERT */
+#define M68K_RastPort_cp_x 36   /* native @60 - CONVERT */
+#define M68K_RastPort_cp_y 38   /* native @62 - CONVERT */
+#define M68K_RastPort_minterms 40   /* native @64 - CONVERT */
+#define M68K_RastPort_PenWidth 48   /* native @72 - CONVERT */
+#define M68K_RastPort_PenHeight 50   /* native @74 - CONVERT */
+#define M68K_RastPort_Font 52   /* native @80 - CONVERT */
+#define M68K_RastPort_AlgoStyle 56   /* native @88 - CONVERT */
+#define M68K_RastPort_TxFlags 57   /* native @89 - CONVERT */
+#define M68K_RastPort_TxHeight 58   /* native @90 - CONVERT */
+#define M68K_RastPort_TxWidth 60   /* native @92 - CONVERT */
+#define M68K_RastPort_TxBaseline 62   /* native @94 - CONVERT */
+#define M68K_RastPort_TxSpacing 64   /* native @96 - CONVERT */
+#define M68K_RastPort_RP_User 66   /* native @104 - CONVERT */
+#define M68K_RastPort_RP_Extra 70   /* native @112 - CONVERT */
+#define M68K_RastPort_longreserved 74   /* native @120 - CONVERT */
+#define M68K_RastPort_reserved 98   /* native @168 - CONVERT */
+
 /* The conversion tables. Each row is one field: where it lives on
  * each side, how wide it is on each side, and what may be done to it.
  * A generic walker (emu68k_marshal.c) is all that is needed to convert
@@ -499,5 +592,102 @@ static const struct EmuField emu_fields_Rectangle[] = {
     {    4,    4, 2, 2, EMU_F_SCALAR },   /* MaxX                 WORD */
     {    6,    6, 2, 2, EMU_F_SCALAR },   /* MaxY                 WORD */
 };
+
+static const struct EmuField emu_fields_Window[] = {
+    {    4,    8, 2, 2, EMU_F_SCALAR },   /* LeftEdge             WORD */
+    {    6,   10, 2, 2, EMU_F_SCALAR },   /* TopEdge              WORD */
+    {    8,   12, 2, 2, EMU_F_SCALAR },   /* Width                WORD */
+    {   10,   14, 2, 2, EMU_F_SCALAR },   /* Height               WORD */
+    {   12,   16, 2, 2, EMU_F_SCALAR },   /* MouseY               WORD */
+    {   14,   18, 2, 2, EMU_F_SCALAR },   /* MouseX               WORD */
+    {   16,   20, 2, 2, EMU_F_SCALAR },   /* MinWidth             WORD */
+    {   18,   22, 2, 2, EMU_F_SCALAR },   /* MinHeight            WORD */
+    {   20,   24, 2, 2, EMU_F_SCALAR },   /* MaxWidth             UWORD */
+    {   22,   26, 2, 2, EMU_F_SCALAR },   /* MaxHeight            UWORD */
+    {   24,   28, 4, 4, EMU_F_SCALAR },   /* Flags                ULONG */
+    {   44,   64, 2, 2, EMU_F_SCALAR },   /* ReqCount             WORD */
+    {   54,   88, 1, 1, EMU_F_SCALAR },   /* BorderLeft           BYTE */
+    {   55,   89, 1, 1, EMU_F_SCALAR },   /* BorderTop            BYTE */
+    {   56,   90, 1, 1, EMU_F_SCALAR },   /* BorderRight          BYTE */
+    {   57,   91, 1, 1, EMU_F_SCALAR },   /* BorderBottom         BYTE */
+    {   78,  136, 1, 1, EMU_F_SCALAR },   /* PtrHeight            BYTE */
+    {   79,  137, 1, 1, EMU_F_SCALAR },   /* PtrWidth             BYTE */
+    {   80,  138, 1, 1, EMU_F_SCALAR },   /* XOffset              BYTE */
+    {   81,  139, 1, 1, EMU_F_SCALAR },   /* YOffset              BYTE */
+    {   82,  140, 4, 4, EMU_F_SCALAR },   /* IDCMPFlags           ULONG */
+    {   98,  168, 1, 1, EMU_F_SCALAR },   /* DetailPen            UBYTE */
+    {   99,  169, 1, 1, EMU_F_SCALAR },   /* BlockPen             UBYTE */
+    {  108,  192, 2, 2, EMU_F_SCALAR },   /* GZZMouseX            WORD */
+    {  110,  194, 2, 2, EMU_F_SCALAR },   /* GZZMouseY            WORD */
+    {  112,  196, 2, 2, EMU_F_SCALAR },   /* GZZWidth             WORD */
+    {  114,  198, 2, 2, EMU_F_SCALAR },   /* GZZHeight            WORD */
+    {  132,  232, 4, 4, EMU_F_SCALAR },   /* MoreFlags            ULONG */
+    {  136,  236, 2, 2, EMU_F_SCALAR },   /* RelLeftEdge          WORD */
+    {  138,  238, 2, 2, EMU_F_SCALAR },   /* RelTopEdge           WORD */
+};
+/* NOT converted, and deliberately not guessed at:
+ *   NextWindow (struct Window *)
+ *   MenuStrip (struct Menu *)
+ *   Title (UBYTE *)
+ *   FirstRequest (struct Requester *)
+ *   DMRequest (struct Requester *)
+ *   WScreen (struct Screen *)
+ *   RPort (struct RastPort *)
+ *   BorderRPort (struct RastPort *)
+ *   FirstGadget (struct Gadget *)
+ *   Parent (struct Window *)
+ *   Descendant (struct Window *)
+ *   Pointer (UWORD *)
+ *   UserPort (struct MsgPort *)
+ *   WindowPort (struct MsgPort *)
+ *   MessageKey (struct IntuiMessage *)
+ *   CheckMark (struct Image *)
+ *   ScreenTitle (UBYTE *)
+ *   ExtData (UBYTE *)
+ *   UserData (BYTE *)
+ *   WLayer (struct Layer *)
+ *   IFont (struct TextFont *)
+ *   firstchild (struct Window *)
+ *   prevchild (struct Window *)
+ *   nextchild (struct Window *)
+ *   parent (struct Window *)
+ */
+
+static const struct EmuField emu_fields_RastPort[] = {
+    {   24,   48, 1, 1, EMU_F_SCALAR },   /* Mask                 UBYTE */
+    {   25,   49, 1, 1, EMU_F_SCALAR },   /* FgPen                BYTE */
+    {   26,   50, 1, 1, EMU_F_SCALAR },   /* BgPen                BYTE */
+    {   27,   51, 1, 1, EMU_F_SCALAR },   /* AOlPen               BYTE */
+    {   28,   52, 1, 1, EMU_F_SCALAR },   /* DrawMode             BYTE */
+    {   29,   53, 1, 1, EMU_F_SCALAR },   /* AreaPtSz             BYTE */
+    {   30,   54, 1, 1, EMU_F_SCALAR },   /* linpatcnt            BYTE */
+    {   31,   55, 1, 1, EMU_F_SCALAR },   /* dummy                BYTE */
+    {   32,   56, 2, 2, EMU_F_SCALAR },   /* Flags                UWORD */
+    {   34,   58, 2, 2, EMU_F_SCALAR },   /* LinePtrn             UWORD */
+    {   36,   60, 2, 2, EMU_F_SCALAR },   /* cp_x                 WORD */
+    {   38,   62, 2, 2, EMU_F_SCALAR },   /* cp_y                 WORD */
+    {   40,   64, 8, 8, EMU_F_BYTES },   /* minterms             UBYTE[8] */
+    {   48,   72, 2, 2, EMU_F_SCALAR },   /* PenWidth             WORD */
+    {   50,   74, 2, 2, EMU_F_SCALAR },   /* PenHeight            WORD */
+    {   56,   88, 1, 1, EMU_F_SCALAR },   /* AlgoStyle            UBYTE */
+    {   57,   89, 1, 1, EMU_F_SCALAR },   /* TxFlags              UBYTE */
+    {   58,   90, 2, 2, EMU_F_SCALAR },   /* TxHeight             UWORD */
+    {   60,   92, 2, 2, EMU_F_SCALAR },   /* TxWidth              UWORD */
+    {   62,   94, 2, 2, EMU_F_SCALAR },   /* TxBaseline           UWORD */
+    {   64,   96, 2, 2, EMU_F_SCALAR },   /* TxSpacing            WORD */
+    {   98,  168, 2, 2, EMU_F_BYTES },   /* reserved             UBYTE[2] */
+};
+/* NOT converted, and deliberately not guessed at:
+ *   Layer (struct Layer *)
+ *   BitMap (struct BitMap *)
+ *   AreaPtrn (const UWORD *)
+ *   TmpRas (struct TmpRas *)
+ *   AreaInfo (struct AreaInfo *)
+ *   GelsInfo (struct GelsInfo *)
+ *   Font (struct TextFont *)
+ *   RP_User (APTR *)
+ *   RP_Extra (APTR)
+ *   longreserved (IPTR[6])
+ */
 
 #endif /* EMU68K_LAYOUTS_H */

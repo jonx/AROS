@@ -11,9 +11,32 @@
 
 #include <exec/types.h>
 #include <dos/dos.h>          /* BPTR, for the handle table below */
+#include <utility/hooks.h>
+#include <intuition/classes.h>
 
 struct TagItem;
 struct EmuField;
+
+struct Emu68kHookBridge
+{
+    struct Hook native;
+    APTR state;
+    ULONG guest_hook;
+    ULONG entry;
+    LONG failed;
+    char error[160];
+};
+
+struct Emu68kBoopsiBridge
+{
+    struct Hook saved_dispatcher;
+    APTR native_class;
+    APTR state;
+    ULONG guest_class;
+    ULONG entry;
+    LONG failed;
+    char error[160];
+};
 
 /* The leading, stable part of the engine's 68k register file. The engine owns
  * the full struct; only these two arrays are contractual here. */
@@ -52,6 +75,16 @@ LONG emu68k_object_to_guest_facade(APTR guest0, APTR native, UWORD type,
                                    const struct EmuField *fields, int field_count,
                                    ULONG *token, char *err, ULONG errlen);
 void emu68k_object_release(APTR guest0, ULONG token, UWORD type);
+LONG emu68k_hook_prepare(APTR guest0, ULONG guest_hook,
+                         struct Emu68kHookBridge *bridge,
+                         char *err, ULONG errlen);
+LONG emu68k_hook_finish(const struct Emu68kHookBridge *bridge,
+                        char *err, ULONG errlen);
+LONG emu68k_boopsi_prepare(APTR guest0, ULONG guest_class, APTR native_class,
+                           struct Emu68kBoopsiBridge *bridge,
+                           char *err, ULONG errlen);
+LONG emu68k_boopsi_finish(struct Emu68kBoopsiBridge *bridge,
+                          char *err, ULONG errlen);
 
 /* Policy-compiled TagItem values. A domain names every accepted tag and the
  * type of ti_Data. Unknown/refused tags fail the crossing; they are never
@@ -89,6 +122,8 @@ enum
     EMU_OBJ_Catalog = 1,
     EMU_OBJ_Locale = 2,
     EMU_OBJ_DiskObject = 3,
+    EMU_OBJ_Class = 4,
+    EMU_OBJ_Object = 5,
 };
 int emu68k_gen_exec(int lvo, struct Emu68kRegs *r,
                   APTR guest0, APTR base,

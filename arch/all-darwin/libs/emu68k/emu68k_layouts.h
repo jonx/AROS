@@ -224,6 +224,36 @@ struct EmuField
 #define M68K_ExAllData_ed_OwnerUID 36   /* native @48 - CONVERT */
 #define M68K_ExAllData_ed_OwnerGID 38   /* native @50 - CONVERT */
 
+/* struct Hook: 20 bytes on m68k (Hook), 40 native (Hook) */
+#define M68K_Hook_SIZEOF 20
+#define M68K_Hook_h_MinNode 0
+#define M68K_Hook_mln_Succ 0
+#define M68K_Hook_mln_Pred 4   /* native @8 - CONVERT */
+#define M68K_Hook_h_Entry 8   /* native @16 - CONVERT */
+#define M68K_Hook_h_SubEntry 12   /* native @24 - CONVERT */
+#define M68K_Hook_h_Data 16   /* native @32 - CONVERT */
+
+/* struct IClass: 60 bytes on m68k (IClass), 104 native (IClass) */
+#define M68K_IClass_SIZEOF 60
+#define M68K_IClass_cl_Dispatcher 0
+#define M68K_IClass_h_MinNode 0
+#define M68K_IClass_mln_Succ 0
+#define M68K_IClass_mln_Pred 4   /* native @8 - CONVERT */
+#define M68K_IClass_h_Entry 8   /* native @16 - CONVERT */
+#define M68K_IClass_h_SubEntry 12   /* native @24 - CONVERT */
+#define M68K_IClass_h_Data 16   /* native @32 - CONVERT */
+#define M68K_IClass_cl_Reserved 20   /* native @40 - CONVERT */
+#define M68K_IClass_cl_Super 24   /* native @48 - CONVERT */
+#define M68K_IClass_cl_ID 28   /* native @56 - CONVERT */
+#define M68K_IClass_cl_InstOffset 32   /* native @64 - CONVERT */
+#define M68K_IClass_cl_InstSize 34   /* native @66 - CONVERT */
+#define M68K_IClass_cl_UserData 36   /* native @72 - CONVERT */
+#define M68K_IClass_cl_SubclassCount 40   /* native @80 - CONVERT */
+#define M68K_IClass_cl_ObjectCount 44   /* native @84 - CONVERT */
+#define M68K_IClass_cl_Flags 48   /* native @88 - CONVERT */
+#define M68K_IClass_cl_ObjectSize 52   /* native @92 - CONVERT */
+#define M68K_IClass_cl_MemoryPool 56   /* native @96 - CONVERT */
+
 /* The conversion tables. Each row is one field: where it lives on
  * each side, how wide it is on each side, and what may be done to it.
  * A generic walker (emu68k_marshal.c) is all that is needed to convert
@@ -431,6 +461,29 @@ static const struct EmuField emu_fields_ExAllData[] = {
  *   ed_Next (struct ExAllData32 *)
  *   ed_Name (UBYTE *)
  *   ed_Comment (UBYTE *)
+ */
+
+static const struct EmuField emu_fields_IClass[] = {
+    {   20,   40, 4, 4, EMU_F_SCALAR },   /* cl_Reserved          ULONG */
+    {   32,   64, 2, 2, EMU_F_SCALAR },   /* cl_InstOffset        UWORD */
+    {   34,   66, 2, 2, EMU_F_SCALAR },   /* cl_InstSize          UWORD */
+    {   40,   80, 4, 4, EMU_F_SCALAR },   /* cl_SubclassCount     ULONG */
+    {   44,   84, 4, 4, EMU_F_SCALAR },   /* cl_ObjectCount       ULONG */
+    {   48,   88, 4, 4, EMU_F_SCALAR },   /* cl_Flags             ULONG */
+    {   52,   92, 4, 4, EMU_F_SCALAR },   /* cl_ObjectSize        ULONG */
+};
+/* NOT converted, and deliberately not guessed at:
+ *   cl_Dispatcher (struct Hook)
+ *   h_MinNode (struct MinNode)
+ *   mln_Succ (struct MinNode *)
+ *   mln_Pred (struct MinNode *)
+ *   h_Entry (APTR)
+ *   h_SubEntry (APTR)
+ *   h_Data (APTR)
+ *   cl_Super (struct IClass *)
+ *   cl_ID (ClassID)
+ *   cl_UserData (IPTR)
+ *   cl_MemoryPool (APTR)
  */
 
 #endif /* EMU68K_LAYOUTS_H */

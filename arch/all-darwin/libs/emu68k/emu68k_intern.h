@@ -49,6 +49,10 @@ struct Emu68kHostIf
                        APTR user);
     APTR (*run_guest0)(emu68k_run_h r);
     ULONG (*run_guest_alloc)(emu68k_run_h r, unsigned long size);
+    int (*run_call_hook)(emu68k_run_h r, unsigned long entry,
+                         unsigned long hook, unsigned long object,
+                         unsigned long message, unsigned int *result,
+                         char *err, unsigned errlen);
 };
 
 struct Emu68kOSCallCtx
@@ -56,6 +60,10 @@ struct Emu68kOSCallCtx
     APTR dosbase;
     emu68k_run_h run;
     ULONG (*guest_alloc)(emu68k_run_h r, unsigned long size);
+    int (*call_hook)(emu68k_run_h r, unsigned long entry,
+                     unsigned long hook, unsigned long object,
+                     unsigned long message, unsigned int *result,
+                     char *err, unsigned errlen);
 };
 
 struct Emu68kBase

@@ -26,6 +26,7 @@
 #include LC_LIBDEFS_FILE
 
 #include <aros/debug.h>
+#include <aros/asmcall.h>
 #include <string.h>
 
 /* dos.library vector indices (negative offset / 6) */
@@ -65,6 +66,13 @@
 static APTR gptr(APTR guest0, ULONG addr)
 {
     return addr ? (APTR)((UBYTE *)guest0 + addr) : NULL;
+}
+
+static ULONG gr32(APTR guest0, ULONG addr)
+{
+    const UBYTE *p = (const UBYTE *)guest0 + addr;
+    return ((ULONG)p[0] << 24) | ((ULONG)p[1] << 16) |
+           ((ULONG)p[2] << 8) | (ULONG)p[3];
 }
 
 /* ---- OPAQUE HANDLES -------------------------------------------------------
@@ -108,6 +116,10 @@ struct Emu68kRunState
     APTR  guest0;                                    /* NULL = a free slot     */
     emu68k_run_h run;
     ULONG (*guest_alloc)(emu68k_run_h r, unsigned long size);
+    int (*call_hook)(emu68k_run_h r, unsigned long entry,
+                     unsigned long hook, unsigned long object,
+                     unsigned long message, unsigned int *result,
+                     char *err, unsigned errlen);
     struct { BPTR bptr; } handles[EMU68K_MAX_HANDLES];
     struct { ULONG guest; struct AnchorPath *nap; } scans[EMU68K_MAX_SCANS];
     struct Emu68kObject objects[EMU68K_MAX_OBJECTS];
@@ -129,6 +141,170 @@ static struct Emu68kRunState *run_state(APTR guest0)
     memset(&g_runs[free_slot], 0, sizeof g_runs[free_slot]);
     g_runs[free_slot].guest0 = guest0;
     return &g_runs[free_slot];
+}
+
+AROS_UFH3(static IPTR, emu68k_native_hook_entry,
+          AROS_UFHA(struct Hook *, hook, A0),
+          AROS_UFHA(APTR, object, A2),
+          AROS_UFHA(APTR, message, A1))
+{
+    AROS_USERFUNC_INIT
+
+    struct Emu68kHookBridge *bridge = hook ? hook->h_Data : NULL;
+    struct Emu68kRunState *rs = bridge ? bridge->state : NULL;
+    unsigned int result = 0;
+
+    if (!bridge || !rs || !rs->call_hook)
+    {
+        if (bridge)
+        {
+            bridge->failed = TRUE;
+            snprintf(bridge->error, sizeof bridge->error,
+                     "Hook callback has no active 68k run");
+        }
+        return 0;
+    }
+    if (rs->call_hook(rs->run, bridge->entry, bridge->guest_hook,
+                      (ULONG)(IPTR)object, (ULONG)(IPTR)message, &result,
+                      bridge->error, sizeof bridge->error) != 0)
+    {
+        bridge->failed = TRUE;
+        return 0;
+    }
+    return (IPTR)result;
+
+    AROS_USERFUNC_EXIT
+}
+
+LONG emu68k_hook_prepare(APTR guest0, ULONG guest_hook,
+                         struct Emu68kHookBridge *bridge,
+                         char *err, ULONG errlen)
+{
+    ULONG entry;
+
+    if (!bridge || emu68k_require_guest_range(guest_hook, M68K_Hook_SIZEOF,
+                                               "Hook", err, errlen) < 0)
+        return -1;
+    entry = gr32(guest0, guest_hook + M68K_Hook_h_Entry);
+    if (emu68k_require_guest_range(entry, 2, "Hook entry", err, errlen) < 0)
+        return -1;
+    memset(bridge, 0, sizeof *bridge);
+    bridge->native.h_Entry = (APTR)emu68k_native_hook_entry;
+    bridge->native.h_Data = bridge;
+    bridge->state = run_state(guest0);
+    bridge->guest_hook = guest_hook;
+    bridge->entry = entry;
+    return bridge->state ? 0 : -1;
+}
+
+LONG emu68k_hook_finish(const struct Emu68kHookBridge *bridge,
+                        char *err, ULONG errlen)
+{
+    if (!bridge || !bridge->failed) return 0;
+    if (err && errlen)
+        snprintf(err, errlen, "68k Hook callback failed: %s", bridge->error);
+    return -1;
+}
+
+AROS_UFH3(static IPTR, emu68k_native_boopsi_entry,
+          AROS_UFHA(Class *, cl, A0),
+          AROS_UFHA(Object *, object, A2),
+          AROS_UFHA(Msg, message, A1))
+{
+    AROS_USERFUNC_INIT
+
+    struct Emu68kBoopsiBridge *bridge = cl ? cl->cl_Dispatcher.h_Data : NULL;
+    struct Emu68kRunState *rs = bridge ? bridge->state : NULL;
+    unsigned int result = 0;
+    ULONG guest_message, method;
+    UBYTE *p;
+
+    if (!bridge || !rs || !rs->call_hook || !rs->guest_alloc)
+    {
+        if (bridge)
+        {
+            bridge->failed = TRUE;
+            snprintf(bridge->error, sizeof bridge->error,
+                     "BOOPSI callback has no active 68k run");
+        }
+        return 0;
+    }
+    if ((APTR)object != bridge->native_class)
+    {
+        bridge->failed = TRUE;
+        snprintf(bridge->error, sizeof bridge->error,
+                 "BOOPSI callback object needs a guest facade");
+        return 0;
+    }
+    guest_message = rs->guest_alloc(rs->run, 4);
+    if (!guest_message)
+    {
+        bridge->failed = TRUE;
+        snprintf(bridge->error, sizeof bridge->error,
+                 "guest memory exhausted for BOOPSI message");
+        return 0;
+    }
+    method = message ? *(const ULONG *)(const void *)message : 0;
+    p = (UBYTE *)rs->guest0 + guest_message;
+    p[0] = (UBYTE)(method >> 24); p[1] = (UBYTE)(method >> 16);
+    p[2] = (UBYTE)(method >> 8);  p[3] = (UBYTE)method;
+    if (rs->call_hook(rs->run, bridge->entry, bridge->guest_class,
+                      bridge->guest_class, guest_message, &result,
+                      bridge->error, sizeof bridge->error) != 0)
+    {
+        bridge->failed = TRUE;
+        return 0;
+    }
+    return (IPTR)result;
+
+    AROS_USERFUNC_EXIT
+}
+
+LONG emu68k_boopsi_prepare(APTR guest0, ULONG guest_class, APTR native_class,
+                           struct Emu68kBoopsiBridge *bridge,
+                           char *err, ULONG errlen)
+{
+    Class *cl = native_class;
+    struct Emu68kRunState *rs;
+    ULONG entry;
+
+    if (!bridge || !cl ||
+        emu68k_require_guest_range(guest_class, M68K_IClass_SIZEOF,
+                                   "BOOPSI Class", err, errlen) < 0)
+        return -1;
+    entry = gr32(guest0, guest_class + M68K_IClass_h_Entry);
+    if (emu68k_require_guest_range(entry, 2, "BOOPSI dispatcher", err, errlen) < 0)
+        return -1;
+    rs = run_state(guest0);
+    if (!rs)
+    {
+        if (err && errlen)
+            snprintf(err, errlen, "BOOPSI callback has no active 68k run");
+        return -1;
+    }
+    memset(bridge, 0, sizeof *bridge);
+    bridge->saved_dispatcher = cl->cl_Dispatcher;
+    bridge->native_class = cl;
+    bridge->state = rs;
+    bridge->guest_class = guest_class;
+    bridge->entry = entry;
+    cl->cl_Dispatcher.h_Entry = (APTR)emu68k_native_boopsi_entry;
+    cl->cl_Dispatcher.h_Data = bridge;
+    return 0;
+}
+
+LONG emu68k_boopsi_finish(struct Emu68kBoopsiBridge *bridge,
+                          char *err, ULONG errlen)
+{
+    Class *cl;
+
+    if (!bridge) return 0;
+    cl = bridge->native_class;
+    if (cl) cl->cl_Dispatcher = bridge->saved_dispatcher;
+    if (!bridge->failed) return 0;
+    if (err && errlen)
+        snprintf(err, errlen, "68k BOOPSI callback failed: %s", bridge->error);
+    return -1;
 }
 
 /* A handle crosses as a BPTR of a real guest structure, not as an opaque tag:
@@ -592,6 +768,7 @@ int Emu68k_OSCall(const char *libname, int lvo, APTR regs, APTR guest0,
     }
     rs->run = ctx ? ctx->run : NULL;
     rs->guest_alloc = ctx ? ctx->guest_alloc : NULL;
+    rs->call_hook = ctx ? ctx->call_hook : NULL;
 
     if (strcmp(libname, "dos.library") == 0)
     {

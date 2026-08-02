@@ -26,7 +26,7 @@ static const struct EmuTagDesc emu_tagdesc_icon_duplicate[] =
 };
 static const struct EmuTagDomain emu_tagdomain_icon_duplicate =
 {
-    emu_tagdesc_icon_duplicate, (UWORD)(sizeof(emu_tagdesc_icon_duplicate) / sizeof(emu_tagdesc_icon_duplicate[0])), "icon.duplicate"
+    emu_tagdesc_icon_duplicate, 7, "icon.duplicate"
 };
 
 static void emu_object_cleanup_DiskObject(APTR emu_base, APTR emu_object)

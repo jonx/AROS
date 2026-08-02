@@ -21,7 +21,7 @@ static const struct EmuTagDesc emu_tagdesc_locale_open_catalog[] =
 };
 static const struct EmuTagDomain emu_tagdomain_locale_open_catalog =
 {
-    emu_tagdesc_locale_open_catalog, (UWORD)(sizeof(emu_tagdesc_locale_open_catalog) / sizeof(emu_tagdesc_locale_open_catalog[0])), "locale.open_catalog"
+    emu_tagdesc_locale_open_catalog, 4, "locale.open_catalog"
 };
 
 static void emu_object_cleanup_Catalog(APTR emu_base, APTR emu_object)

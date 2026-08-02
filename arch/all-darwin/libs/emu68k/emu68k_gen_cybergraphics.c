@@ -22,7 +22,7 @@ static const struct EmuTagDesc emu_tagdesc_cybergraphics_best_mode[] =
 };
 static const struct EmuTagDomain emu_tagdomain_cybergraphics_best_mode =
 {
-    emu_tagdesc_cybergraphics_best_mode, (UWORD)(sizeof(emu_tagdesc_cybergraphics_best_mode) / sizeof(emu_tagdesc_cybergraphics_best_mode[0])), "cybergraphics.best_mode"
+    emu_tagdesc_cybergraphics_best_mode, 5, "cybergraphics.best_mode"
 };
 
 int emu68k_gen_cybergraphics(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,

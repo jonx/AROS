@@ -30,7 +30,7 @@ static const struct EmuTagDesc emu_tagdesc_graphics_best_mode[] =
 };
 static const struct EmuTagDomain emu_tagdomain_graphics_best_mode =
 {
-    emu_tagdesc_graphics_best_mode, (UWORD)(sizeof(emu_tagdesc_graphics_best_mode) / sizeof(emu_tagdesc_graphics_best_mode[0])), "graphics.best_mode"
+    emu_tagdesc_graphics_best_mode, 13, "graphics.best_mode"
 };
 
 int emu68k_gen_graphics(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,

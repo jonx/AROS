@@ -19,6 +19,18 @@ int emu68k_gen_utility(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
 
     switch (lvo)
     {
+    case 17:  /* CallHookPkt(struct Hook * hook, APTR object, APTR paramPacket) -> IPTR  [-102] */
+    {
+        struct Emu68kHookBridge emu_hook_0;
+        if (emu68k_hook_prepare(guest0, r->a[0], &emu_hook_0, err, errlen) < 0)
+            return 1;
+            r->d[0] = (ULONG)CallHookPkt((struct Hook *)&emu_hook_0.native,
+              (APTR)(IPTR)r->a[2],
+              (APTR)(IPTR)r->a[1]);   /* narrowed: an integer, never an address */
+        if (emu68k_hook_finish(&emu_hook_0, err, errlen) < 0)
+            return 1;
+            return 0;
+    }
     case 23:  /* SMult32(LONG arg1, LONG arg2) -> LONG  [-138] */
         r->d[0] = (ULONG)SMult32((LONG)r->d[0],
               (LONG)r->d[1]);

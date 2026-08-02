@@ -8,8 +8,32 @@
 
 #include <exec/types.h>
 #include <proto/intuition.h>
+#include <string.h>
+#include <intuition/classes.h>
 
 #include "emu68k_gen.h"
+#include "emu68k_layouts.h"
+
+static const struct EmuTagDesc emu_tagdesc_intuition_new_object[] =
+{
+    { 0, EMU_TAG_REFUSE, NULL },
+};
+static const struct EmuTagDomain emu_tagdomain_intuition_new_object =
+{
+    emu_tagdesc_intuition_new_object, 0, "intuition.new_object"
+};
+
+static void emu_object_cleanup_Class(APTR emu_base, APTR emu_object)
+{
+    struct IntuitionBase *IntuitionBase = emu_base;
+    FreeClass((struct IClass *)emu_object);
+}
+
+static void emu_object_cleanup_Object(APTR emu_base, APTR emu_object)
+{
+    struct IntuitionBase *IntuitionBase = emu_base;
+    DisposeObject((APTR)emu_object);
+}
 
 int emu68k_gen_intuition(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
                   char *err, ULONG errlen)
@@ -63,6 +87,60 @@ int emu68k_gen_intuition(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
     case 91:  /* SetPubScreenModes(UWORD modes) -> UWORD  [-546] */
         r->d[0] = (ULONG)SetPubScreenModes((UWORD)r->d[0]);
         return 0;
+    case 106:  /* NewObjectA(struct IClass * classPtr, UBYTE * classID, struct TagItem * tagList) -> APTR  [-636] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_Class, 0,
+                                        "Class", &emu_object_0, err, errlen) < 0)
+            return 1;
+        struct Emu68kBoopsiBridge emu_boopsi_0;
+        struct TagItem emu_tags_2[2];
+        if (emu68k_tags_to_native(guest0, r->a[2], &emu_tagdomain_intuition_new_object,
+                                     emu_tags_2, 2, err, errlen) < 0)
+            return 1;
+        if (emu68k_boopsi_prepare(guest0, r->a[0], emu_object_0,
+                                   &emu_boopsi_0, err, errlen) < 0)
+            return 1;
+        APTR emu_result = (APTR)NewObjectA((struct IClass *)emu_object_0,
+              (UBYTE *)EMU_GPTR(guest0, r->a[1]),
+              (struct TagItem *)(r->a[2] ? emu_tags_2 : NULL));
+        if (emu68k_boopsi_finish(&emu_boopsi_0, err, errlen) < 0)
+            return 1;
+        if (emu68k_object_to_guest(guest0, emu_result, EMU_OBJ_Object,
+                                      base, emu_object_cleanup_Object,
+                                      "Object", &r->d[0], err, errlen) < 0)
+            return 1;
+            return 0;
+    }
+    case 107:  /* DisposeObject(APTR object) -> void  [-642] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_Object, 1,
+                                        "Object", &emu_object_0, err, errlen) < 0)
+            return 1;
+            DisposeObject((APTR)emu_object_0);
+        emu68k_object_release(guest0, r->a[0], EMU_OBJ_Object);
+            return 0;
+    }
+    case 113:  /* MakeClass(ClassID classID, ClassID superClassID, struct IClass * superClassPtr, ULONG instanceSize, ULONG flags) -> struct IClass *  [-678] */
+    {
+        APTR emu_object_2;
+        if (emu68k_object_from_guest(guest0, r->a[2], EMU_OBJ_Class, 1,
+                                        "Class", &emu_object_2, err, errlen) < 0)
+            return 1;
+        APTR emu_result = (APTR)MakeClass((ClassID)EMU_GPTR(guest0, r->a[0]),
+              (ClassID)EMU_GPTR(guest0, r->a[1]),
+              (struct IClass *)emu_object_2,
+              (ULONG)r->d[0],
+              (ULONG)r->d[1]);
+        if (emu68k_object_to_guest_facade(guest0, emu_result, EMU_OBJ_Class,
+                                             base, emu_object_cleanup_Class,
+                                             "Class", M68K_IClass_SIZEOF,
+                                             emu_fields_IClass, EMU_NFIELDS(emu_fields_IClass),
+                                             &r->d[0], err, errlen) < 0)
+            return 1;
+            return 0;
+    }
     case 137:  /* TimedDisplayAlert(ULONG alertnumber, UBYTE * string, UWORD height, ULONG time) -> BOOL  [-822] */
         r->d[0] = (ULONG)TimedDisplayAlert((ULONG)r->d[0],
               (UBYTE *)EMU_GPTR(guest0, r->a[0]),

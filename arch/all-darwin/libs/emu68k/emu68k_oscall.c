@@ -16,6 +16,7 @@
 #include <exec/types.h>
 #include <dos/dos.h>
 #include <dos/dosextens.h>
+#include <graphics/gfx.h>
 
 #include <proto/exec.h>
 #include <proto/dos.h>
@@ -60,6 +61,16 @@
 #define ICON_LVO_FINDTOOLTYPE  16   /* -96  */
 #define GFX_LVO_ALLOCRASTER    82   /* -492 */
 #define GFX_LVO_FREERASTER     83   /* -498 */
+#define GFX_LVO_ALLOCBITMAP   153   /* -918 */
+#define GFX_LVO_FREEBITMAP    154   /* -924 */
+#define WB_LVO_ADDAPPWINDOW     8   /* -48  */
+#define WB_LVO_REMOVEAPPWINDOW  9   /* -54  */
+#define WB_LVO_ADDAPPICON      10   /* -60  */
+#define WB_LVO_REMOVEAPPICON   11   /* -66  */
+#define WB_LVO_ADDAPPMENUITEM  12   /* -72  */
+#define WB_LVO_REMOVEAPPMENUITEM 13 /* -78  */
+#define WB_LVO_ADDAPPWINDOWDROPZONE 19    /* -114 */
+#define WB_LVO_REMOVEAPPWINDOWDROPZONE 20 /* -120 */
 
 /* A guest pointer becomes a host pointer by adding the guest base. Only memory
  * INSIDE the guest arena may be handed to a native call this way. */
@@ -155,6 +166,7 @@ void emu68k_scalar_to_guest(APTR guest0, ULONG addr, UBYTE width, UQUAD value)
 #define EMU68K_MAX_HANDLES ((int)EMU68K_GUEST_FH_MAX)
 #define EMU68K_MAX_SCANS   4
 #define EMU68K_MAX_OBJECTS 64
+#define EMU68K_MAX_BITMAPS 64
 #define EMU68K_MAX_RUNS    4
 #define EMU68K_OBJECT_TOKEN_BASE 0xE6800000UL
 
@@ -190,6 +202,7 @@ struct Emu68kRunState
                      char *err, unsigned errlen);
     struct { BPTR bptr; } handles[EMU68K_MAX_HANDLES];
     struct { ULONG guest; struct AnchorPath *nap; } scans[EMU68K_MAX_SCANS];
+    struct { ULONG guest; } bitmaps[EMU68K_MAX_BITMAPS];
     struct Emu68kObject objects[EMU68K_MAX_OBJECTS];
     ULONG next_object;
 };
@@ -1101,8 +1114,155 @@ int Emu68k_OSCall(const char *libname, int lvo, APTR regs, APTR guest0,
         }
     }
 
+    if (strcmp(libname, "workbench.library") == 0)
+    {
+        /* Registering with Workbench asks it to SEND the program messages, on
+         * a port the program then waits on. Nothing delivers a message into a
+         * guest yet: it runs only while we run it, and its port is a structure
+         * in its own arena that native code cannot put a message on. So the
+         * registration is declined rather than accepted and never honoured,
+         * which is what a program is told when Workbench will not take it, and
+         * is the answer every one of these is written to cope with.
+         *
+         * The removals succeed: removing something never added is a no-op, and
+         * a program that tidies up on exit should not fail doing it. */
+        switch (lvo)
+        {
+        case WB_LVO_ADDAPPWINDOW:
+        case WB_LVO_ADDAPPICON:
+        case WB_LVO_ADDAPPMENUITEM:
+        case WB_LVO_ADDAPPWINDOWDROPZONE:
+            bug("[emu68k] Workbench registration declined (LVO %d): no message"
+                " delivery into a 68k guest yet\n", lvo);
+            r->d[0] = 0;
+            return 0;
+        case WB_LVO_REMOVEAPPWINDOW:
+        case WB_LVO_REMOVEAPPICON:
+        case WB_LVO_REMOVEAPPMENUITEM:
+        case WB_LVO_REMOVEAPPWINDOWDROPZONE:
+            r->d[0] = DOSTRUE;
+            return 0;
+        }
+    }
+
     if (strcmp(libname, "graphics.library") == 0)
     {
+        /* AllocBitMap returns a STRUCTURE the program reads and writes, and
+         * that structure in turn contains plane pointers the program follows.
+         * A native BitMap cannot cross either boundary: its address and its
+         * PLANEPTRs are 64-bit host pointers.  Build the ordinary classic
+         * planar form in guest memory instead.  Generated crossings can then
+         * rebase its planes when a native graphics call consumes it.
+         *
+         * For a legacy caller, BMF_DISPLAYABLE is an allocation/alignment
+         * request, not a demand for AROS's native HIDD representation.  The
+         * guest arena is its chip-addressable world, so the classic planar
+         * facade is the compatible answer.  RTG/special-format and friend
+         * bitmaps do have driver-owned semantics and deliberately remain
+         * capability gaps. */
+        if (lvo == GFX_LVO_ALLOCBITMAP)
+        {
+            UWORD width = (UWORD)r->d[0], height = (UWORD)r->d[1];
+            ULONG depth = r->d[2], flags = r->d[3];
+            ULONG bytesperrow, plane_size, total, bitmap, planes = 0;
+            UQUAD total64;
+            int slot, i;
+
+            if (!rs || !rs->guest_alloc)
+            {
+                r->d[0] = 0;
+                return 0;
+            }
+            if (r->a[0] || depth > 8 ||
+                (flags & ~(BMF_CLEAR | BMF_DISPLAYABLE | BMF_INTERLEAVED |
+                           BMF_STANDARD | BMF_MINPLANES)))
+            {
+                if (err && errlen)
+                    snprintf(err, errlen,
+                             "AllocBitMap needs native display/RTG/friend semantics "
+                             "(depth=%lu flags=%08lx friend=%08lx)",
+                             depth, flags, r->a[0]);
+                return 1;
+            }
+
+            for (slot = 0; slot < EMU68K_MAX_BITMAPS; slot++)
+                if (!rs->bitmaps[slot].guest) break;
+            if (slot == EMU68K_MAX_BITMAPS)
+            {
+                if (err && errlen)
+                    snprintf(err, errlen, "too many live guest BitMaps");
+                return 1;
+            }
+
+            bytesperrow = (((ULONG)width + 15) >> 4) * 2;
+            total64 = (UQUAD)bytesperrow * height;
+            if (total64 > 0xffffffffUL ||
+                (depth && total64 > 0xffffffffUL / depth))
+            {
+                r->d[0] = 0;
+                return 0;
+            }
+            plane_size = (ULONG)total64;
+            total = plane_size * depth;
+            if (total > 0xffffffffUL - M68K_BitMap_SIZEOF)
+            {
+                r->d[0] = 0;
+                return 0;
+            }
+            /* One allocation makes failure atomic in the bump-owned guest
+             * heap and keeps the facade and its planar storage together. */
+            bitmap = rs->guest_alloc(rs->run, M68K_BitMap_SIZEOF + total);
+            if (!bitmap)
+            {
+                r->d[0] = 0;
+                return 0;
+            }
+            if (total) planes = bitmap + M68K_BitMap_SIZEOF;
+
+            memset(gptr(guest0, bitmap), 0, M68K_BitMap_SIZEOF);
+            emu68k_scalar_to_guest(guest0,
+                                   bitmap + M68K_BitMap_BytesPerRow, 2,
+                                   bytesperrow);
+            emu68k_scalar_to_guest(guest0, bitmap + M68K_BitMap_Rows, 2,
+                                   height);
+            gw8(guest0, bitmap + M68K_BitMap_Flags,
+                (UBYTE)(flags | BMF_STANDARD));
+            gw8(guest0, bitmap + M68K_BitMap_Depth, (UBYTE)depth);
+            emu68k_scalar_to_guest(guest0, bitmap + M68K_BitMap_pad, 2, 0);
+            for (i = 0; i < (int)depth; i++)
+                emu68k_scalar_to_guest(guest0,
+                                       bitmap + M68K_BitMap_Planes + i * 4,
+                                       4, planes + (ULONG)i * plane_size);
+
+            rs->bitmaps[slot].guest = bitmap;
+            r->d[0] = bitmap;
+            return 0;
+        }
+
+        if (lvo == GFX_LVO_FREEBITMAP)
+        {
+            int i;
+            if (!r->a[0])
+            {
+                r->d[0] = 0;
+                return 0;
+            }
+            for (i = 0; i < EMU68K_MAX_BITMAPS; i++)
+                if (rs->bitmaps[i].guest == r->a[0])
+                {
+                    /* Guest storage is owned by the run's bump allocator and
+                     * is reclaimed with the arena; invalidate only identity. */
+                    rs->bitmaps[i].guest = 0;
+                    r->d[0] = 0;
+                    return 0;
+                }
+            if (err && errlen)
+                snprintf(err, errlen,
+                         "FreeBitMap received unknown guest bitmap %08lx",
+                         r->a[0]);
+            return 1;
+        }
+
         /* AllocRaster hands back an address the PROGRAM writes bitplanes into,
          * so it has to be an address the program can hold and reach: a native
          * one is 64 bits and outside the arena on both counts. The raster is

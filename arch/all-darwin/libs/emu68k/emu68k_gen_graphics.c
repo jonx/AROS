@@ -49,6 +49,19 @@ int emu68k_gen_graphics(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
 
     switch (lvo)
     {
+    case 33:  /* InitRastPort(struct RastPort * rp) -> void  [-198] */
+    {
+        struct RastPort emu_struct_0;
+        if (emu68k_require_guest_range(r->a[1], M68K_RastPort_SIZEOF,
+                                         "InitRastPort.rp", err, errlen) < 0)
+            return 1;
+        memset(&emu_struct_0, 0, sizeof(emu_struct_0));
+            InitRastPort((struct RastPort *)&emu_struct_0);
+        memset(EMU_GPTR(guest0, r->a[1]), 0, M68K_RastPort_SIZEOF);
+        emu68k_to_guest_sized(guest0, r->a[1], &emu_struct_0,
+                           emu_fields_RastPort, EMU_NFIELDS(emu_fields_RastPort), M68K_RastPort_SIZEOF);
+            return 0;
+    }
     case 38:  /* WaitBlit(void) -> void  [-228] */
         WaitBlit();
         return 0;

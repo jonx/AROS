@@ -8,8 +8,100 @@
 
 #include <exec/types.h>
 #include <proto/asl.h>
+#include <libraries/asl.h>
 
 #include "emu68k_gen.h"
+
+static const struct EmuTagDesc emu_tagdesc_asl_request[] =
+{
+    { ASLFR_TitleText, EMU_TAG_CSTR, "ASLFR_TitleText", NULL, 0, 0, 0 },
+    { ASLFR_Window, EMU_TAG_REFUSE, "ASLFR_Window", NULL, 0, 0, 0 },
+    { ASLFR_InitialLeftEdge, EMU_TAG_U32, "ASLFR_InitialLeftEdge", NULL, 0, 0, 0 },
+    { ASLFR_InitialTopEdge, EMU_TAG_U32, "ASLFR_InitialTopEdge", NULL, 0, 0, 0 },
+    { ASLFR_InitialWidth, EMU_TAG_U32, "ASLFR_InitialWidth", NULL, 0, 0, 0 },
+    { ASLFR_InitialHeight, EMU_TAG_U32, "ASLFR_InitialHeight", NULL, 0, 0, 0 },
+    { ASLFR_HookFunc, EMU_TAG_REFUSE, "ASLFR_HookFunc", NULL, 0, 0, 0 },
+    { ASLFR_InitialFile, EMU_TAG_CSTR, "ASLFR_InitialFile", NULL, 0, 0, 0 },
+    { ASLFR_InitialDrawer, EMU_TAG_CSTR, "ASLFR_InitialDrawer", NULL, 0, 0, 0 },
+    { ASLFR_InitialPattern, EMU_TAG_CSTR, "ASLFR_InitialPattern", NULL, 0, 0, 0 },
+    { ASLFO_InitialSize, EMU_TAG_U32, "ASLFO_InitialSize", NULL, 0, 0, 0 },
+    { ASLFO_InitialStyle, EMU_TAG_U32, "ASLFO_InitialStyle", NULL, 0, 0, 0 },
+    { ASLFO_InitialFlags, EMU_TAG_U32, "ASLFO_InitialFlags", NULL, 0, 0, 0 },
+    { ASLFO_InitialFrontPen, EMU_TAG_U32, "ASLFO_InitialFrontPen", NULL, 0, 0, 0 },
+    { ASLFO_InitialBackPen, EMU_TAG_U32, "ASLFO_InitialBackPen", NULL, 0, 0, 0 },
+    { ASLFO_MinHeight, EMU_TAG_U32, "ASLFO_MinHeight", NULL, 0, 0, 0 },
+    { ASLFO_MaxHeight, EMU_TAG_U32, "ASLFO_MaxHeight", NULL, 0, 0, 0 },
+    { ASLFR_PositiveText, EMU_TAG_CSTR, "ASLFR_PositiveText", NULL, 0, 0, 0 },
+    { ASLFR_NegativeText, EMU_TAG_CSTR, "ASLFR_NegativeText", NULL, 0, 0, 0 },
+    { ASLFR_Flags1, EMU_TAG_U32, "ASLFR_Flags1", NULL, 0, 0, 0 },
+    { ASLFO_ModeList, EMU_TAG_REFUSE, "ASLFO_ModeList", NULL, 0, 0, 0 },
+    { ASLFR_Flags2, EMU_TAG_U32, "ASLFR_Flags2", NULL, 0, 0, 0 },
+    { ASLFR_Screen, EMU_TAG_REFUSE, "ASLFR_Screen", NULL, 0, 0, 0 },
+    { ASLFR_PubScreenName, EMU_TAG_CSTR, "ASLFR_PubScreenName", NULL, 0, 0, 0 },
+    { ASLFR_PrivateIDCMP, EMU_TAG_U32, "ASLFR_PrivateIDCMP", NULL, 0, 0, 0 },
+    { ASLFR_SleepWindow, EMU_TAG_U32, "ASLFR_SleepWindow", NULL, 0, 0, 0 },
+    { ASLFR_DoSaveMode, EMU_TAG_U32, "ASLFR_DoSaveMode", NULL, 0, 0, 0 },
+    { ASLFR_DoMultiSelect, EMU_TAG_U32, "ASLFR_DoMultiSelect", NULL, 0, 0, 0 },
+    { ASLFR_DoPatterns, EMU_TAG_U32, "ASLFR_DoPatterns", NULL, 0, 0, 0 },
+    { ASLFR_DrawersOnly, EMU_TAG_U32, "ASLFR_DrawersOnly", NULL, 0, 0, 0 },
+    { ASLFO_FixedWidthOnly, EMU_TAG_U32, "ASLFO_FixedWidthOnly", NULL, 0, 0, 0 },
+    { ASLFR_FilterFunc, EMU_TAG_REFUSE, "ASLFR_FilterFunc", NULL, 0, 0, 0 },
+    { ASLFR_Locale, EMU_TAG_REFUSE, "ASLFR_Locale", NULL, 0, 0, 0 },
+    { ASLFR_TextAttr, EMU_TAG_REFUSE, "ASLFR_TextAttr", NULL, 0, 0, 0 },
+    { ASLFR_UserData, EMU_TAG_U32, "ASLFR_UserData", NULL, 0, 0, 0 },
+    { ASLFO_InitialDrawMode, EMU_TAG_U32, "ASLFO_InitialDrawMode", NULL, 0, 0, 0 },
+    { ASLFR_RejectIcons, EMU_TAG_U32, "ASLFR_RejectIcons", NULL, 0, 0, 0 },
+    { ASLFR_RejectPattern, EMU_TAG_CSTR, "ASLFR_RejectPattern", NULL, 0, 0, 0 },
+    { ASLFR_AcceptPattern, EMU_TAG_CSTR, "ASLFR_AcceptPattern", NULL, 0, 0, 0 },
+    { ASLFR_FilterDrawers, EMU_TAG_U32, "ASLFR_FilterDrawers", NULL, 0, 0, 0 },
+    { ASLFO_FrontPens, EMU_TAG_REFUSE, "ASLFO_FrontPens", NULL, 0, 0, 0 },
+    { ASLFO_BackPens, EMU_TAG_REFUSE, "ASLFO_BackPens", NULL, 0, 0, 0 },
+    { ASLFO_MaxFrontPen, EMU_TAG_U32, "ASLFO_MaxFrontPen", NULL, 0, 0, 0 },
+    { ASLFO_MaxBackPen, EMU_TAG_U32, "ASLFO_MaxBackPen", NULL, 0, 0, 0 },
+    { ASLFR_IntuiMsgFunc, EMU_TAG_REFUSE, "ASLFR_IntuiMsgFunc", NULL, 0, 0, 0 },
+    { ASLSM_InitialDisplayID, EMU_TAG_U32, "ASLSM_InitialDisplayID", NULL, 0, 0, 0 },
+    { ASLSM_InitialDisplayWidth, EMU_TAG_U32, "ASLSM_InitialDisplayWidth", NULL, 0, 0, 0 },
+    { ASLSM_InitialDisplayHeight, EMU_TAG_U32, "ASLSM_InitialDisplayHeight", NULL, 0, 0, 0 },
+    { ASLSM_InitialDisplayDepth, EMU_TAG_U32, "ASLSM_InitialDisplayDepth", NULL, 0, 0, 0 },
+    { ASLSM_InitialOverscanType, EMU_TAG_U32, "ASLSM_InitialOverscanType", NULL, 0, 0, 0 },
+    { ASLSM_InitialAutoScroll, EMU_TAG_U32, "ASLSM_InitialAutoScroll", NULL, 0, 0, 0 },
+    { ASLSM_InitialInfoOpened, EMU_TAG_U32, "ASLSM_InitialInfoOpened", NULL, 0, 0, 0 },
+    { ASLSM_InitialInfoLeftEdge, EMU_TAG_U32, "ASLSM_InitialInfoLeftEdge", NULL, 0, 0, 0 },
+    { ASLSM_InitialInfoTopEdge, EMU_TAG_U32, "ASLSM_InitialInfoTopEdge", NULL, 0, 0, 0 },
+    { ASLSM_DoWidth, EMU_TAG_U32, "ASLSM_DoWidth", NULL, 0, 0, 0 },
+    { ASLSM_DoHeight, EMU_TAG_U32, "ASLSM_DoHeight", NULL, 0, 0, 0 },
+    { ASLSM_DoDepth, EMU_TAG_U32, "ASLSM_DoDepth", NULL, 0, 0, 0 },
+    { ASLSM_DoOverscanType, EMU_TAG_U32, "ASLSM_DoOverscanType", NULL, 0, 0, 0 },
+    { ASLSM_DoAutoScroll, EMU_TAG_U32, "ASLSM_DoAutoScroll", NULL, 0, 0, 0 },
+    { ASLSM_PropertyFlags, EMU_TAG_U32, "ASLSM_PropertyFlags", NULL, 0, 0, 0 },
+    { ASLSM_PropertyMask, EMU_TAG_U32, "ASLSM_PropertyMask", NULL, 0, 0, 0 },
+    { ASLSM_MinWidth, EMU_TAG_U32, "ASLSM_MinWidth", NULL, 0, 0, 0 },
+    { ASLSM_MaxWidth, EMU_TAG_U32, "ASLSM_MaxWidth", NULL, 0, 0, 0 },
+    { ASLSM_MinHeight, EMU_TAG_U32, "ASLSM_MinHeight", NULL, 0, 0, 0 },
+    { ASLSM_MaxDepth, EMU_TAG_U32, "ASLSM_MaxDepth", NULL, 0, 0, 0 },
+    { ASLSM_FilterFunc, EMU_TAG_REFUSE, "ASLSM_FilterFunc", NULL, 0, 0, 0 },
+    { ASLSM_CustomSMList, EMU_TAG_REFUSE, "ASLSM_CustomSMList", NULL, 0, 0, 0 },
+    { ASLFR_SetSortBy, EMU_TAG_U32, "ASLFR_SetSortBy", NULL, 0, 0, 0 },
+    { ASLFR_GetSortBy, EMU_TAG_REFUSE, "ASLFR_GetSortBy", NULL, 0, 0, 0 },
+    { ASLFR_SetSortDrawers, EMU_TAG_U32, "ASLFR_SetSortDrawers", NULL, 0, 0, 0 },
+    { ASLFR_GetSortDrawers, EMU_TAG_REFUSE, "ASLFR_GetSortDrawers", NULL, 0, 0, 0 },
+    { ASLFR_SetSortOrder, EMU_TAG_U32, "ASLFR_SetSortOrder", NULL, 0, 0, 0 },
+    { ASLFR_GetSortOrder, EMU_TAG_REFUSE, "ASLFR_GetSortOrder", NULL, 0, 0, 0 },
+    { ASLFR_InitialShowVolumes, EMU_TAG_U32, "ASLFR_InitialShowVolumes", NULL, 0, 0, 0 },
+    { ASLFR_PopToFront, EMU_TAG_U32, "ASLFR_PopToFront", NULL, 0, 0, 0 },
+    { ASLFR_Activate, EMU_TAG_U32, "ASLFR_Activate", NULL, 0, 0, 0 },
+    { ASLFO_SampleText, EMU_TAG_CSTR, "ASLFO_SampleText", NULL, 0, 0, 0 },
+};
+static const struct EmuTagDomain emu_tagdomain_asl_request =
+{
+    emu_tagdesc_asl_request, 77, "asl.request"
+};
+
+static void emu_object_cleanup_AslRequest(APTR emu_base, APTR emu_object)
+{
+    struct Library *AslBase = emu_base;
+    FreeAslRequest((APTR)emu_object);
+}
 
 int emu68k_gen_asl(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
                   char *err, ULONG errlen)
@@ -19,6 +111,62 @@ int emu68k_gen_asl(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
 
     switch (lvo)
     {
+    case 8:  /* AllocAslRequest(ULONG reqType, struct TagItem * tagList) -> APTR  [-48] */
+    {
+        struct TagItem emu_tags_1[65];
+        if (emu68k_tags_to_native(guest0, r->a[0], &emu_tagdomain_asl_request,
+                                     emu_tags_1, 65, NULL, 0, err, errlen) < 0)
+            return 1;
+        APTR emu_result = (APTR)AllocAslRequest((ULONG)r->d[0],
+              (struct TagItem *)(r->a[0] ? emu_tags_1 : NULL));
+        if (emu68k_object_to_guest(guest0, emu_result, EMU_OBJ_AslRequest,
+                                      base, emu_object_cleanup_AslRequest,
+                                      "AslRequest", &r->d[0], err, errlen) < 0)
+            return 1;
+            return 0;
+    }
+    case 9:  /* FreeAslRequest(APTR requester) -> void  [-54] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_AslRequest, 1,
+                                        "AslRequest", &emu_object_0, err, errlen) < 0)
+            return 1;
+            FreeAslRequest((APTR)emu_object_0);
+        emu68k_object_consume(guest0, r->a[0], EMU_OBJ_AslRequest);
+            return 0;
+    }
+    case 10:  /* AslRequest(APTR requester, struct TagItem * tagList) -> BOOL  [-60] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_AslRequest, 0,
+                                        "AslRequest", &emu_object_0, err, errlen) < 0)
+            return 1;
+        struct TagItem emu_tags_1[65];
+        if (emu68k_tags_to_native(guest0, r->a[1], &emu_tagdomain_asl_request,
+                                     emu_tags_1, 65, NULL, 0, err, errlen) < 0)
+            return 1;
+            r->d[0] = (ULONG)AslRequest((APTR)emu_object_0,
+              (struct TagItem *)(r->a[1] ? emu_tags_1 : NULL));
+            return 0;
+    }
+    case 13:  /* AbortAslRequest(APTR requester) -> void  [-78] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_AslRequest, 0,
+                                        "AslRequest", &emu_object_0, err, errlen) < 0)
+            return 1;
+            AbortAslRequest((APTR)emu_object_0);
+            return 0;
+    }
+    case 14:  /* ActivateAslRequest(APTR requester) -> void  [-84] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_AslRequest, 0,
+                                        "AslRequest", &emu_object_0, err, errlen) < 0)
+            return 1;
+            ActivateAslRequest((APTR)emu_object_0);
+            return 0;
+    }
     }
     return 1;   /* no safe generated crossing for this vector */
 }

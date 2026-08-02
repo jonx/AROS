@@ -167,6 +167,7 @@ enum
     EMU_OBJ_MsgPort = 7,
     EMU_OBJ_Region = 8,
     EMU_OBJ_Screen = 9,
+    EMU_OBJ_AslRequest = 10,
 };
 int emu68k_gen_exec(int lvo, struct Emu68kRegs *r,
                   APTR guest0, APTR base,

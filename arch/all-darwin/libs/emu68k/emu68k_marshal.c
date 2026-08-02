@@ -246,38 +246,73 @@ static void guest_write(UBYTE *p, unsigned w, ULONG v)
         p[w - 1 - i] = (UBYTE)(v >> (8 * i));
 }
 
+/* How many elements of a field fit in the caller's `limit` bytes of the GUEST
+ * structure. Several AmigaOS calls take the number of bytes the caller is
+ * willing to have filled (GetPrefs is the one this was written for), and the
+ * limit is a hard bound: an element that would cross it is not written at all,
+ * rather than clipped to a fraction of a value. An array fills as far as it
+ * reaches, which is what a byte-copying Amiga does. */
+static ULONG fits(const struct EmuField *f, ULONG limit)
+{
+    ULONG room, n;
+
+    if (limit <= f->g_off)
+        return 0;
+    room = limit - f->g_off;
+    n = room / f->g_w;
+    return n < f->count ? n : f->count;
+}
+
 /* native -> guest: what the program reads back after a call filled something. */
-void emu68k_to_guest(APTR guest0, ULONG gbase, const void *native,
-                     const struct EmuField *f, int n)
+void emu68k_to_guest_sized(APTR guest0, ULONG gbase, const void *native,
+                           const struct EmuField *f, int n, ULONG limit)
 {
     UBYTE *g = (UBYTE *)guest0 + gbase;
     const UBYTE *nat = native;
     int i;
+    ULONG e, count;
 
     for (i = 0; i < n; i++, f++)
     {
+        count = fits(f, limit);
         if (f->kind == EMU_F_BYTES)
-            CopyMem((APTR)(nat + f->n_off), g + f->g_off, f->g_w);
+            CopyMem((APTR)(nat + f->n_off), g + f->g_off, count);
         else
-            guest_write(g + f->g_off, f->g_w,
-                        native_read(nat + f->n_off, f->n_w));
+            for (e = 0; e < count; e++)
+                guest_write(g + f->g_off + e * f->g_w, f->g_w,
+                            native_read(nat + f->n_off + e * f->n_w, f->n_w));
     }
 }
 
+void emu68k_to_guest(APTR guest0, ULONG gbase, const void *native,
+                     const struct EmuField *f, int n)
+{
+    emu68k_to_guest_sized(guest0, gbase, native, f, n, EMU_NO_LIMIT);
+}
+
 /* guest -> native: the settings a program filled in before calling. */
-void emu68k_from_guest(APTR guest0, ULONG gbase, void *native,
-                       const struct EmuField *f, int n)
+void emu68k_from_guest_sized(APTR guest0, ULONG gbase, void *native,
+                             const struct EmuField *f, int n, ULONG limit)
 {
     const UBYTE *g = (const UBYTE *)guest0 + gbase;
     UBYTE *nat = native;
     int i;
+    ULONG e, count;
 
     for (i = 0; i < n; i++, f++)
     {
+        count = fits(f, limit);
         if (f->kind == EMU_F_BYTES)
-            CopyMem((APTR)(g + f->g_off), nat + f->n_off, f->g_w);
+            CopyMem((APTR)(g + f->g_off), nat + f->n_off, count);
         else
-            native_write(nat + f->n_off, f->n_w,
-                         guest_read(g + f->g_off, f->g_w));
+            for (e = 0; e < count; e++)
+                native_write(nat + f->n_off + e * f->n_w, f->n_w,
+                             guest_read(g + f->g_off + e * f->g_w, f->g_w));
     }
+}
+
+void emu68k_from_guest(APTR guest0, ULONG gbase, void *native,
+                       const struct EmuField *f, int n)
+{
+    emu68k_from_guest_sized(guest0, gbase, native, f, n, EMU_NO_LIMIT);
 }

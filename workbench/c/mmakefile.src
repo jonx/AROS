@@ -161,6 +161,10 @@ USER_LDFLAGS     := -static
 %build_prog mmake=workbench-c-catalogprobe progname=CatalogProbe \
     files=CatalogProbe targetdir=$(AROS_C) uselibs="locale" coverageinstr=no
 
+# Native oracle for the emu68k GetPrefs structure crossing.
+%build_prog mmake=workbench-c-prefsprobe progname=PrefsProbe \
+    files=PrefsProbe targetdir=$(AROS_C) coverageinstr=no
+
 # Batch loader smoke test for the desktop bring-up chain.
 %build_prog mmake=workbench-c-loadmatrix progname=LoadMatrix \
     files=LoadMatrix targetdir=$(AROS_C) coverageinstr=no

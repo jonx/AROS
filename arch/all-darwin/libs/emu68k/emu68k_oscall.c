@@ -289,7 +289,7 @@ LONG emu68k_boopsi_prepare(APTR guest0, ULONG guest_class, APTR native_class,
         emu68k_require_guest_range(guest_class, M68K_IClass_SIZEOF,
                                    "BOOPSI Class", err, errlen) < 0)
         return -1;
-    entry = gr32(guest0, guest_class + M68K_IClass_h_Entry);
+    entry = gr32(guest0, guest_class + M68K_IClass_cl_Dispatcher_h_Entry);
     if (emu68k_require_guest_range(entry, 2, "BOOPSI dispatcher", err, errlen) < 0)
         return -1;
     rs = run_state(guest0);

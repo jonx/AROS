@@ -45,8 +45,8 @@ int emu68k_gen_dos(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
         if (r->d[0])
         {
             memset(EMU_GPTR(guest0, r->d[2]), 0, M68K_FileInfoBlock_SIZEOF);
-            emu68k_to_guest(guest0, r->d[2], &emu_struct_1,
-                               emu_fields_FileInfoBlock, EMU_NFIELDS(emu_fields_FileInfoBlock));
+            emu68k_to_guest_sized(guest0, r->d[2], &emu_struct_1,
+                               emu_fields_FileInfoBlock, EMU_NFIELDS(emu_fields_FileInfoBlock), M68K_FileInfoBlock_SIZEOF);
         }
             return 0;
     }
@@ -57,15 +57,15 @@ int emu68k_gen_dos(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
                                          "ExNext.fileInfoBlock", err, errlen) < 0)
             return 1;
         memset(&emu_struct_1, 0, sizeof(emu_struct_1));
-        emu68k_from_guest(guest0, r->d[2], &emu_struct_1,
-                             emu_fields_FileInfoBlock, EMU_NFIELDS(emu_fields_FileInfoBlock));
+        emu68k_from_guest_sized(guest0, r->d[2], &emu_struct_1,
+                             emu_fields_FileInfoBlock, EMU_NFIELDS(emu_fields_FileInfoBlock), M68K_FileInfoBlock_SIZEOF);
             r->d[0] = (ULONG)ExNext(EMU_HANDLE(guest0, r->d[1]),
               (struct FileInfoBlock*)&emu_struct_1);
         if (r->d[0])
         {
             memset(EMU_GPTR(guest0, r->d[2]), 0, M68K_FileInfoBlock_SIZEOF);
-            emu68k_to_guest(guest0, r->d[2], &emu_struct_1,
-                               emu_fields_FileInfoBlock, EMU_NFIELDS(emu_fields_FileInfoBlock));
+            emu68k_to_guest_sized(guest0, r->d[2], &emu_struct_1,
+                               emu_fields_FileInfoBlock, EMU_NFIELDS(emu_fields_FileInfoBlock), M68K_FileInfoBlock_SIZEOF);
         }
             return 0;
     }
@@ -81,8 +81,8 @@ int emu68k_gen_dos(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
         if (r->d[0])
         {
             memset(EMU_GPTR(guest0, r->d[2]), 0, M68K_InfoData_SIZEOF);
-            emu68k_to_guest(guest0, r->d[2], &emu_struct_1,
-                               emu_fields_InfoData, EMU_NFIELDS(emu_fields_InfoData));
+            emu68k_to_guest_sized(guest0, r->d[2], &emu_struct_1,
+                               emu_fields_InfoData, EMU_NFIELDS(emu_fields_InfoData), M68K_InfoData_SIZEOF);
         }
             return 0;
     }
@@ -106,8 +106,8 @@ int emu68k_gen_dos(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
         memset(&emu_struct_0, 0, sizeof(emu_struct_0));
         APTR emu_result = (APTR)DateStamp((struct DateStamp *)&emu_struct_0);
         memset(EMU_GPTR(guest0, r->d[1]), 0, M68K_DateStamp_SIZEOF);
-        emu68k_to_guest(guest0, r->d[1], &emu_struct_0,
-                           emu_fields_DateStamp, EMU_NFIELDS(emu_fields_DateStamp));
+        emu68k_to_guest_sized(guest0, r->d[1], &emu_struct_0,
+                           emu_fields_DateStamp, EMU_NFIELDS(emu_fields_DateStamp), M68K_DateStamp_SIZEOF);
         r->d[0] = emu_result ? r->d[1] : 0;
             return 0;
     }
@@ -252,15 +252,15 @@ int emu68k_gen_dos(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
                                          "CompareDates.date1", err, errlen) < 0)
             return 1;
         memset(&emu_struct_0, 0, sizeof(emu_struct_0));
-        emu68k_from_guest(guest0, r->d[1], &emu_struct_0,
-                             emu_fields_DateStamp, EMU_NFIELDS(emu_fields_DateStamp));
+        emu68k_from_guest_sized(guest0, r->d[1], &emu_struct_0,
+                             emu_fields_DateStamp, EMU_NFIELDS(emu_fields_DateStamp), M68K_DateStamp_SIZEOF);
         struct DateStamp emu_struct_1;
         if (emu68k_require_guest_range(r->d[2], M68K_DateStamp_SIZEOF,
                                          "CompareDates.date2", err, errlen) < 0)
             return 1;
         memset(&emu_struct_1, 0, sizeof(emu_struct_1));
-        emu68k_from_guest(guest0, r->d[2], &emu_struct_1,
-                             emu_fields_DateStamp, EMU_NFIELDS(emu_fields_DateStamp));
+        emu68k_from_guest_sized(guest0, r->d[2], &emu_struct_1,
+                             emu_fields_DateStamp, EMU_NFIELDS(emu_fields_DateStamp), M68K_DateStamp_SIZEOF);
             r->d[0] = (ULONG)CompareDates((const struct DateStamp *)&emu_struct_0,
               (const struct DateStamp *)&emu_struct_1);
             return 0;

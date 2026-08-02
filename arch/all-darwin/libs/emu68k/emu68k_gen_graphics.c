@@ -78,8 +78,8 @@ int emu68k_gen_graphics(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
                                          "AndRectRegion.Rect", err, errlen) < 0)
             return 1;
         memset(&emu_struct_1, 0, sizeof(emu_struct_1));
-        emu68k_from_guest(guest0, r->a[1], &emu_struct_1,
-                             emu_fields_Rectangle, EMU_NFIELDS(emu_fields_Rectangle));
+        emu68k_from_guest_sized(guest0, r->a[1], &emu_struct_1,
+                             emu_fields_Rectangle, EMU_NFIELDS(emu_fields_Rectangle), M68K_Rectangle_SIZEOF);
             AndRectRegion((struct Region *)emu_object_0,
               (struct Rectangle *)&emu_struct_1);
             return 0;
@@ -95,8 +95,8 @@ int emu68k_gen_graphics(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
                                          "OrRectRegion.Rect", err, errlen) < 0)
             return 1;
         memset(&emu_struct_1, 0, sizeof(emu_struct_1));
-        emu68k_from_guest(guest0, r->a[1], &emu_struct_1,
-                             emu_fields_Rectangle, EMU_NFIELDS(emu_fields_Rectangle));
+        emu68k_from_guest_sized(guest0, r->a[1], &emu_struct_1,
+                             emu_fields_Rectangle, EMU_NFIELDS(emu_fields_Rectangle), M68K_Rectangle_SIZEOF);
             r->d[0] = (ULONG)OrRectRegion((struct Region *)emu_object_0,
               (struct Rectangle *)&emu_struct_1);
             return 0;
@@ -121,8 +121,8 @@ int emu68k_gen_graphics(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
                                          "ClearRectRegion.Rect", err, errlen) < 0)
             return 1;
         memset(&emu_struct_1, 0, sizeof(emu_struct_1));
-        emu68k_from_guest(guest0, r->a[1], &emu_struct_1,
-                             emu_fields_Rectangle, EMU_NFIELDS(emu_fields_Rectangle));
+        emu68k_from_guest_sized(guest0, r->a[1], &emu_struct_1,
+                             emu_fields_Rectangle, EMU_NFIELDS(emu_fields_Rectangle), M68K_Rectangle_SIZEOF);
             r->d[0] = (ULONG)ClearRectRegion((struct Region *)emu_object_0,
               (struct Rectangle *)&emu_struct_1);
             return 0;
@@ -157,8 +157,8 @@ int emu68k_gen_graphics(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
                                          "XorRectRegion.Rect", err, errlen) < 0)
             return 1;
         memset(&emu_struct_1, 0, sizeof(emu_struct_1));
-        emu68k_from_guest(guest0, r->a[1], &emu_struct_1,
-                             emu_fields_Rectangle, EMU_NFIELDS(emu_fields_Rectangle));
+        emu68k_from_guest_sized(guest0, r->a[1], &emu_struct_1,
+                             emu_fields_Rectangle, EMU_NFIELDS(emu_fields_Rectangle), M68K_Rectangle_SIZEOF);
             r->d[0] = (ULONG)XorRectRegion((struct Region *)emu_object_0,
               (struct Rectangle *)&emu_struct_1);
             return 0;

@@ -73,6 +73,40 @@ int emu68k_gen_intuition(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
               (ULONG)r->d[2],
               (ULONG)r->d[3]);
         return 0;
+    case 21:  /* GetDefPrefs(struct Preferences * prefbuffer, WORD size) -> struct Preferences *  [-126] */
+    {
+        ULONG emu_limit_1 = (ULONG)(UWORD)r->d[0];
+        if (emu_limit_1 > M68K_Preferences_SIZEOF) emu_limit_1 = M68K_Preferences_SIZEOF;
+        struct Preferences emu_struct_0;
+        if (emu68k_require_guest_range(r->a[0], emu_limit_1,
+                                         "GetDefPrefs.prefbuffer", err, errlen) < 0)
+            return 1;
+        memset(&emu_struct_0, 0, sizeof(emu_struct_0));
+        APTR emu_result = (APTR)GetDefPrefs((struct Preferences *)&emu_struct_0,
+              (WORD)emu_limit_1);
+        memset(EMU_GPTR(guest0, r->a[0]), 0, emu_limit_1);
+        emu68k_to_guest_sized(guest0, r->a[0], &emu_struct_0,
+                           emu_fields_Preferences, EMU_NFIELDS(emu_fields_Preferences), emu_limit_1);
+        r->d[0] = emu_result ? r->a[0] : 0;
+            return 0;
+    }
+    case 22:  /* GetPrefs(struct Preferences * prefbuffer, WORD size) -> struct Preferences *  [-132] */
+    {
+        ULONG emu_limit_1 = (ULONG)(UWORD)r->d[0];
+        if (emu_limit_1 > M68K_Preferences_SIZEOF) emu_limit_1 = M68K_Preferences_SIZEOF;
+        struct Preferences emu_struct_0;
+        if (emu68k_require_guest_range(r->a[0], emu_limit_1,
+                                         "GetPrefs.prefbuffer", err, errlen) < 0)
+            return 1;
+        memset(&emu_struct_0, 0, sizeof(emu_struct_0));
+        APTR emu_result = (APTR)GetPrefs((struct Preferences *)&emu_struct_0,
+              (WORD)emu_limit_1);
+        memset(EMU_GPTR(guest0, r->a[0]), 0, emu_limit_1);
+        emu68k_to_guest_sized(guest0, r->a[0], &emu_struct_0,
+                           emu_fields_Preferences, EMU_NFIELDS(emu_fields_Preferences), emu_limit_1);
+        r->d[0] = emu_result ? r->a[0] : 0;
+            return 0;
+    }
     case 35:  /* OpenWorkBench(void) -> IPTR  [-210] */
         r->d[0] = (ULONG)OpenWorkBench();   /* narrowed: an integer, never an address */
         return 0;

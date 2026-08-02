@@ -119,6 +119,13 @@ void emu68k_to_guest(APTR guest0, ULONG gbase, const void *native,
                      const struct EmuField *fields, int count);
 void emu68k_from_guest(APTR guest0, ULONG gbase, void *native,
                        const struct EmuField *fields, int count);
+/* The same conversions bounded by how much of the GUEST structure the caller
+ * asked for; a field straddling the bound is left alone rather than clipped. */
+#define EMU_NO_LIMIT 0xffffffffUL
+void emu68k_to_guest_sized(APTR guest0, ULONG gbase, const void *native,
+                           const struct EmuField *fields, int count, ULONG limit);
+void emu68k_from_guest_sized(APTR guest0, ULONG gbase, void *native,
+                             const struct EmuField *fields, int count, ULONG limit);
 #define EMU_NFIELDS(a) ((int)(sizeof(a) / sizeof((a)[0])))
 
 enum

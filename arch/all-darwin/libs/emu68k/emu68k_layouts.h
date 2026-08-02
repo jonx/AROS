@@ -19,8 +19,9 @@
 struct EmuField
 {
     unsigned short g_off, n_off;   /* offset in the guest / native structure  */
-    unsigned char  g_w, n_w;       /* width on each side (a guest LONG is 4,
-                                    * a native IPTR is 8)                     */
+    unsigned short count;          /* elements: 1 for a scalar, n for an array */
+    unsigned char  g_w, n_w;       /* width of ONE element on each side (a
+                                    * guest LONG is 4, a native IPTR is 8)    */
     unsigned char  kind;
 };
 
@@ -34,10 +35,9 @@ struct EmuField
 #define M68K_FileInfoBlock_fib_EntryType 120   /* native @124 - CONVERT */
 #define M68K_FileInfoBlock_fib_Size 124   /* native @128 - CONVERT */
 #define M68K_FileInfoBlock_fib_NumBlocks 128   /* native @132 - CONVERT */
-#define M68K_FileInfoBlock_fib_Date 132   /* native @136 - CONVERT */
-#define M68K_FileInfoBlock_ds_Days 132   /* native @136 - CONVERT */
-#define M68K_FileInfoBlock_ds_Minute 136   /* native @140 - CONVERT */
-#define M68K_FileInfoBlock_ds_Tick 140   /* native @144 - CONVERT */
+#define M68K_FileInfoBlock_fib_Date_ds_Days 132   /* native @136 - CONVERT */
+#define M68K_FileInfoBlock_fib_Date_ds_Minute 136   /* native @140 - CONVERT */
+#define M68K_FileInfoBlock_fib_Date_ds_Tick 140   /* native @144 - CONVERT */
 #define M68K_FileInfoBlock_fib_Comment 144   /* native @148 - CONVERT */
 #define M68K_FileInfoBlock_fib_OwnerUID 224   /* native @228 - CONVERT */
 #define M68K_FileInfoBlock_fib_OwnerGID 226   /* native @230 - CONVERT */
@@ -52,22 +52,20 @@ struct EmuField
 #define M68K_AnchorPath_ap_Flags 16   /* native @24 - CONVERT */
 #define M68K_AnchorPath_ap_Reserved 17   /* native @25 - CONVERT */
 #define M68K_AnchorPath_ap_Strlen 18   /* native @26 - CONVERT */
-#define M68K_AnchorPath_ap_Info 20   /* native @32 - CONVERT */
-#define M68K_AnchorPath_fib_DiskKey 20   /* native @32 - CONVERT */
-#define M68K_AnchorPath_fib_DirEntryType 24   /* native @40 - CONVERT */
-#define M68K_AnchorPath_fib_FileName 28   /* native @44 - CONVERT */
-#define M68K_AnchorPath_fib_Protection 136   /* native @152 - CONVERT */
-#define M68K_AnchorPath_fib_EntryType 140   /* native @156 - CONVERT */
-#define M68K_AnchorPath_fib_Size 144   /* native @160 - CONVERT */
-#define M68K_AnchorPath_fib_NumBlocks 148   /* native @164 - CONVERT */
-#define M68K_AnchorPath_fib_Date 152   /* native @168 - CONVERT */
-#define M68K_AnchorPath_ds_Days 152   /* native @168 - CONVERT */
-#define M68K_AnchorPath_ds_Minute 156   /* native @172 - CONVERT */
-#define M68K_AnchorPath_ds_Tick 160   /* native @176 - CONVERT */
-#define M68K_AnchorPath_fib_Comment 164   /* native @180 - CONVERT */
-#define M68K_AnchorPath_fib_OwnerUID 244   /* native @260 - CONVERT */
-#define M68K_AnchorPath_fib_OwnerGID 246   /* native @262 - CONVERT */
-#define M68K_AnchorPath_fib_Reserved 248   /* native @264 - CONVERT */
+#define M68K_AnchorPath_ap_Info_fib_DiskKey 20   /* native @32 - CONVERT */
+#define M68K_AnchorPath_ap_Info_fib_DirEntryType 24   /* native @40 - CONVERT */
+#define M68K_AnchorPath_ap_Info_fib_FileName 28   /* native @44 - CONVERT */
+#define M68K_AnchorPath_ap_Info_fib_Protection 136   /* native @152 - CONVERT */
+#define M68K_AnchorPath_ap_Info_fib_EntryType 140   /* native @156 - CONVERT */
+#define M68K_AnchorPath_ap_Info_fib_Size 144   /* native @160 - CONVERT */
+#define M68K_AnchorPath_ap_Info_fib_NumBlocks 148   /* native @164 - CONVERT */
+#define M68K_AnchorPath_ap_Info_fib_Date_ds_Days 152   /* native @168 - CONVERT */
+#define M68K_AnchorPath_ap_Info_fib_Date_ds_Minute 156   /* native @172 - CONVERT */
+#define M68K_AnchorPath_ap_Info_fib_Date_ds_Tick 160   /* native @176 - CONVERT */
+#define M68K_AnchorPath_ap_Info_fib_Comment 164   /* native @180 - CONVERT */
+#define M68K_AnchorPath_ap_Info_fib_OwnerUID 244   /* native @260 - CONVERT */
+#define M68K_AnchorPath_ap_Info_fib_OwnerGID 246   /* native @262 - CONVERT */
+#define M68K_AnchorPath_ap_Info_fib_Reserved 248   /* native @264 - CONVERT */
 #define M68K_AnchorPath_ap_Buf 280   /* native @296 - CONVERT */
 
 /* struct AChain: 274 bytes on m68k (AChain), 296 native (AChain) */
@@ -75,22 +73,20 @@ struct EmuField
 #define M68K_AChain_an_Child 0
 #define M68K_AChain_an_Parent 4   /* native @8 - CONVERT */
 #define M68K_AChain_an_Lock 8   /* native @16 - CONVERT */
-#define M68K_AChain_an_Info 12   /* native @24 - CONVERT */
-#define M68K_AChain_fib_DiskKey 12   /* native @24 - CONVERT */
-#define M68K_AChain_fib_DirEntryType 16   /* native @32 - CONVERT */
-#define M68K_AChain_fib_FileName 20   /* native @36 - CONVERT */
-#define M68K_AChain_fib_Protection 128   /* native @144 - CONVERT */
-#define M68K_AChain_fib_EntryType 132   /* native @148 - CONVERT */
-#define M68K_AChain_fib_Size 136   /* native @152 - CONVERT */
-#define M68K_AChain_fib_NumBlocks 140   /* native @156 - CONVERT */
-#define M68K_AChain_fib_Date 144   /* native @160 - CONVERT */
-#define M68K_AChain_ds_Days 144   /* native @160 - CONVERT */
-#define M68K_AChain_ds_Minute 148   /* native @164 - CONVERT */
-#define M68K_AChain_ds_Tick 152   /* native @168 - CONVERT */
-#define M68K_AChain_fib_Comment 156   /* native @172 - CONVERT */
-#define M68K_AChain_fib_OwnerUID 236   /* native @252 - CONVERT */
-#define M68K_AChain_fib_OwnerGID 238   /* native @254 - CONVERT */
-#define M68K_AChain_fib_Reserved 240   /* native @256 - CONVERT */
+#define M68K_AChain_an_Info_fib_DiskKey 12   /* native @24 - CONVERT */
+#define M68K_AChain_an_Info_fib_DirEntryType 16   /* native @32 - CONVERT */
+#define M68K_AChain_an_Info_fib_FileName 20   /* native @36 - CONVERT */
+#define M68K_AChain_an_Info_fib_Protection 128   /* native @144 - CONVERT */
+#define M68K_AChain_an_Info_fib_EntryType 132   /* native @148 - CONVERT */
+#define M68K_AChain_an_Info_fib_Size 136   /* native @152 - CONVERT */
+#define M68K_AChain_an_Info_fib_NumBlocks 140   /* native @156 - CONVERT */
+#define M68K_AChain_an_Info_fib_Date_ds_Days 144   /* native @160 - CONVERT */
+#define M68K_AChain_an_Info_fib_Date_ds_Minute 148   /* native @164 - CONVERT */
+#define M68K_AChain_an_Info_fib_Date_ds_Tick 152   /* native @168 - CONVERT */
+#define M68K_AChain_an_Info_fib_Comment 156   /* native @172 - CONVERT */
+#define M68K_AChain_an_Info_fib_OwnerUID 236   /* native @252 - CONVERT */
+#define M68K_AChain_an_Info_fib_OwnerGID 238   /* native @254 - CONVERT */
+#define M68K_AChain_an_Info_fib_Reserved 240   /* native @256 - CONVERT */
 #define M68K_AChain_an_Flags 272   /* native @288 - CONVERT */
 #define M68K_AChain_an_String 273   /* native @289 - CONVERT */
 
@@ -135,7 +131,6 @@ struct EmuField
 #define M68K_List_lh_Head 0
 #define M68K_List_lh_Tail 4   /* native @8 - CONVERT */
 #define M68K_List_lh_TailPred 8   /* native @16 - CONVERT */
-#define M68K_List_lh_TailPred_ 8   /* native @16 - CONVERT */
 #define M68K_List_lh_Type 12   /* native @24 - CONVERT */
 #define M68K_List_l_pad 13   /* native @25 - CONVERT */
 
@@ -144,40 +139,32 @@ struct EmuField
 #define M68K_MinList_mlh_Head 0
 #define M68K_MinList_mlh_Tail 4   /* native @8 - CONVERT */
 #define M68K_MinList_mlh_TailPred 8   /* native @16 - CONVERT */
-#define M68K_MinList_mlh_TailPred_ 8   /* native @16 - CONVERT */
 
 /* struct MsgPort: 42 bytes on m68k (MsgPort), 96 native (MsgPort) */
 #define M68K_MsgPort_SIZEOF 42
-#define M68K_MsgPort_mp_Node 0
-#define M68K_MsgPort_ln_Succ 0
-#define M68K_MsgPort_ln_Pred 4   /* native @8 - CONVERT */
-#define M68K_MsgPort_ln_Type 8   /* native @16 - CONVERT */
-#define M68K_MsgPort_ln_Pri 9   /* native @17 - CONVERT */
-#define M68K_MsgPort_ln_Name 10   /* native @24 - CONVERT */
+#define M68K_MsgPort_mp_Node_ln_Succ 0
+#define M68K_MsgPort_mp_Node_ln_Pred 4   /* native @8 - CONVERT */
+#define M68K_MsgPort_mp_Node_ln_Type 8   /* native @16 - CONVERT */
+#define M68K_MsgPort_mp_Node_ln_Pri 9   /* native @17 - CONVERT */
+#define M68K_MsgPort_mp_Node_ln_Name 10   /* native @24 - CONVERT */
 #define M68K_MsgPort_mp_Flags 14   /* native @32 - CONVERT */
 #define M68K_MsgPort_mp_SigBit 15   /* native @33 - CONVERT */
 #define M68K_MsgPort_mp_SigTask 16   /* native @40 - CONVERT */
-#define M68K_MsgPort_mp_MsgList 20   /* native @48 - CONVERT */
-#define M68K_MsgPort_lh_Head 20   /* native @48 - CONVERT */
-#define M68K_MsgPort_lh_Tail 24   /* native @56 - CONVERT */
-#define M68K_MsgPort_lh_TailPred 28   /* native @64 - CONVERT */
-#define M68K_MsgPort_lh_TailPred_ 28   /* native @64 - CONVERT */
-#define M68K_MsgPort_lh_Type 32   /* native @72 - CONVERT */
-#define M68K_MsgPort_l_pad 33   /* native @73 - CONVERT */
-#define M68K_MsgPort_mp_Pad 34   /* native @80 - CONVERT */
-#define M68K_MsgPort_slock 34   /* native @80 - CONVERT */
-#define M68K_MsgPort_block 34   /* native @80 - CONVERT */
-#define M68K_MsgPort_lock 34   /* native @80 - CONVERT */
-#define M68K_MsgPort_s_Owner 38   /* native @88 - CONVERT */
+#define M68K_MsgPort_mp_MsgList_lh_Head 20   /* native @48 - CONVERT */
+#define M68K_MsgPort_mp_MsgList_lh_Tail 24   /* native @56 - CONVERT */
+#define M68K_MsgPort_mp_MsgList_lh_TailPred 28   /* native @64 - CONVERT */
+#define M68K_MsgPort_mp_MsgList_lh_Type 32   /* native @72 - CONVERT */
+#define M68K_MsgPort_mp_MsgList_l_pad 33   /* native @73 - CONVERT */
+#define M68K_MsgPort_mp_Pad_slock 34   /* native @80 - CONVERT */
+#define M68K_MsgPort_mp_Pad_s_Owner 38   /* native @88 - CONVERT */
 
 /* struct Message: 20 bytes on m68k (Message), 48 native (Message) */
 #define M68K_Message_SIZEOF 20
-#define M68K_Message_mn_Node 0
-#define M68K_Message_ln_Succ 0
-#define M68K_Message_ln_Pred 4   /* native @8 - CONVERT */
-#define M68K_Message_ln_Type 8   /* native @16 - CONVERT */
-#define M68K_Message_ln_Pri 9   /* native @17 - CONVERT */
-#define M68K_Message_ln_Name 10   /* native @24 - CONVERT */
+#define M68K_Message_mn_Node_ln_Succ 0
+#define M68K_Message_mn_Node_ln_Pred 4   /* native @8 - CONVERT */
+#define M68K_Message_mn_Node_ln_Type 8   /* native @16 - CONVERT */
+#define M68K_Message_mn_Node_ln_Pri 9   /* native @17 - CONVERT */
+#define M68K_Message_mn_Node_ln_Name 10   /* native @24 - CONVERT */
 #define M68K_Message_mn_ReplyPort 14   /* native @32 - CONVERT */
 #define M68K_Message_mn_Length 18   /* native @40 - CONVERT */
 
@@ -185,22 +172,21 @@ struct EmuField
 #define M68K_DiskObject_SIZEOF 78
 #define M68K_DiskObject_do_Magic 0
 #define M68K_DiskObject_do_Version 2
-#define M68K_DiskObject_do_Gadget 4   /* native @8 - CONVERT */
-#define M68K_DiskObject_NextGadget 4   /* native @8 - CONVERT */
-#define M68K_DiskObject_LeftEdge 8   /* native @16 - CONVERT */
-#define M68K_DiskObject_TopEdge 10   /* native @18 - CONVERT */
-#define M68K_DiskObject_Width 12   /* native @20 - CONVERT */
-#define M68K_DiskObject_Height 14   /* native @22 - CONVERT */
-#define M68K_DiskObject_Flags 16   /* native @24 - CONVERT */
-#define M68K_DiskObject_Activation 18   /* native @26 - CONVERT */
-#define M68K_DiskObject_GadgetType 20   /* native @28 - CONVERT */
-#define M68K_DiskObject_GadgetRender 22   /* native @32 - CONVERT */
-#define M68K_DiskObject_SelectRender 26   /* native @40 - CONVERT */
-#define M68K_DiskObject_GadgetText 30   /* native @48 - CONVERT */
-#define M68K_DiskObject_MutualExclude 34   /* native @56 - CONVERT */
-#define M68K_DiskObject_SpecialInfo 38   /* native @64 - CONVERT */
-#define M68K_DiskObject_GadgetID 42   /* native @72 - CONVERT */
-#define M68K_DiskObject_UserData 44   /* native @80 - CONVERT */
+#define M68K_DiskObject_do_Gadget_NextGadget 4   /* native @8 - CONVERT */
+#define M68K_DiskObject_do_Gadget_LeftEdge 8   /* native @16 - CONVERT */
+#define M68K_DiskObject_do_Gadget_TopEdge 10   /* native @18 - CONVERT */
+#define M68K_DiskObject_do_Gadget_Width 12   /* native @20 - CONVERT */
+#define M68K_DiskObject_do_Gadget_Height 14   /* native @22 - CONVERT */
+#define M68K_DiskObject_do_Gadget_Flags 16   /* native @24 - CONVERT */
+#define M68K_DiskObject_do_Gadget_Activation 18   /* native @26 - CONVERT */
+#define M68K_DiskObject_do_Gadget_GadgetType 20   /* native @28 - CONVERT */
+#define M68K_DiskObject_do_Gadget_GadgetRender 22   /* native @32 - CONVERT */
+#define M68K_DiskObject_do_Gadget_SelectRender 26   /* native @40 - CONVERT */
+#define M68K_DiskObject_do_Gadget_GadgetText 30   /* native @48 - CONVERT */
+#define M68K_DiskObject_do_Gadget_MutualExclude 34   /* native @56 - CONVERT */
+#define M68K_DiskObject_do_Gadget_SpecialInfo 38   /* native @64 - CONVERT */
+#define M68K_DiskObject_do_Gadget_GadgetID 42   /* native @72 - CONVERT */
+#define M68K_DiskObject_do_Gadget_UserData 44   /* native @80 - CONVERT */
 #define M68K_DiskObject_do_Type 48   /* native @88 - CONVERT */
 #define M68K_DiskObject_do_DefaultTool 50   /* native @96 - CONVERT */
 #define M68K_DiskObject_do_ToolTypes 54   /* native @104 - CONVERT */
@@ -226,22 +212,19 @@ struct EmuField
 
 /* struct Hook: 20 bytes on m68k (Hook), 40 native (Hook) */
 #define M68K_Hook_SIZEOF 20
-#define M68K_Hook_h_MinNode 0
-#define M68K_Hook_mln_Succ 0
-#define M68K_Hook_mln_Pred 4   /* native @8 - CONVERT */
+#define M68K_Hook_h_MinNode_mln_Succ 0
+#define M68K_Hook_h_MinNode_mln_Pred 4   /* native @8 - CONVERT */
 #define M68K_Hook_h_Entry 8   /* native @16 - CONVERT */
 #define M68K_Hook_h_SubEntry 12   /* native @24 - CONVERT */
 #define M68K_Hook_h_Data 16   /* native @32 - CONVERT */
 
 /* struct IClass: 60 bytes on m68k (IClass), 104 native (IClass) */
 #define M68K_IClass_SIZEOF 60
-#define M68K_IClass_cl_Dispatcher 0
-#define M68K_IClass_h_MinNode 0
-#define M68K_IClass_mln_Succ 0
-#define M68K_IClass_mln_Pred 4   /* native @8 - CONVERT */
-#define M68K_IClass_h_Entry 8   /* native @16 - CONVERT */
-#define M68K_IClass_h_SubEntry 12   /* native @24 - CONVERT */
-#define M68K_IClass_h_Data 16   /* native @32 - CONVERT */
+#define M68K_IClass_cl_Dispatcher_h_MinNode_mln_Succ 0
+#define M68K_IClass_cl_Dispatcher_h_MinNode_mln_Pred 4   /* native @8 - CONVERT */
+#define M68K_IClass_cl_Dispatcher_h_Entry 8   /* native @16 - CONVERT */
+#define M68K_IClass_cl_Dispatcher_h_SubEntry 12   /* native @24 - CONVERT */
+#define M68K_IClass_cl_Dispatcher_h_Data 16   /* native @32 - CONVERT */
 #define M68K_IClass_cl_Reserved 20   /* native @40 - CONVERT */
 #define M68K_IClass_cl_Super 24   /* native @48 - CONVERT */
 #define M68K_IClass_cl_ID 28   /* native @56 - CONVERT */
@@ -354,111 +337,166 @@ struct EmuField
 #define M68K_RastPort_longreserved 74   /* native @120 - CONVERT */
 #define M68K_RastPort_reserved 98   /* native @168 - CONVERT */
 
+/* struct Preferences: 232 bytes on m68k (Preferences), 232 native (Preferences) */
+#define M68K_Preferences_SIZEOF 232
+#define M68K_Preferences_FontHeight 0
+#define M68K_Preferences_PrinterPort 1
+#define M68K_Preferences_BaudRate 2
+#define M68K_Preferences_KeyRptSpeed_tv_secs 4
+#define M68K_Preferences_KeyRptSpeed_tv_micro 8
+#define M68K_Preferences_KeyRptDelay_tv_secs 12
+#define M68K_Preferences_KeyRptDelay_tv_micro 16
+#define M68K_Preferences_DoubleClick_tv_secs 20
+#define M68K_Preferences_DoubleClick_tv_micro 24
+#define M68K_Preferences_PointerMatrix 28
+#define M68K_Preferences_XOffset 100
+#define M68K_Preferences_YOffset 101
+#define M68K_Preferences_color17 102
+#define M68K_Preferences_color18 104
+#define M68K_Preferences_color19 106
+#define M68K_Preferences_PointerTicks 108
+#define M68K_Preferences_color0 110
+#define M68K_Preferences_color1 112
+#define M68K_Preferences_color2 114
+#define M68K_Preferences_color3 116
+#define M68K_Preferences_ViewXOffset 118
+#define M68K_Preferences_ViewYOffset 119
+#define M68K_Preferences_ViewInitX 120
+#define M68K_Preferences_ViewInitY 122
+#define M68K_Preferences_EnableCLI 124
+#define M68K_Preferences_PrinterType 126
+#define M68K_Preferences_PrinterFilename 128
+#define M68K_Preferences_PrintPitch 158
+#define M68K_Preferences_PrintQuality 160
+#define M68K_Preferences_PrintSpacing 162
+#define M68K_Preferences_PrintLeftMargin 164
+#define M68K_Preferences_PrintRightMargin 166
+#define M68K_Preferences_PrintImage 168
+#define M68K_Preferences_PrintAspect 170
+#define M68K_Preferences_PrintShade 172
+#define M68K_Preferences_PrintThreshold 174
+#define M68K_Preferences_PaperSize 176
+#define M68K_Preferences_PaperLength 178
+#define M68K_Preferences_PaperType 180
+#define M68K_Preferences_SerRWBits 182
+#define M68K_Preferences_SerStopBuf 183
+#define M68K_Preferences_SerParShk 184
+#define M68K_Preferences_LaceWB 185
+#define M68K_Preferences_Pad 186
+#define M68K_Preferences_PrtDevName 198
+#define M68K_Preferences_DefaultPrtUnit 214
+#define M68K_Preferences_DefaultSerUnit 215
+#define M68K_Preferences_RowSizeChange 216
+#define M68K_Preferences_ColumnSizeChange 217
+#define M68K_Preferences_PrintFlags 218
+#define M68K_Preferences_PrintMaxWidth 220
+#define M68K_Preferences_PrintMaxHeight 222
+#define M68K_Preferences_PrintDensity 224
+#define M68K_Preferences_PrintXOffset 225
+#define M68K_Preferences_wb_Width 226
+#define M68K_Preferences_wb_Height 228
+#define M68K_Preferences_wb_Depth 230
+#define M68K_Preferences_ext_size 231
+
 /* The conversion tables. Each row is one field: where it lives on
  * each side, how wide it is on each side, and what may be done to it.
  * A generic walker (emu68k_marshal.c) is all that is needed to convert
  * a whole structure, so no per-structure C is written by hand. */
 #define EMU_F_SCALAR 0   /* byte-swapped, narrowed to the guest width */
 #define EMU_F_BYTES  1   /* copied verbatim: no byte order to change  */
+#define EMU_F_ARRAY  2   /* count scalars, each one byte-swapped       */
 
 static const struct EmuField emu_fields_FileInfoBlock[] = {
-    {    0,    0, 4, 8, EMU_F_SCALAR },   /* fib_DiskKey          IPTR */
-    {    4,    8, 4, 4, EMU_F_SCALAR },   /* fib_DirEntryType     LONG */
-    {    8,   12, 108, 108, EMU_F_BYTES },   /* fib_FileName         UBYTE[108] */
-    {  116,  120, 4, 4, EMU_F_SCALAR },   /* fib_Protection       LONG */
-    {  120,  124, 4, 4, EMU_F_SCALAR },   /* fib_EntryType        LONG */
-    {  124,  128, 4, 4, EMU_F_SCALAR },   /* fib_Size             LONG */
-    {  128,  132, 4, 4, EMU_F_SCALAR },   /* fib_NumBlocks        LONG */
-    {  132,  136, 4, 4, EMU_F_SCALAR },   /* ds_Days              LONG */
-    {  136,  140, 4, 4, EMU_F_SCALAR },   /* ds_Minute            LONG */
-    {  140,  144, 4, 4, EMU_F_SCALAR },   /* ds_Tick              LONG */
-    {  144,  148, 80, 80, EMU_F_BYTES },   /* fib_Comment          UBYTE[80] */
-    {  224,  228, 2, 2, EMU_F_SCALAR },   /* fib_OwnerUID         UWORD */
-    {  226,  230, 2, 2, EMU_F_SCALAR },   /* fib_OwnerGID         UWORD */
-    {  228,  232, 32, 32, EMU_F_BYTES },   /* fib_Reserved         UBYTE[32] */
+    {    0,    0,    1, 4, 8, EMU_F_SCALAR },   /* fib_DiskKey              IPTR */
+    {    4,    8,    1, 4, 4, EMU_F_SCALAR },   /* fib_DirEntryType         LONG */
+    {    8,   12,  108, 1, 1, EMU_F_BYTES },   /* fib_FileName             UBYTE[108] */
+    {  116,  120,    1, 4, 4, EMU_F_SCALAR },   /* fib_Protection           LONG */
+    {  120,  124,    1, 4, 4, EMU_F_SCALAR },   /* fib_EntryType            LONG */
+    {  124,  128,    1, 4, 4, EMU_F_SCALAR },   /* fib_Size                 LONG */
+    {  128,  132,    1, 4, 4, EMU_F_SCALAR },   /* fib_NumBlocks            LONG */
+    {  132,  136,    1, 4, 4, EMU_F_SCALAR },   /* fib_Date_ds_Days         LONG */
+    {  136,  140,    1, 4, 4, EMU_F_SCALAR },   /* fib_Date_ds_Minute       LONG */
+    {  140,  144,    1, 4, 4, EMU_F_SCALAR },   /* fib_Date_ds_Tick         LONG */
+    {  144,  148,   80, 1, 1, EMU_F_BYTES },   /* fib_Comment              UBYTE[80] */
+    {  224,  228,    1, 2, 2, EMU_F_SCALAR },   /* fib_OwnerUID             UWORD */
+    {  226,  230,    1, 2, 2, EMU_F_SCALAR },   /* fib_OwnerGID             UWORD */
+    {  228,  232,   32, 1, 1, EMU_F_BYTES },   /* fib_Reserved             UBYTE[32] */
 };
-/* NOT converted, and deliberately not guessed at:
- *   fib_Date (struct DateStamp)
- */
 
 static const struct EmuField emu_fields_AnchorPath[] = {
-    {    8,   16, 4, 4, EMU_F_SCALAR },   /* ap_BreakBits         LONG */
-    {   12,   20, 4, 4, EMU_F_SCALAR },   /* ap_FoundBreak        LONG */
-    {   16,   24, 1, 1, EMU_F_SCALAR },   /* ap_Flags             BYTE */
-    {   17,   25, 1, 1, EMU_F_SCALAR },   /* ap_Reserved          BYTE */
-    {   18,   26, 2, 2, EMU_F_SCALAR },   /* ap_Strlen            WORD */
-    {   20,   32, 4, 8, EMU_F_SCALAR },   /* fib_DiskKey          IPTR */
-    {   24,   40, 4, 4, EMU_F_SCALAR },   /* fib_DirEntryType     LONG */
-    {   28,   44, 108, 108, EMU_F_BYTES },   /* fib_FileName         UBYTE[108] */
-    {  136,  152, 4, 4, EMU_F_SCALAR },   /* fib_Protection       LONG */
-    {  140,  156, 4, 4, EMU_F_SCALAR },   /* fib_EntryType        LONG */
-    {  144,  160, 4, 4, EMU_F_SCALAR },   /* fib_Size             LONG */
-    {  148,  164, 4, 4, EMU_F_SCALAR },   /* fib_NumBlocks        LONG */
-    {  152,  168, 4, 4, EMU_F_SCALAR },   /* ds_Days              LONG */
-    {  156,  172, 4, 4, EMU_F_SCALAR },   /* ds_Minute            LONG */
-    {  160,  176, 4, 4, EMU_F_SCALAR },   /* ds_Tick              LONG */
-    {  164,  180, 80, 80, EMU_F_BYTES },   /* fib_Comment          UBYTE[80] */
-    {  244,  260, 2, 2, EMU_F_SCALAR },   /* fib_OwnerUID         UWORD */
-    {  246,  262, 2, 2, EMU_F_SCALAR },   /* fib_OwnerGID         UWORD */
-    {  248,  264, 32, 32, EMU_F_BYTES },   /* fib_Reserved         UBYTE[32] */
-    {  280,  296, 1, 1, EMU_F_BYTES },   /* ap_Buf               UBYTE[1] */
+    {    8,   16,    1, 4, 4, EMU_F_SCALAR },   /* ap_BreakBits             LONG */
+    {   12,   20,    1, 4, 4, EMU_F_SCALAR },   /* ap_FoundBreak            LONG */
+    {   16,   24,    1, 1, 1, EMU_F_SCALAR },   /* ap_Flags                 BYTE */
+    {   17,   25,    1, 1, 1, EMU_F_SCALAR },   /* ap_Reserved              BYTE */
+    {   18,   26,    1, 2, 2, EMU_F_SCALAR },   /* ap_Strlen                WORD */
+    {   20,   32,    1, 4, 8, EMU_F_SCALAR },   /* ap_Info_fib_DiskKey      IPTR */
+    {   24,   40,    1, 4, 4, EMU_F_SCALAR },   /* ap_Info_fib_DirEntryType LONG */
+    {   28,   44,  108, 1, 1, EMU_F_BYTES },   /* ap_Info_fib_FileName     UBYTE[108] */
+    {  136,  152,    1, 4, 4, EMU_F_SCALAR },   /* ap_Info_fib_Protection   LONG */
+    {  140,  156,    1, 4, 4, EMU_F_SCALAR },   /* ap_Info_fib_EntryType    LONG */
+    {  144,  160,    1, 4, 4, EMU_F_SCALAR },   /* ap_Info_fib_Size         LONG */
+    {  148,  164,    1, 4, 4, EMU_F_SCALAR },   /* ap_Info_fib_NumBlocks    LONG */
+    {  152,  168,    1, 4, 4, EMU_F_SCALAR },   /* ap_Info_fib_Date_ds_Days LONG */
+    {  156,  172,    1, 4, 4, EMU_F_SCALAR },   /* ap_Info_fib_Date_ds_Minute LONG */
+    {  160,  176,    1, 4, 4, EMU_F_SCALAR },   /* ap_Info_fib_Date_ds_Tick LONG */
+    {  164,  180,   80, 1, 1, EMU_F_BYTES },   /* ap_Info_fib_Comment      UBYTE[80] */
+    {  244,  260,    1, 2, 2, EMU_F_SCALAR },   /* ap_Info_fib_OwnerUID     UWORD */
+    {  246,  262,    1, 2, 2, EMU_F_SCALAR },   /* ap_Info_fib_OwnerGID     UWORD */
+    {  248,  264,   32, 1, 1, EMU_F_BYTES },   /* ap_Info_fib_Reserved     UBYTE[32] */
+    {  280,  296,    1, 1, 1, EMU_F_BYTES },   /* ap_Buf                   UBYTE[1] */
 };
 /* NOT converted, and deliberately not guessed at:
  *   ap_Base (struct AChain *)
  *   ap_Last (struct AChain *)
- *   ap_Info (struct FileInfoBlock32)
- *   fib_Date (struct DateStamp)
  */
 
 static const struct EmuField emu_fields_AChain[] = {
-    {   12,   24, 4, 8, EMU_F_SCALAR },   /* fib_DiskKey          IPTR */
-    {   16,   32, 4, 4, EMU_F_SCALAR },   /* fib_DirEntryType     LONG */
-    {   20,   36, 108, 108, EMU_F_BYTES },   /* fib_FileName         UBYTE[108] */
-    {  128,  144, 4, 4, EMU_F_SCALAR },   /* fib_Protection       LONG */
-    {  132,  148, 4, 4, EMU_F_SCALAR },   /* fib_EntryType        LONG */
-    {  136,  152, 4, 4, EMU_F_SCALAR },   /* fib_Size             LONG */
-    {  140,  156, 4, 4, EMU_F_SCALAR },   /* fib_NumBlocks        LONG */
-    {  144,  160, 4, 4, EMU_F_SCALAR },   /* ds_Days              LONG */
-    {  148,  164, 4, 4, EMU_F_SCALAR },   /* ds_Minute            LONG */
-    {  152,  168, 4, 4, EMU_F_SCALAR },   /* ds_Tick              LONG */
-    {  156,  172, 80, 80, EMU_F_BYTES },   /* fib_Comment          UBYTE[80] */
-    {  236,  252, 2, 2, EMU_F_SCALAR },   /* fib_OwnerUID         UWORD */
-    {  238,  254, 2, 2, EMU_F_SCALAR },   /* fib_OwnerGID         UWORD */
-    {  240,  256, 32, 32, EMU_F_BYTES },   /* fib_Reserved         UBYTE[32] */
-    {  272,  288, 1, 1, EMU_F_SCALAR },   /* an_Flags             BYTE */
-    {  273,  289, 1, 1, EMU_F_BYTES },   /* an_String            UBYTE[1] */
+    {   12,   24,    1, 4, 8, EMU_F_SCALAR },   /* an_Info_fib_DiskKey      IPTR */
+    {   16,   32,    1, 4, 4, EMU_F_SCALAR },   /* an_Info_fib_DirEntryType LONG */
+    {   20,   36,  108, 1, 1, EMU_F_BYTES },   /* an_Info_fib_FileName     UBYTE[108] */
+    {  128,  144,    1, 4, 4, EMU_F_SCALAR },   /* an_Info_fib_Protection   LONG */
+    {  132,  148,    1, 4, 4, EMU_F_SCALAR },   /* an_Info_fib_EntryType    LONG */
+    {  136,  152,    1, 4, 4, EMU_F_SCALAR },   /* an_Info_fib_Size         LONG */
+    {  140,  156,    1, 4, 4, EMU_F_SCALAR },   /* an_Info_fib_NumBlocks    LONG */
+    {  144,  160,    1, 4, 4, EMU_F_SCALAR },   /* an_Info_fib_Date_ds_Days LONG */
+    {  148,  164,    1, 4, 4, EMU_F_SCALAR },   /* an_Info_fib_Date_ds_Minute LONG */
+    {  152,  168,    1, 4, 4, EMU_F_SCALAR },   /* an_Info_fib_Date_ds_Tick LONG */
+    {  156,  172,   80, 1, 1, EMU_F_BYTES },   /* an_Info_fib_Comment      UBYTE[80] */
+    {  236,  252,    1, 2, 2, EMU_F_SCALAR },   /* an_Info_fib_OwnerUID     UWORD */
+    {  238,  254,    1, 2, 2, EMU_F_SCALAR },   /* an_Info_fib_OwnerGID     UWORD */
+    {  240,  256,   32, 1, 1, EMU_F_BYTES },   /* an_Info_fib_Reserved     UBYTE[32] */
+    {  272,  288,    1, 1, 1, EMU_F_SCALAR },   /* an_Flags                 BYTE */
+    {  273,  289,    1, 1, 1, EMU_F_BYTES },   /* an_String                UBYTE[1] */
 };
 /* NOT converted, and deliberately not guessed at:
  *   an_Child (struct AChain *)
  *   an_Parent (struct AChain *)
  *   an_Lock (BPTR)
- *   an_Info (struct FileInfoBlock32)
- *   fib_Date (struct DateStamp)
  */
 
 static const struct EmuField emu_fields_DateStamp[] = {
-    {    0,    0, 4, 4, EMU_F_SCALAR },   /* ds_Days              LONG */
-    {    4,    4, 4, 4, EMU_F_SCALAR },   /* ds_Minute            LONG */
-    {    8,    8, 4, 4, EMU_F_SCALAR },   /* ds_Tick              LONG */
+    {    0,    0,    1, 4, 4, EMU_F_SCALAR },   /* ds_Days                  LONG */
+    {    4,    4,    1, 4, 4, EMU_F_SCALAR },   /* ds_Minute                LONG */
+    {    8,    8,    1, 4, 4, EMU_F_SCALAR },   /* ds_Tick                  LONG */
 };
 
 static const struct EmuField emu_fields_InfoData[] = {
-    {    0,    0, 4, 4, EMU_F_SCALAR },   /* id_NumSoftErrors     LONG */
-    {    4,    4, 4, 4, EMU_F_SCALAR },   /* id_UnitNumber        LONG */
-    {    8,    8, 4, 4, EMU_F_SCALAR },   /* id_DiskState         LONG */
-    {   12,   12, 4, 4, EMU_F_SCALAR },   /* id_NumBlocks         LONG */
-    {   16,   16, 4, 4, EMU_F_SCALAR },   /* id_NumBlocksUsed     LONG */
-    {   20,   20, 4, 4, EMU_F_SCALAR },   /* id_BytesPerBlock     LONG */
-    {   24,   24, 4, 4, EMU_F_SCALAR },   /* id_DiskType          LONG */
-    {   32,   40, 4, 8, EMU_F_SCALAR },   /* id_InUse             IPTR */
+    {    0,    0,    1, 4, 4, EMU_F_SCALAR },   /* id_NumSoftErrors         LONG */
+    {    4,    4,    1, 4, 4, EMU_F_SCALAR },   /* id_UnitNumber            LONG */
+    {    8,    8,    1, 4, 4, EMU_F_SCALAR },   /* id_DiskState             LONG */
+    {   12,   12,    1, 4, 4, EMU_F_SCALAR },   /* id_NumBlocks             LONG */
+    {   16,   16,    1, 4, 4, EMU_F_SCALAR },   /* id_NumBlocksUsed         LONG */
+    {   20,   20,    1, 4, 4, EMU_F_SCALAR },   /* id_BytesPerBlock         LONG */
+    {   24,   24,    1, 4, 4, EMU_F_SCALAR },   /* id_DiskType              LONG */
+    {   32,   40,    1, 4, 8, EMU_F_SCALAR },   /* id_InUse                 IPTR */
 };
 /* NOT converted, and deliberately not guessed at:
  *   id_VolumeNode (BPTR)
  */
 
 static const struct EmuField emu_fields_Node[] = {
-    {    8,   16, 1, 1, EMU_F_SCALAR },   /* ln_Type              UBYTE */
-    {    9,   17, 1, 1, EMU_F_SCALAR },   /* ln_Pri               BYTE */
+    {    8,   16,    1, 1, 1, EMU_F_SCALAR },   /* ln_Type                  UBYTE */
+    {    9,   17,    1, 1, 1, EMU_F_SCALAR },   /* ln_Pri                   BYTE */
 };
 /* NOT converted, and deliberately not guessed at:
  *   ln_Succ (struct Node *)
@@ -467,80 +505,71 @@ static const struct EmuField emu_fields_Node[] = {
  */
 
 static const struct EmuField emu_fields_List[] = {
-    {   12,   24, 1, 1, EMU_F_SCALAR },   /* lh_Type              UBYTE */
-    {   13,   25, 1, 1, EMU_F_SCALAR },   /* l_pad                UBYTE */
+    {   12,   24,    1, 1, 1, EMU_F_SCALAR },   /* lh_Type                  UBYTE */
+    {   13,   25,    1, 1, 1, EMU_F_SCALAR },   /* l_pad                    UBYTE */
 };
 /* NOT converted, and deliberately not guessed at:
  *   lh_Head (struct Node *)
  *   lh_Tail (struct Node *)
  *   lh_TailPred (struct Node *)
- *   lh_TailPred_ (struct List *)
  */
 
 static const struct EmuField emu_fields_MsgPort[] = {
-    {    8,   16, 1, 1, EMU_F_SCALAR },   /* ln_Type              UBYTE */
-    {    9,   17, 1, 1, EMU_F_SCALAR },   /* ln_Pri               BYTE */
-    {   14,   32, 1, 1, EMU_F_SCALAR },   /* mp_Flags             UBYTE */
-    {   15,   33, 1, 1, EMU_F_SCALAR },   /* mp_SigBit            UBYTE */
-    {   32,   72, 1, 1, EMU_F_SCALAR },   /* lh_Type              UBYTE */
-    {   33,   73, 1, 1, EMU_F_SCALAR },   /* l_pad                UBYTE */
+    {    8,   16,    1, 1, 1, EMU_F_SCALAR },   /* mp_Node_ln_Type          UBYTE */
+    {    9,   17,    1, 1, 1, EMU_F_SCALAR },   /* mp_Node_ln_Pri           BYTE */
+    {   14,   32,    1, 1, 1, EMU_F_SCALAR },   /* mp_Flags                 UBYTE */
+    {   15,   33,    1, 1, 1, EMU_F_SCALAR },   /* mp_SigBit                UBYTE */
+    {   32,   72,    1, 1, 1, EMU_F_SCALAR },   /* mp_MsgList_lh_Type       UBYTE */
+    {   33,   73,    1, 1, 1, EMU_F_SCALAR },   /* mp_MsgList_l_pad         UBYTE */
 };
 /* NOT converted, and deliberately not guessed at:
- *   mp_Node (struct Node)
- *   ln_Succ (struct Node *)
- *   ln_Pred (struct Node *)
- *   ln_Name (char *)
+ *   mp_Node_ln_Succ (struct Node *)
+ *   mp_Node_ln_Pred (struct Node *)
+ *   mp_Node_ln_Name (char *)
  *   mp_SigTask (void *)
- *   mp_MsgList (struct List)
- *   lh_Head (struct Node *)
- *   lh_Tail (struct Node *)
- *   lh_TailPred (struct Node *)
- *   lh_TailPred_ (struct List *)
- *   mp_Pad (spinlock_t)
- *   slock (struct spinlock_t::(unnamed at /Users/jkn/aros-build/bin/darwin-aarch64/AROS/Developer/include/aros/types/spinlock_s.h:25:18))
- *   block (volatile unsigned char[4])
- *   lock (volatile unsigned int)
- *   s_Owner (void *)
+ *   mp_MsgList_lh_Head (struct Node *)
+ *   mp_MsgList_lh_Tail (struct Node *)
+ *   mp_MsgList_lh_TailPred (struct Node *)
+ *   mp_Pad_slock (struct spinlock_t::(unnamed at /Users/jkn/aros-build/bin/darwin-aarch64/AROS/Developer/include/aros/types/spinlock_s.h:25:18))
+ *   mp_Pad_s_Owner (void *)
  */
 
 static const struct EmuField emu_fields_Message[] = {
-    {    8,   16, 1, 1, EMU_F_SCALAR },   /* ln_Type              UBYTE */
-    {    9,   17, 1, 1, EMU_F_SCALAR },   /* ln_Pri               BYTE */
-    {   18,   40, 2, 2, EMU_F_SCALAR },   /* mn_Length            UWORD */
+    {    8,   16,    1, 1, 1, EMU_F_SCALAR },   /* mn_Node_ln_Type          UBYTE */
+    {    9,   17,    1, 1, 1, EMU_F_SCALAR },   /* mn_Node_ln_Pri           BYTE */
+    {   18,   40,    1, 2, 2, EMU_F_SCALAR },   /* mn_Length                UWORD */
 };
 /* NOT converted, and deliberately not guessed at:
- *   mn_Node (struct Node)
- *   ln_Succ (struct Node *)
- *   ln_Pred (struct Node *)
- *   ln_Name (char *)
+ *   mn_Node_ln_Succ (struct Node *)
+ *   mn_Node_ln_Pred (struct Node *)
+ *   mn_Node_ln_Name (char *)
  *   mn_ReplyPort (struct MsgPort *)
  */
 
 static const struct EmuField emu_fields_DiskObject[] = {
-    {    0,    0, 2, 2, EMU_F_SCALAR },   /* do_Magic             UWORD */
-    {    2,    2, 2, 2, EMU_F_SCALAR },   /* do_Version           UWORD */
-    {    8,   16, 2, 2, EMU_F_SCALAR },   /* LeftEdge             WORD */
-    {   10,   18, 2, 2, EMU_F_SCALAR },   /* TopEdge              WORD */
-    {   12,   20, 2, 2, EMU_F_SCALAR },   /* Width                WORD */
-    {   14,   22, 2, 2, EMU_F_SCALAR },   /* Height               WORD */
-    {   16,   24, 2, 2, EMU_F_SCALAR },   /* Flags                UWORD */
-    {   18,   26, 2, 2, EMU_F_SCALAR },   /* Activation           UWORD */
-    {   20,   28, 2, 2, EMU_F_SCALAR },   /* GadgetType           UWORD */
-    {   42,   72, 2, 2, EMU_F_SCALAR },   /* GadgetID             UWORD */
-    {   48,   88, 1, 1, EMU_F_SCALAR },   /* do_Type              UBYTE */
-    {   58,  112, 4, 4, EMU_F_SCALAR },   /* do_CurrentX          LONG */
-    {   62,  116, 4, 4, EMU_F_SCALAR },   /* do_CurrentY          LONG */
-    {   74,  136, 4, 4, EMU_F_SCALAR },   /* do_StackSize         LONG */
+    {    0,    0,    1, 2, 2, EMU_F_SCALAR },   /* do_Magic                 UWORD */
+    {    2,    2,    1, 2, 2, EMU_F_SCALAR },   /* do_Version               UWORD */
+    {    8,   16,    1, 2, 2, EMU_F_SCALAR },   /* do_Gadget_LeftEdge       WORD */
+    {   10,   18,    1, 2, 2, EMU_F_SCALAR },   /* do_Gadget_TopEdge        WORD */
+    {   12,   20,    1, 2, 2, EMU_F_SCALAR },   /* do_Gadget_Width          WORD */
+    {   14,   22,    1, 2, 2, EMU_F_SCALAR },   /* do_Gadget_Height         WORD */
+    {   16,   24,    1, 2, 2, EMU_F_SCALAR },   /* do_Gadget_Flags          UWORD */
+    {   18,   26,    1, 2, 2, EMU_F_SCALAR },   /* do_Gadget_Activation     UWORD */
+    {   20,   28,    1, 2, 2, EMU_F_SCALAR },   /* do_Gadget_GadgetType     UWORD */
+    {   42,   72,    1, 2, 2, EMU_F_SCALAR },   /* do_Gadget_GadgetID       UWORD */
+    {   48,   88,    1, 1, 1, EMU_F_SCALAR },   /* do_Type                  UBYTE */
+    {   58,  112,    1, 4, 4, EMU_F_SCALAR },   /* do_CurrentX              LONG */
+    {   62,  116,    1, 4, 4, EMU_F_SCALAR },   /* do_CurrentY              LONG */
+    {   74,  136,    1, 4, 4, EMU_F_SCALAR },   /* do_StackSize             LONG */
 };
 /* NOT converted, and deliberately not guessed at:
- *   do_Gadget (struct Gadget)
- *   NextGadget (struct Gadget *)
- *   GadgetRender (APTR)
- *   SelectRender (APTR)
- *   GadgetText (struct IntuiText *)
- *   MutualExclude (IPTR)
- *   SpecialInfo (APTR)
- *   UserData (APTR)
+ *   do_Gadget_NextGadget (struct Gadget *)
+ *   do_Gadget_GadgetRender (APTR)
+ *   do_Gadget_SelectRender (APTR)
+ *   do_Gadget_GadgetText (struct IntuiText *)
+ *   do_Gadget_MutualExclude (IPTR)
+ *   do_Gadget_SpecialInfo (APTR)
+ *   do_Gadget_UserData (APTR)
  *   do_DefaultTool (STRPTR)
  *   do_ToolTypes (STRPTR *)
  *   do_DrawerData (struct DrawerData *)
@@ -548,14 +577,14 @@ static const struct EmuField emu_fields_DiskObject[] = {
  */
 
 static const struct EmuField emu_fields_ExAllData[] = {
-    {    8,   16, 4, 4, EMU_F_SCALAR },   /* ed_Type              LONG */
-    {   12,   20, 4, 4, EMU_F_SCALAR },   /* ed_Size              ULONG */
-    {   16,   24, 4, 4, EMU_F_SCALAR },   /* ed_Prot              ULONG */
-    {   20,   28, 4, 4, EMU_F_SCALAR },   /* ed_Days              ULONG */
-    {   24,   32, 4, 4, EMU_F_SCALAR },   /* ed_Mins              ULONG */
-    {   28,   36, 4, 4, EMU_F_SCALAR },   /* ed_Ticks             ULONG */
-    {   36,   48, 2, 2, EMU_F_SCALAR },   /* ed_OwnerUID          UWORD */
-    {   38,   50, 2, 2, EMU_F_SCALAR },   /* ed_OwnerGID          UWORD */
+    {    8,   16,    1, 4, 4, EMU_F_SCALAR },   /* ed_Type                  LONG */
+    {   12,   20,    1, 4, 4, EMU_F_SCALAR },   /* ed_Size                  ULONG */
+    {   16,   24,    1, 4, 4, EMU_F_SCALAR },   /* ed_Prot                  ULONG */
+    {   20,   28,    1, 4, 4, EMU_F_SCALAR },   /* ed_Days                  ULONG */
+    {   24,   32,    1, 4, 4, EMU_F_SCALAR },   /* ed_Mins                  ULONG */
+    {   28,   36,    1, 4, 4, EMU_F_SCALAR },   /* ed_Ticks                 ULONG */
+    {   36,   48,    1, 2, 2, EMU_F_SCALAR },   /* ed_OwnerUID              UWORD */
+    {   38,   50,    1, 2, 2, EMU_F_SCALAR },   /* ed_OwnerGID              UWORD */
 };
 /* NOT converted, and deliberately not guessed at:
  *   ed_Next (struct ExAllData32 *)
@@ -564,22 +593,20 @@ static const struct EmuField emu_fields_ExAllData[] = {
  */
 
 static const struct EmuField emu_fields_IClass[] = {
-    {   20,   40, 4, 4, EMU_F_SCALAR },   /* cl_Reserved          ULONG */
-    {   32,   64, 2, 2, EMU_F_SCALAR },   /* cl_InstOffset        UWORD */
-    {   34,   66, 2, 2, EMU_F_SCALAR },   /* cl_InstSize          UWORD */
-    {   40,   80, 4, 4, EMU_F_SCALAR },   /* cl_SubclassCount     ULONG */
-    {   44,   84, 4, 4, EMU_F_SCALAR },   /* cl_ObjectCount       ULONG */
-    {   48,   88, 4, 4, EMU_F_SCALAR },   /* cl_Flags             ULONG */
-    {   52,   92, 4, 4, EMU_F_SCALAR },   /* cl_ObjectSize        ULONG */
+    {   20,   40,    1, 4, 4, EMU_F_SCALAR },   /* cl_Reserved              ULONG */
+    {   32,   64,    1, 2, 2, EMU_F_SCALAR },   /* cl_InstOffset            UWORD */
+    {   34,   66,    1, 2, 2, EMU_F_SCALAR },   /* cl_InstSize              UWORD */
+    {   40,   80,    1, 4, 4, EMU_F_SCALAR },   /* cl_SubclassCount         ULONG */
+    {   44,   84,    1, 4, 4, EMU_F_SCALAR },   /* cl_ObjectCount           ULONG */
+    {   48,   88,    1, 4, 4, EMU_F_SCALAR },   /* cl_Flags                 ULONG */
+    {   52,   92,    1, 4, 4, EMU_F_SCALAR },   /* cl_ObjectSize            ULONG */
 };
 /* NOT converted, and deliberately not guessed at:
- *   cl_Dispatcher (struct Hook)
- *   h_MinNode (struct MinNode)
- *   mln_Succ (struct MinNode *)
- *   mln_Pred (struct MinNode *)
- *   h_Entry (APTR)
- *   h_SubEntry (APTR)
- *   h_Data (APTR)
+ *   cl_Dispatcher_h_MinNode_mln_Succ (struct MinNode *)
+ *   cl_Dispatcher_h_MinNode_mln_Pred (struct MinNode *)
+ *   cl_Dispatcher_h_Entry (APTR)
+ *   cl_Dispatcher_h_SubEntry (APTR)
+ *   cl_Dispatcher_h_Data (APTR)
  *   cl_Super (struct IClass *)
  *   cl_ID (ClassID)
  *   cl_UserData (IPTR)
@@ -587,43 +614,43 @@ static const struct EmuField emu_fields_IClass[] = {
  */
 
 static const struct EmuField emu_fields_Rectangle[] = {
-    {    0,    0, 2, 2, EMU_F_SCALAR },   /* MinX                 WORD */
-    {    2,    2, 2, 2, EMU_F_SCALAR },   /* MinY                 WORD */
-    {    4,    4, 2, 2, EMU_F_SCALAR },   /* MaxX                 WORD */
-    {    6,    6, 2, 2, EMU_F_SCALAR },   /* MaxY                 WORD */
+    {    0,    0,    1, 2, 2, EMU_F_SCALAR },   /* MinX                     WORD */
+    {    2,    2,    1, 2, 2, EMU_F_SCALAR },   /* MinY                     WORD */
+    {    4,    4,    1, 2, 2, EMU_F_SCALAR },   /* MaxX                     WORD */
+    {    6,    6,    1, 2, 2, EMU_F_SCALAR },   /* MaxY                     WORD */
 };
 
 static const struct EmuField emu_fields_Window[] = {
-    {    4,    8, 2, 2, EMU_F_SCALAR },   /* LeftEdge             WORD */
-    {    6,   10, 2, 2, EMU_F_SCALAR },   /* TopEdge              WORD */
-    {    8,   12, 2, 2, EMU_F_SCALAR },   /* Width                WORD */
-    {   10,   14, 2, 2, EMU_F_SCALAR },   /* Height               WORD */
-    {   12,   16, 2, 2, EMU_F_SCALAR },   /* MouseY               WORD */
-    {   14,   18, 2, 2, EMU_F_SCALAR },   /* MouseX               WORD */
-    {   16,   20, 2, 2, EMU_F_SCALAR },   /* MinWidth             WORD */
-    {   18,   22, 2, 2, EMU_F_SCALAR },   /* MinHeight            WORD */
-    {   20,   24, 2, 2, EMU_F_SCALAR },   /* MaxWidth             UWORD */
-    {   22,   26, 2, 2, EMU_F_SCALAR },   /* MaxHeight            UWORD */
-    {   24,   28, 4, 4, EMU_F_SCALAR },   /* Flags                ULONG */
-    {   44,   64, 2, 2, EMU_F_SCALAR },   /* ReqCount             WORD */
-    {   54,   88, 1, 1, EMU_F_SCALAR },   /* BorderLeft           BYTE */
-    {   55,   89, 1, 1, EMU_F_SCALAR },   /* BorderTop            BYTE */
-    {   56,   90, 1, 1, EMU_F_SCALAR },   /* BorderRight          BYTE */
-    {   57,   91, 1, 1, EMU_F_SCALAR },   /* BorderBottom         BYTE */
-    {   78,  136, 1, 1, EMU_F_SCALAR },   /* PtrHeight            BYTE */
-    {   79,  137, 1, 1, EMU_F_SCALAR },   /* PtrWidth             BYTE */
-    {   80,  138, 1, 1, EMU_F_SCALAR },   /* XOffset              BYTE */
-    {   81,  139, 1, 1, EMU_F_SCALAR },   /* YOffset              BYTE */
-    {   82,  140, 4, 4, EMU_F_SCALAR },   /* IDCMPFlags           ULONG */
-    {   98,  168, 1, 1, EMU_F_SCALAR },   /* DetailPen            UBYTE */
-    {   99,  169, 1, 1, EMU_F_SCALAR },   /* BlockPen             UBYTE */
-    {  108,  192, 2, 2, EMU_F_SCALAR },   /* GZZMouseX            WORD */
-    {  110,  194, 2, 2, EMU_F_SCALAR },   /* GZZMouseY            WORD */
-    {  112,  196, 2, 2, EMU_F_SCALAR },   /* GZZWidth             WORD */
-    {  114,  198, 2, 2, EMU_F_SCALAR },   /* GZZHeight            WORD */
-    {  132,  232, 4, 4, EMU_F_SCALAR },   /* MoreFlags            ULONG */
-    {  136,  236, 2, 2, EMU_F_SCALAR },   /* RelLeftEdge          WORD */
-    {  138,  238, 2, 2, EMU_F_SCALAR },   /* RelTopEdge           WORD */
+    {    4,    8,    1, 2, 2, EMU_F_SCALAR },   /* LeftEdge                 WORD */
+    {    6,   10,    1, 2, 2, EMU_F_SCALAR },   /* TopEdge                  WORD */
+    {    8,   12,    1, 2, 2, EMU_F_SCALAR },   /* Width                    WORD */
+    {   10,   14,    1, 2, 2, EMU_F_SCALAR },   /* Height                   WORD */
+    {   12,   16,    1, 2, 2, EMU_F_SCALAR },   /* MouseY                   WORD */
+    {   14,   18,    1, 2, 2, EMU_F_SCALAR },   /* MouseX                   WORD */
+    {   16,   20,    1, 2, 2, EMU_F_SCALAR },   /* MinWidth                 WORD */
+    {   18,   22,    1, 2, 2, EMU_F_SCALAR },   /* MinHeight                WORD */
+    {   20,   24,    1, 2, 2, EMU_F_SCALAR },   /* MaxWidth                 UWORD */
+    {   22,   26,    1, 2, 2, EMU_F_SCALAR },   /* MaxHeight                UWORD */
+    {   24,   28,    1, 4, 4, EMU_F_SCALAR },   /* Flags                    ULONG */
+    {   44,   64,    1, 2, 2, EMU_F_SCALAR },   /* ReqCount                 WORD */
+    {   54,   88,    1, 1, 1, EMU_F_SCALAR },   /* BorderLeft               BYTE */
+    {   55,   89,    1, 1, 1, EMU_F_SCALAR },   /* BorderTop                BYTE */
+    {   56,   90,    1, 1, 1, EMU_F_SCALAR },   /* BorderRight              BYTE */
+    {   57,   91,    1, 1, 1, EMU_F_SCALAR },   /* BorderBottom             BYTE */
+    {   78,  136,    1, 1, 1, EMU_F_SCALAR },   /* PtrHeight                BYTE */
+    {   79,  137,    1, 1, 1, EMU_F_SCALAR },   /* PtrWidth                 BYTE */
+    {   80,  138,    1, 1, 1, EMU_F_SCALAR },   /* XOffset                  BYTE */
+    {   81,  139,    1, 1, 1, EMU_F_SCALAR },   /* YOffset                  BYTE */
+    {   82,  140,    1, 4, 4, EMU_F_SCALAR },   /* IDCMPFlags               ULONG */
+    {   98,  168,    1, 1, 1, EMU_F_SCALAR },   /* DetailPen                UBYTE */
+    {   99,  169,    1, 1, 1, EMU_F_SCALAR },   /* BlockPen                 UBYTE */
+    {  108,  192,    1, 2, 2, EMU_F_SCALAR },   /* GZZMouseX                WORD */
+    {  110,  194,    1, 2, 2, EMU_F_SCALAR },   /* GZZMouseY                WORD */
+    {  112,  196,    1, 2, 2, EMU_F_SCALAR },   /* GZZWidth                 WORD */
+    {  114,  198,    1, 2, 2, EMU_F_SCALAR },   /* GZZHeight                WORD */
+    {  132,  232,    1, 4, 4, EMU_F_SCALAR },   /* MoreFlags                ULONG */
+    {  136,  236,    1, 2, 2, EMU_F_SCALAR },   /* RelLeftEdge              WORD */
+    {  138,  238,    1, 2, 2, EMU_F_SCALAR },   /* RelTopEdge               WORD */
 };
 /* NOT converted, and deliberately not guessed at:
  *   NextWindow (struct Window *)
@@ -654,28 +681,28 @@ static const struct EmuField emu_fields_Window[] = {
  */
 
 static const struct EmuField emu_fields_RastPort[] = {
-    {   24,   48, 1, 1, EMU_F_SCALAR },   /* Mask                 UBYTE */
-    {   25,   49, 1, 1, EMU_F_SCALAR },   /* FgPen                BYTE */
-    {   26,   50, 1, 1, EMU_F_SCALAR },   /* BgPen                BYTE */
-    {   27,   51, 1, 1, EMU_F_SCALAR },   /* AOlPen               BYTE */
-    {   28,   52, 1, 1, EMU_F_SCALAR },   /* DrawMode             BYTE */
-    {   29,   53, 1, 1, EMU_F_SCALAR },   /* AreaPtSz             BYTE */
-    {   30,   54, 1, 1, EMU_F_SCALAR },   /* linpatcnt            BYTE */
-    {   31,   55, 1, 1, EMU_F_SCALAR },   /* dummy                BYTE */
-    {   32,   56, 2, 2, EMU_F_SCALAR },   /* Flags                UWORD */
-    {   34,   58, 2, 2, EMU_F_SCALAR },   /* LinePtrn             UWORD */
-    {   36,   60, 2, 2, EMU_F_SCALAR },   /* cp_x                 WORD */
-    {   38,   62, 2, 2, EMU_F_SCALAR },   /* cp_y                 WORD */
-    {   40,   64, 8, 8, EMU_F_BYTES },   /* minterms             UBYTE[8] */
-    {   48,   72, 2, 2, EMU_F_SCALAR },   /* PenWidth             WORD */
-    {   50,   74, 2, 2, EMU_F_SCALAR },   /* PenHeight            WORD */
-    {   56,   88, 1, 1, EMU_F_SCALAR },   /* AlgoStyle            UBYTE */
-    {   57,   89, 1, 1, EMU_F_SCALAR },   /* TxFlags              UBYTE */
-    {   58,   90, 2, 2, EMU_F_SCALAR },   /* TxHeight             UWORD */
-    {   60,   92, 2, 2, EMU_F_SCALAR },   /* TxWidth              UWORD */
-    {   62,   94, 2, 2, EMU_F_SCALAR },   /* TxBaseline           UWORD */
-    {   64,   96, 2, 2, EMU_F_SCALAR },   /* TxSpacing            WORD */
-    {   98,  168, 2, 2, EMU_F_BYTES },   /* reserved             UBYTE[2] */
+    {   24,   48,    1, 1, 1, EMU_F_SCALAR },   /* Mask                     UBYTE */
+    {   25,   49,    1, 1, 1, EMU_F_SCALAR },   /* FgPen                    BYTE */
+    {   26,   50,    1, 1, 1, EMU_F_SCALAR },   /* BgPen                    BYTE */
+    {   27,   51,    1, 1, 1, EMU_F_SCALAR },   /* AOlPen                   BYTE */
+    {   28,   52,    1, 1, 1, EMU_F_SCALAR },   /* DrawMode                 BYTE */
+    {   29,   53,    1, 1, 1, EMU_F_SCALAR },   /* AreaPtSz                 BYTE */
+    {   30,   54,    1, 1, 1, EMU_F_SCALAR },   /* linpatcnt                BYTE */
+    {   31,   55,    1, 1, 1, EMU_F_SCALAR },   /* dummy                    BYTE */
+    {   32,   56,    1, 2, 2, EMU_F_SCALAR },   /* Flags                    UWORD */
+    {   34,   58,    1, 2, 2, EMU_F_SCALAR },   /* LinePtrn                 UWORD */
+    {   36,   60,    1, 2, 2, EMU_F_SCALAR },   /* cp_x                     WORD */
+    {   38,   62,    1, 2, 2, EMU_F_SCALAR },   /* cp_y                     WORD */
+    {   40,   64,    8, 1, 1, EMU_F_BYTES },   /* minterms                 UBYTE[8] */
+    {   48,   72,    1, 2, 2, EMU_F_SCALAR },   /* PenWidth                 WORD */
+    {   50,   74,    1, 2, 2, EMU_F_SCALAR },   /* PenHeight                WORD */
+    {   56,   88,    1, 1, 1, EMU_F_SCALAR },   /* AlgoStyle                UBYTE */
+    {   57,   89,    1, 1, 1, EMU_F_SCALAR },   /* TxFlags                  UBYTE */
+    {   58,   90,    1, 2, 2, EMU_F_SCALAR },   /* TxHeight                 UWORD */
+    {   60,   92,    1, 2, 2, EMU_F_SCALAR },   /* TxWidth                  UWORD */
+    {   62,   94,    1, 2, 2, EMU_F_SCALAR },   /* TxBaseline               UWORD */
+    {   64,   96,    1, 2, 2, EMU_F_SCALAR },   /* TxSpacing                WORD */
+    {   98,  168,    2, 1, 1, EMU_F_BYTES },   /* reserved                 UBYTE[2] */
 };
 /* NOT converted, and deliberately not guessed at:
  *   Layer (struct Layer *)
@@ -689,5 +716,66 @@ static const struct EmuField emu_fields_RastPort[] = {
  *   RP_Extra (APTR)
  *   longreserved (IPTR[6])
  */
+
+static const struct EmuField emu_fields_Preferences[] = {
+    {    0,    0,    1, 1, 1, EMU_F_SCALAR },   /* FontHeight               BYTE */
+    {    1,    1,    1, 1, 1, EMU_F_SCALAR },   /* PrinterPort              UBYTE */
+    {    2,    2,    1, 2, 2, EMU_F_SCALAR },   /* BaudRate                 UWORD */
+    {    4,    4,    1, 4, 4, EMU_F_SCALAR },   /* KeyRptSpeed_tv_secs      unsigned int */
+    {    8,    8,    1, 4, 4, EMU_F_SCALAR },   /* KeyRptSpeed_tv_micro     unsigned int */
+    {   12,   12,    1, 4, 4, EMU_F_SCALAR },   /* KeyRptDelay_tv_secs      unsigned int */
+    {   16,   16,    1, 4, 4, EMU_F_SCALAR },   /* KeyRptDelay_tv_micro     unsigned int */
+    {   20,   20,    1, 4, 4, EMU_F_SCALAR },   /* DoubleClick_tv_secs      unsigned int */
+    {   24,   24,    1, 4, 4, EMU_F_SCALAR },   /* DoubleClick_tv_micro     unsigned int */
+    {   28,   28,   36, 2, 2, EMU_F_ARRAY },   /* PointerMatrix            UWORD[36] */
+    {  100,  100,    1, 1, 1, EMU_F_SCALAR },   /* XOffset                  BYTE */
+    {  101,  101,    1, 1, 1, EMU_F_SCALAR },   /* YOffset                  BYTE */
+    {  102,  102,    1, 2, 2, EMU_F_SCALAR },   /* color17                  UWORD */
+    {  104,  104,    1, 2, 2, EMU_F_SCALAR },   /* color18                  UWORD */
+    {  106,  106,    1, 2, 2, EMU_F_SCALAR },   /* color19                  UWORD */
+    {  108,  108,    1, 2, 2, EMU_F_SCALAR },   /* PointerTicks             UWORD */
+    {  110,  110,    1, 2, 2, EMU_F_SCALAR },   /* color0                   UWORD */
+    {  112,  112,    1, 2, 2, EMU_F_SCALAR },   /* color1                   UWORD */
+    {  114,  114,    1, 2, 2, EMU_F_SCALAR },   /* color2                   UWORD */
+    {  116,  116,    1, 2, 2, EMU_F_SCALAR },   /* color3                   UWORD */
+    {  118,  118,    1, 1, 1, EMU_F_SCALAR },   /* ViewXOffset              BYTE */
+    {  119,  119,    1, 1, 1, EMU_F_SCALAR },   /* ViewYOffset              BYTE */
+    {  120,  120,    1, 2, 2, EMU_F_SCALAR },   /* ViewInitX                WORD */
+    {  122,  122,    1, 2, 2, EMU_F_SCALAR },   /* ViewInitY                WORD */
+    {  124,  124,    1, 2, 2, EMU_F_SCALAR },   /* EnableCLI                BOOL */
+    {  126,  126,    1, 2, 2, EMU_F_SCALAR },   /* PrinterType              UWORD */
+    {  128,  128,   30, 1, 1, EMU_F_BYTES },   /* PrinterFilename          UBYTE[30] */
+    {  158,  158,    1, 2, 2, EMU_F_SCALAR },   /* PrintPitch               UWORD */
+    {  160,  160,    1, 2, 2, EMU_F_SCALAR },   /* PrintQuality             UWORD */
+    {  162,  162,    1, 2, 2, EMU_F_SCALAR },   /* PrintSpacing             UWORD */
+    {  164,  164,    1, 2, 2, EMU_F_SCALAR },   /* PrintLeftMargin          UWORD */
+    {  166,  166,    1, 2, 2, EMU_F_SCALAR },   /* PrintRightMargin         UWORD */
+    {  168,  168,    1, 2, 2, EMU_F_SCALAR },   /* PrintImage               UWORD */
+    {  170,  170,    1, 2, 2, EMU_F_SCALAR },   /* PrintAspect              UWORD */
+    {  172,  172,    1, 2, 2, EMU_F_SCALAR },   /* PrintShade               UWORD */
+    {  174,  174,    1, 2, 2, EMU_F_SCALAR },   /* PrintThreshold           WORD */
+    {  176,  176,    1, 2, 2, EMU_F_SCALAR },   /* PaperSize                UWORD */
+    {  178,  178,    1, 2, 2, EMU_F_SCALAR },   /* PaperLength              UWORD */
+    {  180,  180,    1, 2, 2, EMU_F_SCALAR },   /* PaperType                UWORD */
+    {  182,  182,    1, 1, 1, EMU_F_SCALAR },   /* SerRWBits                UBYTE */
+    {  183,  183,    1, 1, 1, EMU_F_SCALAR },   /* SerStopBuf               UBYTE */
+    {  184,  184,    1, 1, 1, EMU_F_SCALAR },   /* SerParShk                UBYTE */
+    {  185,  185,    1, 1, 1, EMU_F_SCALAR },   /* LaceWB                   UBYTE */
+    {  186,  186,   12, 1, 1, EMU_F_BYTES },   /* Pad                      UBYTE[12] */
+    {  198,  198,   16, 1, 1, EMU_F_BYTES },   /* PrtDevName               UBYTE[16] */
+    {  214,  214,    1, 1, 1, EMU_F_SCALAR },   /* DefaultPrtUnit           UBYTE */
+    {  215,  215,    1, 1, 1, EMU_F_SCALAR },   /* DefaultSerUnit           UBYTE */
+    {  216,  216,    1, 1, 1, EMU_F_SCALAR },   /* RowSizeChange            BYTE */
+    {  217,  217,    1, 1, 1, EMU_F_SCALAR },   /* ColumnSizeChange         BYTE */
+    {  218,  218,    1, 2, 2, EMU_F_SCALAR },   /* PrintFlags               UWORD */
+    {  220,  220,    1, 2, 2, EMU_F_SCALAR },   /* PrintMaxWidth            UWORD */
+    {  222,  222,    1, 2, 2, EMU_F_SCALAR },   /* PrintMaxHeight           UWORD */
+    {  224,  224,    1, 1, 1, EMU_F_SCALAR },   /* PrintDensity             UBYTE */
+    {  225,  225,    1, 1, 1, EMU_F_SCALAR },   /* PrintXOffset             UBYTE */
+    {  226,  226,    1, 2, 2, EMU_F_SCALAR },   /* wb_Width                 UWORD */
+    {  228,  228,    1, 2, 2, EMU_F_SCALAR },   /* wb_Height                UWORD */
+    {  230,  230,    1, 1, 1, EMU_F_SCALAR },   /* wb_Depth                 UBYTE */
+    {  231,  231,    1, 1, 1, EMU_F_SCALAR },   /* ext_size                 UBYTE */
+};
 
 #endif /* EMU68K_LAYOUTS_H */

@@ -113,7 +113,33 @@
                 ctx.elc_ArgSize = argsize;
                 ctx.elc_Process = me;
                 ctx.elc_Mode    = 0;
-                if (Emu68k_RouteSegList(&ctx, &routed_result, DOSBase))
+
+                /* A routed hunk is still a command run by RunCommand, so it
+                 * must receive the requested native stack just like an ELF
+                 * command below.  Routing before NewStackSwap left every 68k
+                 * program on the shell task's 40 KiB stack; bridge calls and
+                 * nested JIT callbacks can legitimately need more, and the
+                 * CLI's Stack setting was silently ignored. */
+                if (stacksize < AROS_STACKSIZE)
+                    stacksize = AROS_STACKSIZE;
+                stack = (UBYTE *)AllocMem(stacksize, MEMF_ANY);
+                if (!stack)
+                    return -1;
+
+                sss.stk_Lower = stack;
+                sss.stk_Upper = stack + stacksize;
+                sss.stk_Pointer = sss.stk_Upper;
+                args.Args[0] = (IPTR)&ctx;
+                args.Args[1] = (IPTR)&routed_result;
+                args.Args[2] = (IPTR)DOSBase;
+
+                oldargs = me->pr_Arguments;
+                me->pr_Arguments = (STRPTR)argptr;
+                ret = (LONG)NewStackSwap(&sss, Emu68k_RouteSegList, &args);
+                me->pr_Arguments = oldargs;
+                FreeMem(stack, stacksize);
+
+                if (ret)
                     return routed_result;
             }
             /* Segment is tracked by LoadSeg but is not ELF.

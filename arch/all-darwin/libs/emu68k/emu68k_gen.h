@@ -12,6 +12,9 @@
 #include <exec/types.h>
 #include <dos/dos.h>          /* BPTR, for the handle table below */
 
+struct TagItem;
+struct EmuField;
+
 /* The leading, stable part of the engine's 68k register file. The engine owns
  * the full struct; only these two arrays are contractual here. */
 struct Emu68kRegs
@@ -32,44 +35,95 @@ ULONG emu68k_handle_token(APTR guest0, BPTR b);
 #define EMU_HANDLE(g0, t)  emu68k_handle_bptr((g0), (ULONG)(t))
 #define EMU_TOKEN(g0, b)   emu68k_handle_token((g0), (b))
 
+/* Policy-compiled TagItem values. A domain names every accepted tag and the
+ * type of ti_Data. Unknown/refused tags fail the crossing; they are never
+ * forwarded as if every IPTR were a scalar. */
+#define EMU_TAG_U32     0
+#define EMU_TAG_CSTR    1
+#define EMU_TAG_REFUSE  2
+struct EmuTagDesc
+{
+    ULONG tag;
+    UBYTE kind;
+    const char *name;
+};
+struct EmuTagDomain
+{
+    const struct EmuTagDesc *tags;
+    UWORD count;
+    const char *name;
+};
+LONG emu68k_tags_to_native(APTR guest0, ULONG guest_tags,
+                           const struct EmuTagDomain *domain,
+                           struct TagItem *native_tags, ULONG capacity,
+                           char *err, ULONG errlen);
+
+LONG emu68k_require_guest_range(ULONG guest_addr, ULONG length,
+                                const char *what, char *err, ULONG errlen);
+void emu68k_to_guest(APTR guest0, ULONG gbase, const void *native,
+                     const struct EmuField *fields, int count);
+void emu68k_from_guest(APTR guest0, ULONG gbase, void *native,
+                       const struct EmuField *fields, int count);
+#define EMU_NFIELDS(a) ((int)(sizeof(a) / sizeof((a)[0])))
+
 int emu68k_gen_exec(int lvo, struct Emu68kRegs *r,
-                  APTR guest0, APTR base);
+                  APTR guest0, APTR base,
+                  char *err, ULONG errlen);
 int emu68k_gen_dos(int lvo, struct Emu68kRegs *r,
-                  APTR guest0, APTR base);
+                  APTR guest0, APTR base,
+                  char *err, ULONG errlen);
 int emu68k_gen_utility(int lvo, struct Emu68kRegs *r,
-                  APTR guest0, APTR base);
+                  APTR guest0, APTR base,
+                  char *err, ULONG errlen);
 int emu68k_gen_intuition(int lvo, struct Emu68kRegs *r,
-                  APTR guest0, APTR base);
+                  APTR guest0, APTR base,
+                  char *err, ULONG errlen);
 int emu68k_gen_graphics(int lvo, struct Emu68kRegs *r,
-                  APTR guest0, APTR base);
+                  APTR guest0, APTR base,
+                  char *err, ULONG errlen);
 int emu68k_gen_layers(int lvo, struct Emu68kRegs *r,
-                  APTR guest0, APTR base);
+                  APTR guest0, APTR base,
+                  char *err, ULONG errlen);
 int emu68k_gen_gadtools(int lvo, struct Emu68kRegs *r,
-                  APTR guest0, APTR base);
+                  APTR guest0, APTR base,
+                  char *err, ULONG errlen);
 int emu68k_gen_asl(int lvo, struct Emu68kRegs *r,
-                  APTR guest0, APTR base);
+                  APTR guest0, APTR base,
+                  char *err, ULONG errlen);
 int emu68k_gen_icon(int lvo, struct Emu68kRegs *r,
-                  APTR guest0, APTR base);
+                  APTR guest0, APTR base,
+                  char *err, ULONG errlen);
 int emu68k_gen_iffparse(int lvo, struct Emu68kRegs *r,
-                  APTR guest0, APTR base);
+                  APTR guest0, APTR base,
+                  char *err, ULONG errlen);
 int emu68k_gen_commodities(int lvo, struct Emu68kRegs *r,
-                  APTR guest0, APTR base);
+                  APTR guest0, APTR base,
+                  char *err, ULONG errlen);
 int emu68k_gen_diskfont(int lvo, struct Emu68kRegs *r,
-                  APTR guest0, APTR base);
+                  APTR guest0, APTR base,
+                  char *err, ULONG errlen);
 int emu68k_gen_locale(int lvo, struct Emu68kRegs *r,
-                  APTR guest0, APTR base);
+                  APTR guest0, APTR base,
+                  char *err, ULONG errlen);
 int emu68k_gen_keymap(int lvo, struct Emu68kRegs *r,
-                  APTR guest0, APTR base);
+                  APTR guest0, APTR base,
+                  char *err, ULONG errlen);
 int emu68k_gen_datatypes(int lvo, struct Emu68kRegs *r,
-                  APTR guest0, APTR base);
+                  APTR guest0, APTR base,
+                  char *err, ULONG errlen);
 int emu68k_gen_expansion(int lvo, struct Emu68kRegs *r,
-                  APTR guest0, APTR base);
+                  APTR guest0, APTR base,
+                  char *err, ULONG errlen);
 int emu68k_gen_cybergraphics(int lvo, struct Emu68kRegs *r,
-                  APTR guest0, APTR base);
+                  APTR guest0, APTR base,
+                  char *err, ULONG errlen);
 int emu68k_gen_mathffp(int lvo, struct Emu68kRegs *r,
-                  APTR guest0, APTR base);
+                  APTR guest0, APTR base,
+                  char *err, ULONG errlen);
 int emu68k_gen_mathieeesingbas(int lvo, struct Emu68kRegs *r,
-                  APTR guest0, APTR base);
+                  APTR guest0, APTR base,
+                  char *err, ULONG errlen);
 int emu68k_gen_mathieeedoubbas(int lvo, struct Emu68kRegs *r,
-                  APTR guest0, APTR base);
+                  APTR guest0, APTR base,
+                  char *err, ULONG errlen);
 #endif /* EMU68K_GEN_H */

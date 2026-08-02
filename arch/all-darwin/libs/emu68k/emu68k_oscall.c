@@ -279,7 +279,8 @@ enum { GENBASE_DOS, GENBASE_EXEC, GENBASE_OPEN };
 struct EmuGenLib
 {
     const char *name;
-    int       (*fn)(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base);
+    int       (*fn)(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
+                    char *err, ULONG errlen);
     UBYTE       kind;
     UBYTE       tried;
     APTR        base;
@@ -310,7 +311,7 @@ static struct EmuGenLib g_genlibs[] =
 };
 
 static int gen_dispatch(const char *libname, int lvo, struct Emu68kRegs *r,
-                        APTR guest0, APTR DOSBase)
+                        APTR guest0, APTR DOSBase, char *err, ULONG errlen)
 {
     unsigned i;
 
@@ -333,7 +334,7 @@ static int gen_dispatch(const char *libname, int lvo, struct Emu68kRegs *r,
         }
         if (!g->base)
             return 1;
-        return g->fn(lvo, r, guest0, g->base);
+        return g->fn(lvo, r, guest0, g->base, err, errlen);
     }
     return 1;
 }
@@ -671,8 +672,15 @@ int Emu68k_OSCall(const char *libname, int lvo, APTR regs, APTR guest0,
      * follow entirely from the vector's declared prototype and register map.
      * Hand-written cases run first and win, so a crossing that needs judgement
      * is never silently replaced by a derived one. */
-    if (gen_dispatch(libname, lvo, r, guest0, DOSBase) == 0)
+    if (err && errlen) err[0] = '\0';
+    if (gen_dispatch(libname, lvo, r, guest0, DOSBase, err, errlen) == 0)
         return 0;
+
+    /* A policy-compiled crossing can fail more precisely than "unknown LVO"
+     * (unknown tag, refused object type, invalid guest range). Keep that
+     * reason all the way back to the translated program's diagnostic. */
+    if (err && errlen && err[0])
+        return 1;
 
     /* Anything else is a capability gap, reported by name so the ledger says
      * exactly what to implement next. Never a guess. */

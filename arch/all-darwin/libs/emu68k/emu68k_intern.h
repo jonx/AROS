@@ -16,7 +16,7 @@
 /* Guest-visible file handles. MUST match the host service (emu68k_host.c):
  * a dos handle is a BPTR the program may dereference, so each one is backed by
  * a real guest structure and what crosses is MKBADDR of its address. */
-#define EMU68K_GUEST_FH_BASE  0x00223000UL
+#define EMU68K_GUEST_FH_BASE  0x00212000UL
 #define EMU68K_GUEST_FH_SLOT  64UL
 #define EMU68K_GUEST_FH_MAX   32UL
 

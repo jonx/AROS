@@ -230,6 +230,15 @@ int emu68k_gen_graphics(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
               (UWORD)r->d[1],
               (UWORD)r->d[2]);
         return 0;
+    case 121:  /* FindDisplayInfo(ULONG ID) -> DisplayInfoHandle  [-726] */
+    {
+        APTR emu_result = (APTR)FindDisplayInfo((ULONG)r->d[0]);
+        if (emu68k_object_to_guest(guest0, emu_result, EMU_OBJ_DisplayInfoHandle,
+                                      base, NULL,
+                                      "DisplayInfoHandle", &r->d[0], err, errlen) < 0)
+            return 1;
+            return 0;
+    }
     case 122:  /* NextDisplayInfo(ULONG last_ID) -> ULONG  [-732] */
         r->d[0] = (ULONG)NextDisplayInfo((ULONG)r->d[0]);
         return 0;

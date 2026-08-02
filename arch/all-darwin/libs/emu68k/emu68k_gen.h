@@ -10,6 +10,7 @@
 #define EMU68K_GEN_H
 
 #include <exec/types.h>
+#include <dos/dos.h>          /* BPTR, for the handle table below */
 
 /* The leading, stable part of the engine's 68k register file. The engine owns
  * the full struct; only these two arrays are contractual here. */
@@ -22,6 +23,14 @@ struct Emu68kRegs
 /* A guest pointer becomes a host pointer by adding the guest base. Only memory
  * inside the guest arena may be handed to a native call this way. */
 #define EMU_GPTR(g0, a)  ((APTR)((a) ? (UBYTE *)(g0) + (ULONG)(a) : NULL))
+
+/* A BPTR cannot cross as itself: a native one is 64-bit and a 68k register is
+ * not. These map between the guest's 32-bit token and the native BPTR it
+ * stands for; both live in emu68k_oscall.c, which owns the table. */
+BPTR  emu68k_handle_bptr(ULONG token);
+ULONG emu68k_handle_token(BPTR b);
+#define EMU_HANDLE(t)  emu68k_handle_bptr((ULONG)(t))
+#define EMU_TOKEN(b)   emu68k_handle_token(b)
 
 int emu68k_gen_exec(int lvo, struct Emu68kRegs *r,
                   APTR guest0, APTR base);

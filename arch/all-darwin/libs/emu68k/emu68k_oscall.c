@@ -49,6 +49,9 @@
 #define DOS_LVO_EXNEXT        18   /* -108 */
 #define DOS_LVO_FILEPART     145   /* -870 */
 #define DOS_LVO_PATHPART     146   /* -876 */
+#define DOS_LVO_MATCHFIRST   137   /* -822 */
+#define DOS_LVO_MATCHNEXT    138   /* -828 */
+#define DOS_LVO_MATCHEND     139   /* -834 */
 #define DOS_LVO_IOERR   22    /* -132: what every failed dos call is followed by */
 #define DOS_LVO_GETPROGRAMNAME 96   /* -576 */
 #define DOS_LVO_GETVAR        151   /* -906 */
@@ -117,6 +120,11 @@ static BPTR handle_bptr(ULONG token)
     return (i < 0) ? BNULL : g_handles[i].bptr;
 }
 
+/* The generated crossings need the handle table too (a BPTR argument or
+ * result); this file owns it, so it exports the two ends. */
+BPTR emu68k_handle_bptr(ULONG token)  { return handle_bptr(token); }
+ULONG emu68k_handle_token(BPTR b)     { return handle_token(b); }
+
 static void handle_release(ULONG token)
 {
     int i = handle_index(token);
@@ -172,6 +180,64 @@ static void fib_to_guest(APTR guest0, ULONG base, const struct FileInfoBlock *n)
     gw16(guest0, FIB_F(fib_OwnerUID),     (UWORD)n->fib_OwnerUID);
     gw16(guest0, FIB_F(fib_OwnerGID),     (UWORD)n->fib_OwnerGID);
     (void)gw8;
+}
+
+/* ---- ANCHORPATH: A RETAINED SHADOW ----------------------------------------
+ * MatchFirst/MatchNext/MatchEnd are not three independent calls: the
+ * AnchorPath carries the live state of a directory scan between them,
+ * including a chain of AChain structures dos.library allocated. Those are
+ * NATIVE pointers, so the guest can never be shown them and the structure
+ * cannot be rebuilt per call the way a FileInfoBlock is.
+ *
+ * So the native AnchorPath is kept HERE for the life of the scan, keyed by the
+ * guest's own AnchorPath address, and only the fields the program reads travel
+ * back. This is the shadow pattern the design calls for whenever a callee
+ * retains a pointer.
+ *
+ * Small and fixed: a guest running more scans at once than this is not a case
+ * being served yet, and it fails cleanly rather than corrupting one. */
+#define EMU68K_MAX_SCANS 4
+
+static struct { ULONG guest; struct AnchorPath *nap; } g_scans[EMU68K_MAX_SCANS];
+
+static struct AnchorPath *scan_find(ULONG guest)
+{
+    int i;
+    for (i = 0; i < EMU68K_MAX_SCANS; i++)
+        if (g_scans[i].guest == guest && g_scans[i].nap) return g_scans[i].nap;
+    return NULL;
+}
+
+static void scan_drop(ULONG guest)
+{
+    int i;
+    for (i = 0; i < EMU68K_MAX_SCANS; i++)
+        if (g_scans[i].guest == guest)
+        {
+            if (g_scans[i].nap) FreeVec(g_scans[i].nap);
+            g_scans[i].nap = NULL;
+            g_scans[i].guest = 0;
+        }
+}
+
+/* Copy back what the program reads after a match: the entry it found, the
+ * assembled path, and the flag/break bytes. */
+static void ap_to_guest(APTR guest0, ULONG gap, const struct AnchorPath *n,
+                        UWORD strlen_)
+{
+    fib_to_guest(guest0, gap + M68K_AnchorPath_ap_Info, &n->ap_Info);
+    gw8(guest0,  gap + M68K_AnchorPath_ap_Flags,      (UBYTE)n->ap_Flags);
+    gw32(guest0, gap + M68K_AnchorPath_ap_FoundBreak, (ULONG)n->ap_FoundBreak);
+    if (strlen_)
+    {
+        UWORD i;
+        for (i = 0; i < strlen_; i++)
+        {
+            UBYTE c = (UBYTE)n->ap_Buf[i];
+            gw8(guest0, gap + M68K_AnchorPath_ap_Buf + i, c);
+            if (!c) break;
+        }
+    }
 }
 
 /* ---- THE GENERATED TABLE --------------------------------------------------
@@ -396,6 +462,72 @@ int Emu68k_OSCall(const char *libname, int lvo, APTR regs, APTR guest0,
             if (!p) { r->d[0] = 0; return 0; }
             q = (lvo == DOS_LVO_FILEPART) ? FilePart(p) : PathPart(p);
             r->d[0] = q ? (ULONG)(r->d[1] + (ULONG)(q - p)) : 0;
+            return 0;
+        }
+
+        /* [T3b] Pattern matching goes to AROS's OWN MatchFirst: the AmigaDOS
+         * pattern syntax is dos.library's, and reimplementing it here would be
+         * a second, subtly different matcher. Only the structure crosses. */
+        case DOS_LVO_MATCHFIRST:
+        case DOS_LVO_MATCHNEXT:
+        {
+            ULONG gap = (lvo == DOS_LVO_MATCHFIRST) ? r->d[2] : r->d[1];
+            const UBYTE *g = (const UBYTE *)guest0 + gap;
+            UWORD slen = (UWORD)((g[M68K_AnchorPath_ap_Strlen] << 8) |
+                                  g[M68K_AnchorPath_ap_Strlen + 1]);
+            struct AnchorPath *nap;
+            LONG rc;
+
+            if (lvo == DOS_LVO_MATCHFIRST)
+            {
+                scan_drop(gap);                    /* a restart on the same one */
+                nap = AllocVec(sizeof(struct AnchorPath) + slen + 1,
+                               MEMF_ANY | MEMF_CLEAR);
+                if (!nap) { r->d[0] = ERROR_NO_FREE_STORE; return 0; }
+                /* the settings the program filled in before calling */
+                nap->ap_Strlen    = slen;
+                nap->ap_Flags     = g[M68K_AnchorPath_ap_Flags];
+                nap->ap_BreakBits = (LONG)
+                    (((ULONG)g[M68K_AnchorPath_ap_BreakBits] << 24) |
+                     ((ULONG)g[M68K_AnchorPath_ap_BreakBits + 1] << 16) |
+                     ((ULONG)g[M68K_AnchorPath_ap_BreakBits + 2] << 8) |
+                       (ULONG)g[M68K_AnchorPath_ap_BreakBits + 3]);
+                {
+                    int i;
+                    for (i = 0; i < EMU68K_MAX_SCANS; i++)
+                        if (!g_scans[i].nap) break;
+                    if (i == EMU68K_MAX_SCANS)
+                    {
+                        FreeVec(nap);
+                        snprintf(err, errlen, "more concurrent MatchFirst scans "
+                                 "than this bridge keeps state for");
+                        return 1;
+                    }
+                    g_scans[i].guest = gap;
+                    g_scans[i].nap   = nap;
+                }
+                rc = MatchFirst((CONST_STRPTR)gptr(guest0, r->d[1]), nap);
+            }
+            else
+            {
+                nap = scan_find(gap);
+                if (!nap) { r->d[0] = ERROR_OBJECT_WRONG_TYPE; return 0; }
+                rc = MatchNext(nap);
+            }
+
+            if (rc == 0)
+                ap_to_guest(guest0, gap, nap, slen);
+            else
+                scan_drop(gap);                    /* the scan is over          */
+            r->d[0] = (ULONG)rc;
+            return 0;
+        }
+
+        case DOS_LVO_MATCHEND:
+        {
+            struct AnchorPath *nap = scan_find(r->d[1]);
+            if (nap) MatchEnd(nap);
+            scan_drop(r->d[1]);
             return 0;
         }
 

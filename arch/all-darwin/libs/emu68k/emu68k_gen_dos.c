@@ -19,6 +19,11 @@ int emu68k_gen_dos(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base)
 
     switch (lvo)
     {
+    case 11:  /* Seek(BPTR file, LONG position, LONG mode) -> LONG  [-66] */
+        r->d[0] = (ULONG)Seek(EMU_HANDLE(r->d[1]),
+              (LONG)r->d[2],
+              (LONG)r->d[3]);
+        return 0;
     case 12:  /* DeleteFile(CONST_STRPTR name) -> BOOL  [-72] */
         r->d[0] = (ULONG)DeleteFile((CONST_STRPTR)EMU_GPTR(guest0, r->d[1]));
         return 0;
@@ -40,12 +45,88 @@ int emu68k_gen_dos(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base)
     case 33:  /* Delay(ULONG timeout) -> void  [-198] */
         Delay((ULONG)r->d[1]);
         return 0;
+    case 34:  /* WaitForChar(BPTR file, LONG timeout) -> LONG  [-204] */
+        r->d[0] = (ULONG)WaitForChar(EMU_HANDLE(r->d[1]),
+              (LONG)r->d[2]);
+        return 0;
+    case 36:  /* IsInteractive(BPTR file) -> LONG  [-216] */
+        r->d[0] = (ULONG)IsInteractive(EMU_HANDLE(r->d[1]));
+        return 0;
+    case 37:  /* Execute(CONST_STRPTR string, BPTR input, BPTR output) -> BOOL  [-222] */
+        r->d[0] = (ULONG)Execute((CONST_STRPTR)EMU_GPTR(guest0, r->d[1]),
+              EMU_HANDLE(r->d[2]),
+              EMU_HANDLE(r->d[3]));
+        return 0;
+    case 45:  /* LockRecord(BPTR fh, ULONG offset, ULONG length, ULONG mode, ULONG timeout) -> BOOL  [-270] */
+        r->d[0] = (ULONG)LockRecord(EMU_HANDLE(r->d[1]),
+              (ULONG)r->d[2],
+              (ULONG)r->d[3],
+              (ULONG)r->d[4],
+              (ULONG)r->d[5]);
+        return 0;
+    case 47:  /* UnLockRecord(BPTR fh, ULONG offset, ULONG length) -> BOOL  [-282] */
+        r->d[0] = (ULONG)UnLockRecord(EMU_HANDLE(r->d[1]),
+              (ULONG)r->d[2],
+              (ULONG)r->d[3]);
+        return 0;
+    case 51:  /* FGetC(BPTR file) -> LONG  [-306] */
+        r->d[0] = (ULONG)FGetC(EMU_HANDLE(r->d[1]));
+        return 0;
+    case 52:  /* FPutC(BPTR file, LONG character) -> LONG  [-312] */
+        r->d[0] = (ULONG)FPutC(EMU_HANDLE(r->d[1]),
+              (LONG)r->d[2]);
+        return 0;
+    case 53:  /* UnGetC(BPTR file, LONG character) -> LONG  [-318] */
+        r->d[0] = (ULONG)UnGetC(EMU_HANDLE(r->d[1]),
+              (LONG)r->d[2]);
+        return 0;
+    case 57:  /* FPuts(BPTR file, CONST_STRPTR string) -> LONG  [-342] */
+        r->d[0] = (ULONG)FPuts(EMU_HANDLE(r->d[1]),
+              (CONST_STRPTR)EMU_GPTR(guest0, r->d[2]));
+        return 0;
+    case 60:  /* Flush(BPTR file) -> LONG  [-360] */
+        r->d[0] = (ULONG)Flush(EMU_HANDLE(r->d[1]));
+        return 0;
+    case 61:  /* SetVBuf(BPTR file, STRPTR buff, LONG type, LONG size) -> LONG  [-366] */
+        r->d[0] = (ULONG)SetVBuf(EMU_HANDLE(r->d[1]),
+              (STRPTR)EMU_GPTR(guest0, r->d[2]),
+              (LONG)r->d[3],
+              (LONG)r->d[4]);
+        return 0;
+    case 67:  /* NameFromLock(BPTR lock, STRPTR buffer, LONG length) -> BOOL  [-402] */
+        r->d[0] = (ULONG)NameFromLock(EMU_HANDLE(r->d[1]),
+              (STRPTR)EMU_GPTR(guest0, r->d[2]),
+              (LONG)r->d[3]);
+        return 0;
+    case 68:  /* NameFromFH(BPTR fh, STRPTR buffer, LONG length) -> BOOL  [-408] */
+        r->d[0] = (ULONG)NameFromFH(EMU_HANDLE(r->d[1]),
+              (STRPTR)EMU_GPTR(guest0, r->d[2]),
+              (LONG)r->d[3]);
+        return 0;
     case 69:  /* SplitName(CONST_STRPTR name, ULONG separator, STRPTR buf, LONG oldpos, LONG size) -> LONG  [-414] */
         r->d[0] = (ULONG)SplitName((CONST_STRPTR)EMU_GPTR(guest0, r->d[1]),
               (ULONG)r->d[2],
               (STRPTR)EMU_GPTR(guest0, r->d[3]),
               (LONG)r->d[4],
               (LONG)r->d[5]);
+        return 0;
+    case 70:  /* SameLock(BPTR lock1, BPTR lock2) -> LONG  [-420] */
+        r->d[0] = (ULONG)SameLock(EMU_HANDLE(r->d[1]),
+              EMU_HANDLE(r->d[2]));
+        return 0;
+    case 71:  /* SetMode(BPTR fh, LONG mode) -> LONG  [-426] */
+        r->d[0] = (ULONG)SetMode(EMU_HANDLE(r->d[1]),
+              (LONG)r->d[2]);
+        return 0;
+    case 75:  /* ChangeMode(ULONG type, BPTR object, ULONG newmode) -> BOOL  [-450] */
+        r->d[0] = (ULONG)ChangeMode((ULONG)r->d[1],
+              EMU_HANDLE(r->d[2]),
+              (ULONG)r->d[3]);
+        return 0;
+    case 76:  /* SetFileSize(BPTR file, LONG offset, LONG mode) -> LONG  [-456] */
+        r->d[0] = (ULONG)SetFileSize(EMU_HANDLE(r->d[1]),
+              (LONG)r->d[2],
+              (LONG)r->d[3]);
         return 0;
     case 77:  /* SetIoErr(SIPTR result) -> SIPTR  [-462] */
         r->d[0] = (ULONG)SetIoErr((SIPTR)(LONG)r->d[1]);   /* narrowed: an integer, never an address */
@@ -72,6 +153,10 @@ int emu68k_gen_dos(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base)
         r->d[0] = (ULONG)GetPrompt((STRPTR)EMU_GPTR(guest0, r->d[1]),
               (LONG)r->d[2]);
         return 0;
+    case 102:  /* AssignLock(CONST_STRPTR name, BPTR lock) -> LONG  [-612] */
+        r->d[0] = (ULONG)AssignLock((CONST_STRPTR)EMU_GPTR(guest0, r->d[1]),
+              EMU_HANDLE(r->d[2]));
+        return 0;
     case 103:  /* AssignLate(CONST_STRPTR name, CONST_STRPTR path) -> BOOL  [-618] */
         r->d[0] = (ULONG)AssignLate((CONST_STRPTR)EMU_GPTR(guest0, r->d[1]),
               (CONST_STRPTR)EMU_GPTR(guest0, r->d[2]));
@@ -79,6 +164,14 @@ int emu68k_gen_dos(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base)
     case 104:  /* AssignPath(CONST_STRPTR name, CONST_STRPTR path) -> BOOL  [-624] */
         r->d[0] = (ULONG)AssignPath((CONST_STRPTR)EMU_GPTR(guest0, r->d[1]),
               (CONST_STRPTR)EMU_GPTR(guest0, r->d[2]));
+        return 0;
+    case 105:  /* AssignAdd(CONST_STRPTR name, BPTR lock) -> BOOL  [-630] */
+        r->d[0] = (ULONG)AssignAdd((CONST_STRPTR)EMU_GPTR(guest0, r->d[1]),
+              EMU_HANDLE(r->d[2]));
+        return 0;
+    case 106:  /* RemAssignList(CONST_STRPTR name, BPTR lock) -> LONG  [-636] */
+        r->d[0] = (ULONG)RemAssignList((CONST_STRPTR)EMU_GPTR(guest0, r->d[1]),
+              EMU_HANDLE(r->d[2]));
         return 0;
     case 118:  /* IsFileSystem(CONST_STRPTR devicename) -> BOOL  [-708] */
         r->d[0] = (ULONG)IsFileSystem((CONST_STRPTR)EMU_GPTR(guest0, r->d[1]));
@@ -132,6 +225,15 @@ int emu68k_gen_dos(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base)
     case 162:  /* MatchPatternNoCase(CONST_STRPTR pat, CONST_STRPTR str) -> BOOL  [-972] */
         r->d[0] = (ULONG)MatchPatternNoCase((CONST_STRPTR)EMU_GPTR(guest0, r->d[1]),
               (CONST_STRPTR)EMU_GPTR(guest0, r->d[2]));
+        return 0;
+    case 164:  /* SameDevice(BPTR lock1, BPTR lock2) -> BOOL  [-984] */
+        r->d[0] = (ULONG)SameDevice(EMU_HANDLE(r->d[1]),
+              EMU_HANDLE(r->d[2]));
+        return 0;
+    case 226:  /* AssignAddToList(CONST_STRPTR name, BPTR lock, ULONG position) -> BOOL  [-1356] */
+        r->d[0] = (ULONG)AssignAddToList((CONST_STRPTR)EMU_GPTR(guest0, r->d[1]),
+              EMU_HANDLE(r->d[2]),
+              (ULONG)r->d[3]);
         return 0;
     }
     return 1;   /* not a tier-1 vector of this library */

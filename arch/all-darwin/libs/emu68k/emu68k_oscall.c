@@ -507,8 +507,19 @@ LONG emu68k_object_from_guest(APTR guest0, ULONG token, UWORD type,
     if (!o)
     {
         if (err && errlen)
-            snprintf(err, errlen, "capability gap: stale or unknown %s object token %08lx",
-                     type_name ? type_name : "native", (unsigned long)token);
+        {
+            /* Say WHICH of the two it is. A token this run once issued and has
+               since released is a lifetime bug on our side; an address that was
+               never a token is a structure the program built itself, which is a
+               different question entirely and needs a different answer. */
+            BOOL owned = emu68k_require_guest_range(token, 4, "object",
+                                                   NULL, 0) >= 0;
+            snprintf(err, errlen,
+                     "capability gap: stale or unknown %s object token %08lx%s",
+                     type_name ? type_name : "native", (unsigned long)token,
+                     owned ? " - memory the program owns, not a token this "
+                             "run issued" : "");
+        }
         return -1;
     }
     if (o->type != type)

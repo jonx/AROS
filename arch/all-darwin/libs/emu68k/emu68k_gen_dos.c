@@ -126,6 +126,21 @@ int emu68k_gen_dos(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
               EMU_HANDLE(guest0, r->d[2]),
               EMU_HANDLE(guest0, r->d[3]));
         return 0;
+    case 40:  /* DoPkt(struct MsgPort* port, LONG action, SIPTR arg1, SIPTR arg2, SIPTR arg3, SIPTR arg4, SIPTR arg5) -> SIPTR  [-240] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->d[1], EMU_OBJ_MsgPort, 1,
+                                        "MsgPort", &emu_object_0, err, errlen) < 0)
+            return 1;
+            r->d[0] = (ULONG)DoPkt((struct MsgPort*)emu_object_0,
+              (LONG)r->d[2],
+              (SIPTR)(LONG)r->d[3],
+              (SIPTR)(LONG)r->d[4],
+              (SIPTR)(LONG)r->d[5],
+              (SIPTR)(LONG)r->d[6],
+              (SIPTR)(LONG)r->d[7]);   /* narrowed: an integer, never an address */
+            return 0;
+    }
     case 45:  /* LockRecord(BPTR fh, ULONG offset, ULONG length, ULONG mode, ULONG timeout) -> BOOL  [-270] */
         r->d[0] = (ULONG)LockRecord(EMU_HANDLE(guest0, r->d[1]),
               (ULONG)r->d[2],
@@ -210,6 +225,18 @@ int emu68k_gen_dos(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
         r->d[0] = (ULONG)PrintFault((LONG)r->d[1],
               (CONST_STRPTR)EMU_GPTR(guest0, r->d[2]));
         return 0;
+    case 80:  /* ErrorReport(LONG code, LONG type, IPTR arg1, struct MsgPort * device) -> BOOL  [-480] */
+    {
+        APTR emu_object_3;
+        if (emu68k_object_from_guest(guest0, r->d[4], EMU_OBJ_MsgPort, 1,
+                                        "MsgPort", &emu_object_3, err, errlen) < 0)
+            return 1;
+            r->d[0] = (ULONG)ErrorReport((LONG)r->d[1],
+              (LONG)r->d[2],
+              (IPTR)(LONG)r->d[3],
+              (struct MsgPort *)emu_object_3);
+            return 0;
+    }
     case 94:  /* GetCurrentDirName(STRPTR buf, LONG len) -> BOOL  [-564] */
         r->d[0] = (ULONG)GetCurrentDirName((STRPTR)EMU_GPTR(guest0, r->d[1]),
               (LONG)r->d[2]);
@@ -269,6 +296,52 @@ int emu68k_gen_dos(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
         r->d[0] = (ULONG)FindArg((CONST_STRPTR)EMU_GPTR(guest0, r->d[1]),
               (CONST_STRPTR)EMU_GPTR(guest0, r->d[2]));
         return 0;
+    case 137:  /* MatchFirst(CONST_STRPTR pat, struct AnchorPath * AP) -> LONG  [-822] */
+    {
+        struct AnchorPath emu_struct_1;
+        if (emu68k_require_guest_range(r->d[2], M68K_AnchorPath_SIZEOF,
+                                         "MatchFirst.AP", err, errlen) < 0)
+            return 1;
+        memset(&emu_struct_1, 0, sizeof(emu_struct_1));
+        emu68k_from_guest_sized(guest0, r->d[2], &emu_struct_1,
+                             emu_fields_AnchorPath, EMU_NFIELDS(emu_fields_AnchorPath), M68K_AnchorPath_SIZEOF);
+            r->d[0] = (ULONG)MatchFirst((CONST_STRPTR)EMU_GPTR(guest0, r->d[1]),
+              (struct AnchorPath *)&emu_struct_1);
+        memset(EMU_GPTR(guest0, r->d[2]), 0, M68K_AnchorPath_SIZEOF);
+        emu68k_to_guest_sized(guest0, r->d[2], &emu_struct_1,
+                           emu_fields_AnchorPath, EMU_NFIELDS(emu_fields_AnchorPath), M68K_AnchorPath_SIZEOF);
+            return 0;
+    }
+    case 138:  /* MatchNext(struct AnchorPath * AP) -> LONG  [-828] */
+    {
+        struct AnchorPath emu_struct_0;
+        if (emu68k_require_guest_range(r->d[1], M68K_AnchorPath_SIZEOF,
+                                         "MatchNext.AP", err, errlen) < 0)
+            return 1;
+        memset(&emu_struct_0, 0, sizeof(emu_struct_0));
+        emu68k_from_guest_sized(guest0, r->d[1], &emu_struct_0,
+                             emu_fields_AnchorPath, EMU_NFIELDS(emu_fields_AnchorPath), M68K_AnchorPath_SIZEOF);
+            r->d[0] = (ULONG)MatchNext((struct AnchorPath *)&emu_struct_0);
+        memset(EMU_GPTR(guest0, r->d[1]), 0, M68K_AnchorPath_SIZEOF);
+        emu68k_to_guest_sized(guest0, r->d[1], &emu_struct_0,
+                           emu_fields_AnchorPath, EMU_NFIELDS(emu_fields_AnchorPath), M68K_AnchorPath_SIZEOF);
+            return 0;
+    }
+    case 139:  /* MatchEnd(struct AnchorPath * AP) -> void  [-834] */
+    {
+        struct AnchorPath emu_struct_0;
+        if (emu68k_require_guest_range(r->d[1], M68K_AnchorPath_SIZEOF,
+                                         "MatchEnd.AP", err, errlen) < 0)
+            return 1;
+        memset(&emu_struct_0, 0, sizeof(emu_struct_0));
+        emu68k_from_guest_sized(guest0, r->d[1], &emu_struct_0,
+                             emu_fields_AnchorPath, EMU_NFIELDS(emu_fields_AnchorPath), M68K_AnchorPath_SIZEOF);
+            MatchEnd((struct AnchorPath *)&emu_struct_0);
+        memset(EMU_GPTR(guest0, r->d[1]), 0, M68K_AnchorPath_SIZEOF);
+        emu68k_to_guest_sized(guest0, r->d[1], &emu_struct_0,
+                           emu_fields_AnchorPath, EMU_NFIELDS(emu_fields_AnchorPath), M68K_AnchorPath_SIZEOF);
+            return 0;
+    }
     case 140:  /* ParsePattern(CONST_STRPTR Source, STRPTR Dest, LONG DestLength) -> LONG  [-840] */
         r->d[0] = (ULONG)ParsePattern((CONST_STRPTR)EMU_GPTR(guest0, r->d[1]),
               (STRPTR)EMU_GPTR(guest0, r->d[2]),

@@ -166,6 +166,9 @@ USER_LDFLAGS     := -static
 %build_prog mmake=workbench-c-bevelprobe progname=BevelProbe \
     files=BevelProbe targetdir=$(AROS_C) uselibs="gadtools" coverageinstr=no
 
+%build_prog mmake=workbench-c-deviceprobe progname=DeviceProbe \
+    files=DeviceProbe targetdir=$(AROS_C) coverageinstr=no
+
 # Native oracle for the emu68k GetPrefs structure crossing.
 %build_prog mmake=workbench-c-prefsprobe progname=PrefsProbe \
     files=PrefsProbe targetdir=$(AROS_C) coverageinstr=no

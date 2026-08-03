@@ -222,6 +222,26 @@ int emu68k_gen_gadtools(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
               (struct TagItem *)(r->a[2] ? emu_tags_2 : NULL));
             return 0;
     }
+    case 12:  /* GT_GetIMsg: explicit reviewed refusal [-72] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: gadtools.library.GT_GetIMsg refused: IntuiMessage results need a guest-readable facade and paired reply ownership");
+        r->d[0] = 0;
+        return 1;
+    case 13:  /* GT_ReplyIMsg: explicit reviewed refusal [-78] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: gadtools.library.GT_ReplyIMsg refused: reply must consume the paired filtered-message facade and recover its original message");
+        r->d[0] = 0;
+        return 1;
+    case 17:  /* GT_FilterIMsg: explicit reviewed refusal [-102] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: gadtools.library.GT_FilterIMsg refused: filter returns an embedded or allocated mutable message with context-owned lifetime");
+        r->d[0] = 0;
+        return 1;
+    case 18:  /* GT_PostFilterIMsg: explicit reviewed refusal [-108] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: gadtools.library.GT_PostFilterIMsg refused: post-filter copies guest-visible mutations and releases embedded or allocated wrapper state");
+        r->d[0] = 0;
+        return 1;
     case 21:  /* GetVisualInfoA(struct Screen * screen, struct TagItem * tagList) -> APTR  [-126] */
     {
         APTR emu_object_0;

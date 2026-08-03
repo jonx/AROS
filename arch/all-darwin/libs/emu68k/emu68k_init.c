@@ -30,6 +30,7 @@ static const char *const emu68k_syms[] =
     "emu68k_run_guest0",
     "emu68k_run_guest_alloc",
     "emu68k_run_call_hook",
+    "emu68k_run_device_base",
     NULL
 };
 
@@ -86,6 +87,7 @@ static int Emu68k_InitLib(LIBBASETYPEPTR LIBBASE)
     LIBBASE->host.run_guest0   = syms[8];
     LIBBASE->host.run_guest_alloc = syms[9];
     LIBBASE->host.run_call_hook = syms[10];
+    LIBBASE->host.run_device_base = syms[11];
     LIBBASE->host_ok = TRUE;
 
     D(bug("[emu68k.library] bound: %s\n", LIBBASE->host.version()));

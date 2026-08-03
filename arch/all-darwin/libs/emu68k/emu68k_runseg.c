@@ -208,6 +208,7 @@ AROS_LH2(LONG, Emu68k_RunSeg,
     osctx.dosbase = DOSBase;
     osctx.run = run;
     osctx.guest_alloc = Emu68kBase->host.run_guest_alloc;
+    osctx.device_base = Emu68kBase->host.run_device_base;
     osctx.call_hook = Emu68kBase->host.run_call_hook;
     if (Emu68kBase->host.set_oscall)
         Emu68kBase->host.set_oscall(Emu68k_OSCall, &osctx);

@@ -292,6 +292,26 @@ int emu68k_gen_intuition(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
               (ULONG)r->d[2],
               (ULONG)r->d[3]);
         return 0;
+    case 20:  /* EndRequest(struct Requester * requester, struct Window * window) -> void  [-120] */
+    {
+        struct Requester emu_struct_0;
+        if (emu68k_require_guest_range(r->a[0], M68K_Requester_SIZEOF,
+                                         "EndRequest.requester", err, errlen) < 0)
+            return 1;
+        memset(&emu_struct_0, 0, sizeof(emu_struct_0));
+        emu68k_from_guest_sized(guest0, r->a[0], &emu_struct_0,
+                             emu_fields_Requester, EMU_NFIELDS(emu_fields_Requester), M68K_Requester_SIZEOF);
+        APTR emu_object_1;
+        if (emu68k_object_from_guest(guest0, r->a[1], EMU_OBJ_Window, 1,
+                                        "Window", &emu_object_1, err, errlen) < 0)
+            return 1;
+            EndRequest((struct Requester *)&emu_struct_0,
+              (struct Window *)emu_object_1);
+        memset(EMU_GPTR(guest0, r->a[0]), 0, M68K_Requester_SIZEOF);
+        emu68k_to_guest_sized(guest0, r->a[0], &emu_struct_0,
+                           emu_fields_Requester, EMU_NFIELDS(emu_fields_Requester), M68K_Requester_SIZEOF);
+            return 0;
+    }
     case 21:  /* GetDefPrefs(struct Preferences * prefbuffer, WORD size) -> struct Preferences *  [-126] */
     {
         ULONG emu_limit_1 = (ULONG)(UWORD)r->d[0];
@@ -349,6 +369,36 @@ int emu68k_gen_intuition(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
               (ULONG)r->d[0]);
             return 0;
     }
+    case 26:  /* ModifyProp(struct Gadget * gadget, struct Window * window, struct Requester * requester, ULONG flags, ULONG horizPot, ULONG vertPot, ULONG horizBody, ULONG vertBody) -> void  [-156] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_Gadget, 1,
+                                        "Gadget", &emu_object_0, err, errlen) < 0)
+            return 1;
+        APTR emu_object_1;
+        if (emu68k_object_from_guest(guest0, r->a[1], EMU_OBJ_Window, 1,
+                                        "Window", &emu_object_1, err, errlen) < 0)
+            return 1;
+        struct Requester emu_struct_2;
+        if (emu68k_require_guest_range(r->a[2], M68K_Requester_SIZEOF,
+                                         "ModifyProp.requester", err, errlen) < 0)
+            return 1;
+        memset(&emu_struct_2, 0, sizeof(emu_struct_2));
+        emu68k_from_guest_sized(guest0, r->a[2], &emu_struct_2,
+                             emu_fields_Requester, EMU_NFIELDS(emu_fields_Requester), M68K_Requester_SIZEOF);
+            ModifyProp((struct Gadget *)emu_object_0,
+              (struct Window *)emu_object_1,
+              (struct Requester *)&emu_struct_2,
+              (ULONG)r->d[0],
+              (ULONG)r->d[1],
+              (ULONG)r->d[2],
+              (ULONG)r->d[3],
+              (ULONG)r->d[4]);
+        memset(EMU_GPTR(guest0, r->a[2]), 0, M68K_Requester_SIZEOF);
+        emu68k_to_guest_sized(guest0, r->a[2], &emu_struct_2,
+                           emu_fields_Requester, EMU_NFIELDS(emu_fields_Requester), M68K_Requester_SIZEOF);
+            return 0;
+    }
     case 27:  /* MoveScreen(struct Screen * screen, LONG dx, LONG dy) -> void  [-162] */
     {
         APTR emu_object_0;
@@ -371,6 +421,31 @@ int emu68k_gen_intuition(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
               (LONG)r->d[1]);
             return 0;
     }
+    case 29:  /* OffGadget(struct Gadget * gadget, struct Window * window, struct Requester * requester) -> void  [-174] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_Gadget, 1,
+                                        "Gadget", &emu_object_0, err, errlen) < 0)
+            return 1;
+        APTR emu_object_1;
+        if (emu68k_object_from_guest(guest0, r->a[1], EMU_OBJ_Window, 1,
+                                        "Window", &emu_object_1, err, errlen) < 0)
+            return 1;
+        struct Requester emu_struct_2;
+        if (emu68k_require_guest_range(r->a[2], M68K_Requester_SIZEOF,
+                                         "OffGadget.requester", err, errlen) < 0)
+            return 1;
+        memset(&emu_struct_2, 0, sizeof(emu_struct_2));
+        emu68k_from_guest_sized(guest0, r->a[2], &emu_struct_2,
+                             emu_fields_Requester, EMU_NFIELDS(emu_fields_Requester), M68K_Requester_SIZEOF);
+            OffGadget((struct Gadget *)emu_object_0,
+              (struct Window *)emu_object_1,
+              (struct Requester *)&emu_struct_2);
+        memset(EMU_GPTR(guest0, r->a[2]), 0, M68K_Requester_SIZEOF);
+        emu68k_to_guest_sized(guest0, r->a[2], &emu_struct_2,
+                           emu_fields_Requester, EMU_NFIELDS(emu_fields_Requester), M68K_Requester_SIZEOF);
+            return 0;
+    }
     case 30:  /* OffMenu(struct Window * window, UWORD menunumber) -> void  [-180] */
     {
         APTR emu_object_0;
@@ -379,6 +454,31 @@ int emu68k_gen_intuition(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
             return 1;
             OffMenu((struct Window *)emu_object_0,
               (UWORD)r->d[0]);
+            return 0;
+    }
+    case 31:  /* OnGadget(struct Gadget * gadget, struct Window * window, struct Requester * requester) -> void  [-186] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_Gadget, 1,
+                                        "Gadget", &emu_object_0, err, errlen) < 0)
+            return 1;
+        APTR emu_object_1;
+        if (emu68k_object_from_guest(guest0, r->a[1], EMU_OBJ_Window, 1,
+                                        "Window", &emu_object_1, err, errlen) < 0)
+            return 1;
+        struct Requester emu_struct_2;
+        if (emu68k_require_guest_range(r->a[2], M68K_Requester_SIZEOF,
+                                         "OnGadget.requester", err, errlen) < 0)
+            return 1;
+        memset(&emu_struct_2, 0, sizeof(emu_struct_2));
+        emu68k_from_guest_sized(guest0, r->a[2], &emu_struct_2,
+                             emu_fields_Requester, EMU_NFIELDS(emu_fields_Requester), M68K_Requester_SIZEOF);
+            OnGadget((struct Gadget *)emu_object_0,
+              (struct Window *)emu_object_1,
+              (struct Requester *)&emu_struct_2);
+        memset(EMU_GPTR(guest0, r->a[2]), 0, M68K_Requester_SIZEOF);
+        emu68k_to_guest_sized(guest0, r->a[2], &emu_struct_2,
+                           emu_fields_Requester, EMU_NFIELDS(emu_fields_Requester), M68K_Requester_SIZEOF);
             return 0;
     }
     case 32:  /* OnMenu(struct Window * window, UWORD menunumber) -> void  [-192] */
@@ -394,6 +494,31 @@ int emu68k_gen_intuition(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
     case 35:  /* OpenWorkBench(void) -> IPTR  [-210] */
         r->d[0] = (ULONG)OpenWorkBench();   /* narrowed: an integer, never an address */
         return 0;
+    case 37:  /* RefreshGadgets(struct Gadget * gadgets, struct Window * window, struct Requester * requester) -> void  [-222] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_Gadget, 1,
+                                        "Gadget", &emu_object_0, err, errlen) < 0)
+            return 1;
+        APTR emu_object_1;
+        if (emu68k_object_from_guest(guest0, r->a[1], EMU_OBJ_Window, 1,
+                                        "Window", &emu_object_1, err, errlen) < 0)
+            return 1;
+        struct Requester emu_struct_2;
+        if (emu68k_require_guest_range(r->a[2], M68K_Requester_SIZEOF,
+                                         "RefreshGadgets.requester", err, errlen) < 0)
+            return 1;
+        memset(&emu_struct_2, 0, sizeof(emu_struct_2));
+        emu68k_from_guest_sized(guest0, r->a[2], &emu_struct_2,
+                             emu_fields_Requester, EMU_NFIELDS(emu_fields_Requester), M68K_Requester_SIZEOF);
+            RefreshGadgets((struct Gadget *)emu_object_0,
+              (struct Window *)emu_object_1,
+              (struct Requester *)&emu_struct_2);
+        memset(EMU_GPTR(guest0, r->a[2]), 0, M68K_Requester_SIZEOF);
+        emu68k_to_guest_sized(guest0, r->a[2], &emu_struct_2,
+                           emu_fields_Requester, EMU_NFIELDS(emu_fields_Requester), M68K_Requester_SIZEOF);
+            return 0;
+    }
     case 38:  /* RemoveGadget(struct Window * window, struct Gadget * gadget) -> UWORD  [-228] */
     {
         APTR emu_object_0;
@@ -418,6 +543,26 @@ int emu68k_gen_intuition(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
               (struct Window *)emu_object_1);
             return 0;
     }
+    case 40:  /* Request(struct Requester * requester, struct Window * window) -> BOOL  [-240] */
+    {
+        struct Requester emu_struct_0;
+        if (emu68k_require_guest_range(r->a[0], M68K_Requester_SIZEOF,
+                                         "Request.requester", err, errlen) < 0)
+            return 1;
+        memset(&emu_struct_0, 0, sizeof(emu_struct_0));
+        emu68k_from_guest_sized(guest0, r->a[0], &emu_struct_0,
+                             emu_fields_Requester, EMU_NFIELDS(emu_fields_Requester), M68K_Requester_SIZEOF);
+        APTR emu_object_1;
+        if (emu68k_object_from_guest(guest0, r->a[1], EMU_OBJ_Window, 1,
+                                        "Window", &emu_object_1, err, errlen) < 0)
+            return 1;
+            r->d[0] = (ULONG)Request((struct Requester *)&emu_struct_0,
+              (struct Window *)emu_object_1);
+        memset(EMU_GPTR(guest0, r->a[0]), 0, M68K_Requester_SIZEOF);
+        emu68k_to_guest_sized(guest0, r->a[0], &emu_struct_0,
+                           emu_fields_Requester, EMU_NFIELDS(emu_fields_Requester), M68K_Requester_SIZEOF);
+            return 0;
+    }
     case 41:  /* ScreenToBack(struct Screen * screen) -> void  [-246] */
     {
         APTR emu_object_0;
@@ -434,6 +579,26 @@ int emu68k_gen_intuition(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
                                         "Screen", &emu_object_0, err, errlen) < 0)
             return 1;
             ScreenToFront((struct Screen *)emu_object_0);
+            return 0;
+    }
+    case 43:  /* SetDMRequest(struct Window * window, struct Requester * dmrequest) -> BOOL  [-258] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_Window, 1,
+                                        "Window", &emu_object_0, err, errlen) < 0)
+            return 1;
+        struct Requester emu_struct_1;
+        if (emu68k_require_guest_range(r->a[1], M68K_Requester_SIZEOF,
+                                         "SetDMRequest.dmrequest", err, errlen) < 0)
+            return 1;
+        memset(&emu_struct_1, 0, sizeof(emu_struct_1));
+        emu68k_from_guest_sized(guest0, r->a[1], &emu_struct_1,
+                             emu_fields_Requester, EMU_NFIELDS(emu_fields_Requester), M68K_Requester_SIZEOF);
+            r->d[0] = (ULONG)SetDMRequest((struct Window *)emu_object_0,
+              (struct Requester *)&emu_struct_1);
+        memset(EMU_GPTR(guest0, r->a[1]), 0, M68K_Requester_SIZEOF);
+        emu68k_to_guest_sized(guest0, r->a[1], &emu_struct_1,
+                           emu_fields_Requester, EMU_NFIELDS(emu_fields_Requester), M68K_Requester_SIZEOF);
             return 0;
     }
     case 44:  /* SetMenuStrip(struct Window * window, struct Menu * menu) -> BOOL  [-264] */
@@ -568,6 +733,59 @@ int emu68k_gen_intuition(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
     case 70:  /* UnlockIBase(ULONG ibLock) -> void  [-420] */
         UnlockIBase((ULONG)r->a[0]);
         return 0;
+    case 72:  /* RefreshGList(struct Gadget * gadgets, struct Window * window, struct Requester * requester, LONG numGad) -> void  [-432] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_Gadget, 1,
+                                        "Gadget", &emu_object_0, err, errlen) < 0)
+            return 1;
+        APTR emu_object_1;
+        if (emu68k_object_from_guest(guest0, r->a[1], EMU_OBJ_Window, 1,
+                                        "Window", &emu_object_1, err, errlen) < 0)
+            return 1;
+        struct Requester emu_struct_2;
+        if (emu68k_require_guest_range(r->a[2], M68K_Requester_SIZEOF,
+                                         "RefreshGList.requester", err, errlen) < 0)
+            return 1;
+        memset(&emu_struct_2, 0, sizeof(emu_struct_2));
+        emu68k_from_guest_sized(guest0, r->a[2], &emu_struct_2,
+                             emu_fields_Requester, EMU_NFIELDS(emu_fields_Requester), M68K_Requester_SIZEOF);
+            RefreshGList((struct Gadget *)emu_object_0,
+              (struct Window *)emu_object_1,
+              (struct Requester *)&emu_struct_2,
+              (LONG)r->d[0]);
+        memset(EMU_GPTR(guest0, r->a[2]), 0, M68K_Requester_SIZEOF);
+        emu68k_to_guest_sized(guest0, r->a[2], &emu_struct_2,
+                           emu_fields_Requester, EMU_NFIELDS(emu_fields_Requester), M68K_Requester_SIZEOF);
+            return 0;
+    }
+    case 73:  /* AddGList(struct Window * window, struct Gadget * gadget, ULONG position, LONG numGad, struct Requester * requester) -> UWORD  [-438] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_Window, 1,
+                                        "Window", &emu_object_0, err, errlen) < 0)
+            return 1;
+        APTR emu_object_1;
+        if (emu68k_object_from_guest(guest0, r->a[1], EMU_OBJ_Gadget, 1,
+                                        "Gadget", &emu_object_1, err, errlen) < 0)
+            return 1;
+        struct Requester emu_struct_4;
+        if (emu68k_require_guest_range(r->a[2], M68K_Requester_SIZEOF,
+                                         "AddGList.requester", err, errlen) < 0)
+            return 1;
+        memset(&emu_struct_4, 0, sizeof(emu_struct_4));
+        emu68k_from_guest_sized(guest0, r->a[2], &emu_struct_4,
+                             emu_fields_Requester, EMU_NFIELDS(emu_fields_Requester), M68K_Requester_SIZEOF);
+            r->d[0] = (ULONG)AddGList((struct Window *)emu_object_0,
+              (struct Gadget *)emu_object_1,
+              (ULONG)r->d[0],
+              (LONG)r->d[1],
+              (struct Requester *)&emu_struct_4);
+        memset(EMU_GPTR(guest0, r->a[2]), 0, M68K_Requester_SIZEOF);
+        emu68k_to_guest_sized(guest0, r->a[2], &emu_struct_4,
+                           emu_fields_Requester, EMU_NFIELDS(emu_fields_Requester), M68K_Requester_SIZEOF);
+            return 0;
+    }
     case 74:  /* RemoveGList(struct Window * remPtr, struct Gadget * gadget, LONG numGad) -> UWORD  [-444] */
     {
         APTR emu_object_0;
@@ -599,6 +817,79 @@ int emu68k_gen_intuition(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
                                         "Window", &emu_object_0, err, errlen) < 0)
             return 1;
             RefreshWindowFrame((struct Window *)emu_object_0);
+            return 0;
+    }
+    case 77:  /* ActivateGadget(struct Gadget * gadget, struct Window * window, struct Requester * requester) -> BOOL  [-462] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_Gadget, 1,
+                                        "Gadget", &emu_object_0, err, errlen) < 0)
+            return 1;
+        APTR emu_object_1;
+        if (emu68k_object_from_guest(guest0, r->a[1], EMU_OBJ_Window, 1,
+                                        "Window", &emu_object_1, err, errlen) < 0)
+            return 1;
+        struct Requester emu_struct_2;
+        if (emu68k_require_guest_range(r->a[2], M68K_Requester_SIZEOF,
+                                         "ActivateGadget.requester", err, errlen) < 0)
+            return 1;
+        memset(&emu_struct_2, 0, sizeof(emu_struct_2));
+        emu68k_from_guest_sized(guest0, r->a[2], &emu_struct_2,
+                             emu_fields_Requester, EMU_NFIELDS(emu_fields_Requester), M68K_Requester_SIZEOF);
+            r->d[0] = (ULONG)ActivateGadget((struct Gadget *)emu_object_0,
+              (struct Window *)emu_object_1,
+              (struct Requester *)&emu_struct_2);
+        memset(EMU_GPTR(guest0, r->a[2]), 0, M68K_Requester_SIZEOF);
+        emu68k_to_guest_sized(guest0, r->a[2], &emu_struct_2,
+                           emu_fields_Requester, EMU_NFIELDS(emu_fields_Requester), M68K_Requester_SIZEOF);
+            return 0;
+    }
+    case 78:  /* NewModifyProp(struct Gadget * gadget, struct Window * window, struct Requester * requester, ULONG flags, ULONG horizPot, ULONG vertPot, ULONG horizBody, ULONG vertBody, LONG numGad) -> void  [-468] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_Gadget, 1,
+                                        "Gadget", &emu_object_0, err, errlen) < 0)
+            return 1;
+        APTR emu_object_1;
+        if (emu68k_object_from_guest(guest0, r->a[1], EMU_OBJ_Window, 1,
+                                        "Window", &emu_object_1, err, errlen) < 0)
+            return 1;
+        struct Requester emu_struct_2;
+        if (emu68k_require_guest_range(r->a[2], M68K_Requester_SIZEOF,
+                                         "NewModifyProp.requester", err, errlen) < 0)
+            return 1;
+        memset(&emu_struct_2, 0, sizeof(emu_struct_2));
+        emu68k_from_guest_sized(guest0, r->a[2], &emu_struct_2,
+                             emu_fields_Requester, EMU_NFIELDS(emu_fields_Requester), M68K_Requester_SIZEOF);
+            NewModifyProp((struct Gadget *)emu_object_0,
+              (struct Window *)emu_object_1,
+              (struct Requester *)&emu_struct_2,
+              (ULONG)r->d[0],
+              (ULONG)r->d[1],
+              (ULONG)r->d[2],
+              (ULONG)r->d[3],
+              (ULONG)r->d[4],
+              (LONG)r->d[5]);
+        memset(EMU_GPTR(guest0, r->a[2]), 0, M68K_Requester_SIZEOF);
+        emu68k_to_guest_sized(guest0, r->a[2], &emu_struct_2,
+                           emu_fields_Requester, EMU_NFIELDS(emu_fields_Requester), M68K_Requester_SIZEOF);
+            return 0;
+    }
+    case 79:  /* QueryOverscan(ULONG displayid, struct Rectangle * rect, WORD oscantype) -> LONG  [-474] */
+    {
+        struct Rectangle emu_struct_1;
+        if (emu68k_require_guest_range(r->a[1], M68K_Rectangle_SIZEOF,
+                                         "QueryOverscan.rect", err, errlen) < 0)
+            return 1;
+        memset(&emu_struct_1, 0, sizeof(emu_struct_1));
+        emu68k_from_guest_sized(guest0, r->a[1], &emu_struct_1,
+                             emu_fields_Rectangle, EMU_NFIELDS(emu_fields_Rectangle), M68K_Rectangle_SIZEOF);
+            r->d[0] = (ULONG)QueryOverscan((ULONG)r->a[0],
+              (struct Rectangle *)&emu_struct_1,
+              (WORD)r->d[0]);
+        memset(EMU_GPTR(guest0, r->a[1]), 0, M68K_Rectangle_SIZEOF);
+        emu68k_to_guest_sized(guest0, r->a[1], &emu_struct_1,
+                           emu_fields_Rectangle, EMU_NFIELDS(emu_fields_Rectangle), M68K_Rectangle_SIZEOF);
             return 0;
     }
     case 80:  /* MoveWindowInFrontOf(struct Window * window, struct Window * behindwindow) -> void  [-480] */

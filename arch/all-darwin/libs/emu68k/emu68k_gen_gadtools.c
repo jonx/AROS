@@ -11,6 +11,7 @@
 #include <string.h>
 #include <stdio.h>
 #include <libraries/gadtools.h>
+#include <graphics/text.h>
 
 #include "emu68k_gen.h"
 #include "emu68k_layouts.h"
@@ -25,6 +26,20 @@ static const struct EmuTagDesc emu_tagdesc_gadtools_create_menus[] =
 static const struct EmuTagDomain emu_tagdomain_gadtools_create_menus =
 {
     emu_tagdesc_gadtools_create_menus, 4, "gadtools.create_menus"
+};
+
+static const struct EmuTagDesc emu_tagdesc_gadtools_layout_menus[] =
+{
+    { GTMN_TextAttr, EMU_TAG_STRUCT, "GTMN_TextAttr", emu_fields_TextAttr, EMU_NFIELDS(emu_fields_TextAttr),
+      M68K_TextAttr_SIZEOF, sizeof(struct TextAttr), 0, 0 },
+    { GTMN_NewLookMenus, EMU_TAG_U32, "GTMN_NewLookMenus", NULL, 0, 0, 0, 0, 0 },
+    { GTMN_Checkmark, EMU_TAG_REFUSE, "GTMN_Checkmark", NULL, 0, 0, 0, 0, 0 },
+    { GTMN_AmigaKey, EMU_TAG_REFUSE, "GTMN_AmigaKey", NULL, 0, 0, 0, 0, 0 },
+    { GTMN_FrontPen, EMU_TAG_U32, "GTMN_FrontPen", NULL, 0, 0, 0, 0, 0 },
+};
+static const struct EmuTagDomain emu_tagdomain_gadtools_layout_menus =
+{
+    emu_tagdesc_gadtools_layout_menus, 5, "gadtools.layout_menus"
 };
 
 static const struct EmuTagDesc emu_tagdesc_gadtools_visual_info[] =
@@ -185,6 +200,26 @@ int emu68k_gen_gadtools(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
             return 1;
             FreeMenus((struct Menu *)emu_object_0);
         emu68k_object_consume(guest0, r->a[0], EMU_OBJ_Menu);
+            return 0;
+    }
+    case 11:  /* LayoutMenusA(struct Menu * menu, APTR vi, struct TagItem * tagList) -> BOOL  [-66] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_Menu, 1,
+                                        "Menu", &emu_object_0, err, errlen) < 0)
+            return 1;
+        APTR emu_object_1;
+        if (emu68k_object_from_guest(guest0, r->a[1], EMU_OBJ_VisualInfo, 0,
+                                        "VisualInfo", &emu_object_1, err, errlen) < 0)
+            return 1;
+        struct TagItem emu_tags_2[17];
+        UQUAD emu_tagscratch_2[(sizeof(struct TextAttr) + 7) / 8];
+        if (emu68k_tags_to_native(guest0, r->a[2], &emu_tagdomain_gadtools_layout_menus,
+                                     emu_tags_2, 17, emu_tagscratch_2, sizeof emu_tagscratch_2, err, errlen) < 0)
+            return 1;
+            r->d[0] = (ULONG)LayoutMenusA((struct Menu *)emu_object_0,
+              (APTR)emu_object_1,
+              (struct TagItem *)(r->a[2] ? emu_tags_2 : NULL));
             return 0;
     }
     case 21:  /* GetVisualInfoA(struct Screen * screen, struct TagItem * tagList) -> APTR  [-126] */

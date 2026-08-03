@@ -100,8 +100,7 @@ int emu68k_gen_icon(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
                                         "DiskObject", &emu_object_0, err, errlen) < 0)
             return 1;
         struct TagItem emu_tags_1[9];
-        if (emu68k_tags_to_native(guest0, r->a[1], &emu_tagdomain_icon_duplicate,
-                                     emu_tags_1, 9, NULL, 0, err, errlen) < 0)
+        if (emu68k_tags_to_native(guest0, r->a[1], &emu_tagdomain_icon_duplicate, emu_tags_1, 9, NULL, 0, err, errlen) < 0)
             return 1;
         APTR emu_result = (APTR)DupDiskObjectA((struct DiskObject *)emu_object_0,
               (struct TagItem *)(r->a[1] ? emu_tags_1 : NULL));

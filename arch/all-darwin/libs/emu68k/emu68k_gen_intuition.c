@@ -383,8 +383,7 @@ int emu68k_gen_intuition(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
             return 1;
         }
         struct TagItem emu_tags_1[65];
-        if (emu68k_tags_to_native(guest0, r->a[1], &emu_tagdomain_intuition_open_window,
-                                     emu_tags_1, 65, NULL, 0, err, errlen) < 0)
+        if (emu68k_tags_to_native(guest0, r->a[1], &emu_tagdomain_intuition_open_window, emu_tags_1, 65, NULL, 0, err, errlen) < 0)
             return 1;
         APTR emu_result = (APTR)OpenWindowTagList((struct NewWindow *)NULL,
               (struct TagItem *)(r->a[1] ? emu_tags_1 : NULL));
@@ -398,9 +397,10 @@ int emu68k_gen_intuition(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
         {
             struct Window *emu_facade_native = (struct Window *)emu_result;
             ULONG emu_nested_token_0 = 0;
-            if (emu68k_object_to_guest(guest0,
+            if (emu68k_object_to_guest_facade(guest0,
                     emu_facade_native->MenuStrip, EMU_OBJ_Menu,
-                    NULL, NULL, "Menu",
+                    NULL, NULL, "Menu", M68K_Menu_SIZEOF,
+                    emu_fields_Menu, EMU_NFIELDS(emu_fields_Menu),
                     &emu_nested_token_0, err, errlen) < 0)
                 return 1;
             emu68k_scalar_to_guest(guest0,
@@ -475,8 +475,7 @@ int emu68k_gen_intuition(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
         APTR emu_tagscratch_1 = emu68k_scratch_alloc(emu_tagscratch_size_1, err, errlen);
         if (!emu_tagscratch_1)
             return 1;
-        if (emu68k_tags_to_native(guest0, r->a[1], &emu_tagdomain_intuition_open_screen,
-                                     emu_tags_1, 25, emu_tagscratch_1, emu_tagscratch_size_1, err, errlen) < 0)
+        if (emu68k_tags_to_native(guest0, r->a[1], &emu_tagdomain_intuition_open_screen, emu_tags_1, 25, emu_tagscratch_1, emu_tagscratch_size_1, err, errlen) < 0)
         {
             emu68k_scratch_free(emu_tagscratch_1, emu_tagscratch_size_1);
             return 1;
@@ -564,8 +563,7 @@ int emu68k_gen_intuition(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
         struct Emu68kBoopsiBridge emu_boopsi_0;
         struct TagItem emu_tags_2[33];
         UQUAD emu_tagscratch_2[(sizeof(struct BitMap) + 7) / 8];
-        if (emu68k_tags_to_native(guest0, r->a[2], &emu_tagdomain_intuition_new_object,
-                                     emu_tags_2, 33, emu_tagscratch_2, sizeof emu_tagscratch_2, err, errlen) < 0)
+        if (emu68k_tags_to_native(guest0, r->a[2], &emu_tagdomain_intuition_new_object, emu_tags_2, 33, emu_tagscratch_2, sizeof emu_tagscratch_2, err, errlen) < 0)
             return 1;
         if (emu68k_boopsi_prepare(guest0, r->a[0], emu_object_0,
                                    &emu_boopsi_0, err, errlen) < 0)

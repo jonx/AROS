@@ -39,8 +39,7 @@ int emu68k_gen_cybergraphics(int lvo, struct Emu68kRegs *r, APTR guest0, APTR ba
     case 10:  /* BestCModeIDTagList(struct TagItem * tags) -> ULONG  [-60] */
     {
         struct TagItem emu_tags_0[17];
-        if (emu68k_tags_to_native(guest0, r->a[0], &emu_tagdomain_cybergraphics_best_mode,
-                                     emu_tags_0, 17, NULL, 0, err, errlen) < 0)
+        if (emu68k_tags_to_native(guest0, r->a[0], &emu_tagdomain_cybergraphics_best_mode, emu_tags_0, 17, NULL, 0, err, errlen) < 0)
             return 1;
             r->d[0] = (ULONG)BestCModeIDTagList((struct TagItem *)(r->a[0] ? emu_tags_0 : NULL));
             return 0;

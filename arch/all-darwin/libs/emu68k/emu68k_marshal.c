@@ -234,6 +234,27 @@ LONG emu68k_tags_to_native(APTR guest0, ULONG guest_tags,
                 return -1;
             native_tags[out].ti_Data = (IPTR)object;
         }
+        else if (desc->kind == EMU_TAG_OUT_U32)
+        {
+            ULONG need = (sizeof(struct EmuTagOutSlot) + 7u) & ~7u;
+            struct EmuTagOutSlot *slot;
+
+            if (used + need > scratch_size || !scratch)
+            {
+                if (err && errlen)
+                    snprintf(err, errlen, "tag %s has no output scratch in %s",
+                             desc->name, domain->name);
+                return -1;
+            }
+            if (emu68k_require_guest_range(data, 4, desc->name,
+                                           err, errlen) < 0)
+                return -1;
+            slot = (struct EmuTagOutSlot *)((UBYTE *)scratch + used);
+            used += need;
+            slot->value = (IPTR)(ULONG)emu68k_scalar_from_guest(guest0, data, 4);
+            slot->guest_addr = data;
+            native_tags[out].ti_Data = (IPTR)&slot->value;
+        }
         else if (desc->kind == EMU_TAG_STRUCT)
         {
             /* The value is a guest pointer to a structure, so the callee is
@@ -372,6 +393,44 @@ LONG emu68k_tags_to_native(APTR guest0, ULONG guest_tags,
     native_tags[out].ti_Tag = TAG_DONE;
     native_tags[out].ti_Data = 0;
     return (LONG)out;
+}
+
+/* Copy proven scalar output attributes back after the native call. Slots are
+ * initialized from guest memory before the call, so an unsupported GetAttr
+ * that leaves its destination untouched also leaves the guest value intact. */
+LONG emu68k_tags_to_guest(APTR guest0, struct TagItem *native_tags,
+                          ULONG count, const struct EmuTagDomain *domain,
+                          char *err, ULONG errlen)
+{
+    ULONG i;
+    if (!domain || (!native_tags && count))
+        return -1;
+    for (i = 0; i < count; i++)
+    {
+        const struct EmuTagDesc *desc = tag_desc(domain, native_tags[i].ti_Tag);
+        if (!desc)
+        {
+            if (err && errlen)
+                snprintf(err, errlen, "native tag %08lx escaped domain %s",
+                         (unsigned long)native_tags[i].ti_Tag, domain->name);
+            return -1;
+        }
+        if (desc->kind == EMU_TAG_OUT_U32)
+        {
+            struct EmuTagOutSlot *slot =
+                (struct EmuTagOutSlot *)(IPTR)native_tags[i].ti_Data;
+            if (!slot)
+            {
+                if (err && errlen)
+                    snprintf(err, errlen, "tag %s lost its output slot",
+                             desc->name);
+                return -1;
+            }
+            emu68k_scalar_to_guest(guest0, slot->guest_addr, 4,
+                                   (UQUAD)(ULONG)slot->value);
+        }
+    }
+    return 0;
 }
 
 /* A guest scalar is big-endian and as wide as the guest's field; a native one

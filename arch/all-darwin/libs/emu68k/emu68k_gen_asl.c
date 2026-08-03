@@ -114,8 +114,7 @@ int emu68k_gen_asl(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
     case 8:  /* AllocAslRequest(ULONG reqType, struct TagItem * tagList) -> APTR  [-48] */
     {
         struct TagItem emu_tags_1[65];
-        if (emu68k_tags_to_native(guest0, r->a[0], &emu_tagdomain_asl_request,
-                                     emu_tags_1, 65, NULL, 0, err, errlen) < 0)
+        if (emu68k_tags_to_native(guest0, r->a[0], &emu_tagdomain_asl_request, emu_tags_1, 65, NULL, 0, err, errlen) < 0)
             return 1;
         APTR emu_result = (APTR)AllocAslRequest((ULONG)r->d[0],
               (struct TagItem *)(r->a[0] ? emu_tags_1 : NULL));
@@ -142,8 +141,7 @@ int emu68k_gen_asl(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
                                         "AslRequest", &emu_object_0, err, errlen) < 0)
             return 1;
         struct TagItem emu_tags_1[65];
-        if (emu68k_tags_to_native(guest0, r->a[1], &emu_tagdomain_asl_request,
-                                     emu_tags_1, 65, NULL, 0, err, errlen) < 0)
+        if (emu68k_tags_to_native(guest0, r->a[1], &emu_tagdomain_asl_request, emu_tags_1, 65, NULL, 0, err, errlen) < 0)
             return 1;
             r->d[0] = (ULONG)AslRequest((APTR)emu_object_0,
               (struct TagItem *)(r->a[1] ? emu_tags_1 : NULL));

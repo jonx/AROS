@@ -355,8 +355,7 @@ int emu68k_gen_graphics(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
     case 175:  /* BestModeIDA(struct TagItem * TagItems) -> ULONG  [-1050] */
     {
         struct TagItem emu_tags_0[33];
-        if (emu68k_tags_to_native(guest0, r->a[0], &emu_tagdomain_graphics_best_mode,
-                                     emu_tags_0, 33, NULL, 0, err, errlen) < 0)
+        if (emu68k_tags_to_native(guest0, r->a[0], &emu_tagdomain_graphics_best_mode, emu_tags_0, 33, NULL, 0, err, errlen) < 0)
             return 1;
             r->d[0] = (ULONG)BestModeIDA((struct TagItem *)(r->a[0] ? emu_tags_0 : NULL));
             return 0;

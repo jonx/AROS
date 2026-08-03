@@ -91,8 +91,7 @@ int emu68k_gen_locale(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
                                         "Locale", &emu_object_0, err, errlen) < 0)
             return 1;
         struct TagItem emu_tags_2[9];
-        if (emu68k_tags_to_native(guest0, r->a[2], &emu_tagdomain_locale_open_catalog,
-                                     emu_tags_2, 9, NULL, 0, err, errlen) < 0)
+        if (emu68k_tags_to_native(guest0, r->a[2], &emu_tagdomain_locale_open_catalog, emu_tags_2, 9, NULL, 0, err, errlen) < 0)
             return 1;
         APTR emu_result = (APTR)OpenCatalogA((const struct Locale *)emu_object_0,
               (CONST_STRPTR)EMU_GPTR(guest0, r->a[1]),

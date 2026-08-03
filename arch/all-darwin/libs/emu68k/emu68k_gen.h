@@ -125,6 +125,12 @@ LONG emu68k_boopsi_finish(struct Emu68kBoopsiBridge *bridge,
 #define EMU_TAG_U16_FFFF 5  /* guest UWORD array terminated by 0xffff           */
 #define EMU_TAG_RGB32    6  /* LoadRGB32 block stream terminated by zero         */
 #define EMU_TAG_OBJECT   7  /* typed native object represented by a guest token  */
+#define EMU_TAG_OUT_U32  8  /* ti_Data points at a guest ULONG copyback slot      */
+struct EmuTagOutSlot
+{
+    IPTR value;             /* first: native ti_Data can point at the whole slot */
+    ULONG guest_addr;
+};
 struct EmuTagDesc
 {
     ULONG tag;
@@ -152,6 +158,9 @@ LONG emu68k_tags_to_native(APTR guest0, ULONG guest_tags,
                            struct TagItem *native_tags, ULONG capacity,
                            APTR scratch, ULONG scratch_size,
                            char *err, ULONG errlen);
+LONG emu68k_tags_to_guest(APTR guest0, struct TagItem *native_tags,
+                          ULONG count, const struct EmuTagDomain *domain,
+                          char *err, ULONG errlen);
 LONG emu68k_rgb32_to_native(APTR guest0, ULONG guest_table,
                             ULONG *native_table, ULONG capacity,
                             const char *what, char *err, ULONG errlen);
@@ -193,6 +202,7 @@ enum
     EMU_OBJ_RastPort = 18,
     EMU_OBJ_Window = 19,
     EMU_OBJ_Gadget = 20,
+    EMU_OBJ_MenuItem = 21,
 };
 int emu68k_gen_exec(int lvo, struct Emu68kRegs *r,
                   APTR guest0, APTR base,

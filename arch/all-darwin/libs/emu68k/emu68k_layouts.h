@@ -626,6 +626,36 @@ struct EmuField
 #define M68K_NewGadget_ng_VisualInfo 22   /* native @32 - CONVERT */
 #define M68K_NewGadget_ng_UserData 26   /* native @40 - CONVERT */
 
+/* struct Menu: 30 bytes on m68k (Menu), 48 native (Menu) */
+#define M68K_Menu_SIZEOF 30
+#define M68K_Menu_NextMenu 0
+#define M68K_Menu_LeftEdge 4   /* native @8 - CONVERT */
+#define M68K_Menu_TopEdge 6   /* native @10 - CONVERT */
+#define M68K_Menu_Width 8   /* native @12 - CONVERT */
+#define M68K_Menu_Height 10   /* native @14 - CONVERT */
+#define M68K_Menu_Flags 12   /* native @16 - CONVERT */
+#define M68K_Menu_MenuName 14   /* native @24 - CONVERT */
+#define M68K_Menu_FirstItem 18   /* native @32 - CONVERT */
+#define M68K_Menu_JazzX 22   /* native @40 - CONVERT */
+#define M68K_Menu_JazzY 24   /* native @42 - CONVERT */
+#define M68K_Menu_BeatX 26   /* native @44 - CONVERT */
+#define M68K_Menu_BeatY 28   /* native @46 - CONVERT */
+
+/* struct MenuItem: 34 bytes on m68k (MenuItem), 64 native (MenuItem) */
+#define M68K_MenuItem_SIZEOF 34
+#define M68K_MenuItem_NextItem 0
+#define M68K_MenuItem_LeftEdge 4   /* native @8 - CONVERT */
+#define M68K_MenuItem_TopEdge 6   /* native @10 - CONVERT */
+#define M68K_MenuItem_Width 8   /* native @12 - CONVERT */
+#define M68K_MenuItem_Height 10   /* native @14 - CONVERT */
+#define M68K_MenuItem_Flags 12   /* native @16 - CONVERT */
+#define M68K_MenuItem_MutualExclude 14   /* native @20 - CONVERT */
+#define M68K_MenuItem_ItemFill 18   /* native @24 - CONVERT */
+#define M68K_MenuItem_SelectFill 22   /* native @32 - CONVERT */
+#define M68K_MenuItem_Command 26   /* native @40 - CONVERT */
+#define M68K_MenuItem_SubItem 28   /* native @48 - CONVERT */
+#define M68K_MenuItem_NextSelect 32   /* native @56 - CONVERT */
+
 /* The conversion tables. Each row is one field: where it lives on
  * each side, how wide it is on each side, and what may be done to it.
  * A generic walker (emu68k_marshal.c) is all that is needed to convert
@@ -1247,6 +1277,40 @@ static const struct EmuField emu_fields_NewGadget[] = {
  *   ng_TextAttr (struct TextAttr *)
  *   ng_VisualInfo (APTR)
  *   ng_UserData (APTR)
+ */
+
+static const struct EmuField emu_fields_Menu[] = {
+    {    4,    8,    1, 2, 2, EMU_F_SCALAR },   /* LeftEdge                 WORD */
+    {    6,   10,    1, 2, 2, EMU_F_SCALAR },   /* TopEdge                  WORD */
+    {    8,   12,    1, 2, 2, EMU_F_SCALAR },   /* Width                    WORD */
+    {   10,   14,    1, 2, 2, EMU_F_SCALAR },   /* Height                   WORD */
+    {   12,   16,    1, 2, 2, EMU_F_SCALAR },   /* Flags                    UWORD */
+    {   22,   40,    1, 2, 2, EMU_F_SCALAR },   /* JazzX                    WORD */
+    {   24,   42,    1, 2, 2, EMU_F_SCALAR },   /* JazzY                    WORD */
+    {   26,   44,    1, 2, 2, EMU_F_SCALAR },   /* BeatX                    WORD */
+    {   28,   46,    1, 2, 2, EMU_F_SCALAR },   /* BeatY                    WORD */
+};
+/* NOT converted, and deliberately not guessed at:
+ *   NextMenu (struct Menu *)
+ *   MenuName (BYTE *)
+ *   FirstItem (struct MenuItem *)
+ */
+
+static const struct EmuField emu_fields_MenuItem[] = {
+    {    4,    8,    1, 2, 2, EMU_F_SCALAR },   /* LeftEdge                 WORD */
+    {    6,   10,    1, 2, 2, EMU_F_SCALAR },   /* TopEdge                  WORD */
+    {    8,   12,    1, 2, 2, EMU_F_SCALAR },   /* Width                    WORD */
+    {   10,   14,    1, 2, 2, EMU_F_SCALAR },   /* Height                   WORD */
+    {   12,   16,    1, 2, 2, EMU_F_SCALAR },   /* Flags                    UWORD */
+    {   14,   20,    1, 4, 4, EMU_F_SCALAR },   /* MutualExclude            LONG */
+    {   26,   40,    1, 1, 1, EMU_F_SCALAR },   /* Command                  BYTE */
+    {   32,   56,    1, 2, 2, EMU_F_SCALAR },   /* NextSelect               UWORD */
+};
+/* NOT converted, and deliberately not guessed at:
+ *   NextItem (struct MenuItem *)
+ *   ItemFill (APTR)
+ *   SelectFill (APTR)
+ *   SubItem (struct MenuItem *)
  */
 
 #endif /* EMU68K_LAYOUTS_H */

@@ -677,6 +677,26 @@ struct EmuField
 #define M68K_Requester_ReqImage 76   /* native @112 - CONVERT */
 #define M68K_Requester_ReqPad2 80   /* native @120 - CONVERT */
 
+/* struct IntuiMessage: 52 bytes on m68k (IntuiMessage), 96 native (IntuiMessage) */
+#define M68K_IntuiMessage_SIZEOF 52
+#define M68K_IntuiMessage_ExecMessage_mn_Node_ln_Succ 0
+#define M68K_IntuiMessage_ExecMessage_mn_Node_ln_Pred 4   /* native @8 - CONVERT */
+#define M68K_IntuiMessage_ExecMessage_mn_Node_ln_Type 8   /* native @16 - CONVERT */
+#define M68K_IntuiMessage_ExecMessage_mn_Node_ln_Pri 9   /* native @17 - CONVERT */
+#define M68K_IntuiMessage_ExecMessage_mn_Node_ln_Name 10   /* native @24 - CONVERT */
+#define M68K_IntuiMessage_ExecMessage_mn_ReplyPort 14   /* native @32 - CONVERT */
+#define M68K_IntuiMessage_ExecMessage_mn_Length 18   /* native @40 - CONVERT */
+#define M68K_IntuiMessage_Class 20   /* native @48 - CONVERT */
+#define M68K_IntuiMessage_Code 24   /* native @52 - CONVERT */
+#define M68K_IntuiMessage_Qualifier 26   /* native @54 - CONVERT */
+#define M68K_IntuiMessage_IAddress 28   /* native @56 - CONVERT */
+#define M68K_IntuiMessage_MouseX 32   /* native @64 - CONVERT */
+#define M68K_IntuiMessage_MouseY 34   /* native @66 - CONVERT */
+#define M68K_IntuiMessage_Seconds 36   /* native @68 - CONVERT */
+#define M68K_IntuiMessage_Micros 40   /* native @72 - CONVERT */
+#define M68K_IntuiMessage_IDCMPWindow 44   /* native @80 - CONVERT */
+#define M68K_IntuiMessage_SpecialLink 48   /* native @88 - CONVERT */
+
 /* struct Gadget: 44 bytes on m68k (Gadget), 80 native (Gadget) */
 #define M68K_Gadget_SIZEOF 44
 #define M68K_Gadget_NextGadget 0
@@ -1396,6 +1416,28 @@ static const struct EmuField emu_fields_Requester[] = {
  *   ImageBMap (struct BitMap *)
  *   RWindow (struct Window *)
  *   ReqImage (struct Image *)
+ */
+
+static const struct EmuField emu_fields_IntuiMessage[] = {
+    {    8,   16,    1, 1, 1, EMU_F_SCALAR },   /* ExecMessage_mn_Node_ln_Type UBYTE */
+    {    9,   17,    1, 1, 1, EMU_F_SCALAR },   /* ExecMessage_mn_Node_ln_Pri BYTE */
+    {   18,   40,    1, 2, 2, EMU_F_SCALAR },   /* ExecMessage_mn_Length    UWORD */
+    {   20,   48,    1, 4, 4, EMU_F_SCALAR },   /* Class                    ULONG */
+    {   24,   52,    1, 2, 2, EMU_F_SCALAR },   /* Code                     UWORD */
+    {   26,   54,    1, 2, 2, EMU_F_SCALAR },   /* Qualifier                UWORD */
+    {   32,   64,    1, 2, 2, EMU_F_SCALAR },   /* MouseX                   WORD */
+    {   34,   66,    1, 2, 2, EMU_F_SCALAR },   /* MouseY                   WORD */
+    {   36,   68,    1, 4, 4, EMU_F_SCALAR },   /* Seconds                  ULONG */
+    {   40,   72,    1, 4, 4, EMU_F_SCALAR },   /* Micros                   ULONG */
+};
+/* NOT converted, and deliberately not guessed at:
+ *   ExecMessage_mn_Node_ln_Succ (struct Node *)
+ *   ExecMessage_mn_Node_ln_Pred (struct Node *)
+ *   ExecMessage_mn_Node_ln_Name (char *)
+ *   ExecMessage_mn_ReplyPort (struct MsgPort *)
+ *   IAddress (APTR)
+ *   IDCMPWindow (struct Window *)
+ *   SpecialLink (struct IntuiMessage *)
  */
 
 static const struct EmuField emu_fields_Gadget[] = {

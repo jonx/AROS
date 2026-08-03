@@ -201,6 +201,10 @@ struct Emu68kObject
  *
  * Library bases deliberately stay shared below: an open library is a refcounted
  * OS resource, not guest state, and reopening it per run would be waste. */
+#define EMU68K_MAX_IMSG 64
+#define EXEC_LVO_GETMSG   62
+#define EXEC_LVO_REPLYMSG 63
+
 struct Emu68kRunState
 {
     APTR  guest0;                                    /* NULL = a free slot     */
@@ -214,6 +218,9 @@ struct Emu68kRunState
     struct { ULONG guest; struct AnchorPath *nap; } scans[EMU68K_MAX_SCANS];
     struct { ULONG guest; } bitmaps[EMU68K_MAX_BITMAPS];
     struct Emu68kObject objects[EMU68K_MAX_OBJECTS];
+    /* Intuition's own messages, paired with the guest copies handed out, so a
+     * reply reaches the message Intuition is waiting to get back. */
+    struct { APTR native; ULONG guest; } imsg[EMU68K_MAX_IMSG];
     ULONG next_object;
 };
 
@@ -1308,6 +1315,89 @@ int Emu68k_OSCall(const char *libname, int lvo, APTR regs, APTR guest0,
     rs->run = ctx ? ctx->run : NULL;
     rs->guest_alloc = ctx ? ctx->guest_alloc : NULL;
     rs->call_hook = ctx ? ctx->call_hook : NULL;
+
+    /* ---- IDCMP DELIVERY -----------------------------------------------------
+     *
+     * A window's UserPort crosses as a facade: the guest holds a readable COPY
+     * of the native MsgPort. A program then sits in GetMsg on that copy - which
+     * is the whole shape of an Amiga event loop - and nothing ever arrives,
+     * because the messages are on the NATIVE port and are native structures
+     * with native pointers in them.
+     *
+     * So take one from the native port and rebuild it where the guest can read
+     * it. The reply has to find its way back to the message Intuition actually
+     * handed out, so the pairing is remembered rather than reconstructed. */
+    if (strcmp(libname, "exec.library") == 0 && lvo == EXEC_LVO_GETMSG)
+    {
+        struct Emu68kObject *o = object_by_token(rs, r->a[0]);
+        struct MsgPort *native_port = NULL;
+        struct IntuiMessage *im;
+        ULONG guest_msg;
+        int i;
+
+        if (o && o->type == EMU_OBJ_MsgPort)
+            native_port = (struct MsgPort *)o->native;
+        else
+        {
+            /* The other, equally ordinary shape: the program made its OWN port
+             * and wrote it into the window before calling ModifyIDCMP. That
+             * write lands in the guest's readable COPY of the window and never
+             * reaches Intuition, so Intuition posts to the port IT made. Find
+             * the window by the port the guest is asking on - its own copy
+             * still says which window it meant - and drain that. */
+            for (i = 0; i < EMU68K_MAX_OBJECTS; i++)
+            {
+                struct Emu68kObject *w = &rs->objects[i];
+                if (!w->native || w->type != EMU_OBJ_Window) continue;
+                if (gr32(guest0, w->token + M68K_Window_UserPort) != r->a[0])
+                    continue;
+                native_port = ((struct Window *)w->native)->UserPort;
+                break;
+            }
+        }
+        if (!native_port) return 1;      /* a port the guest owns outright    */
+        im = (struct IntuiMessage *)GetMsg(native_port);
+        if (!im) { r->d[0] = 0; return 0; }
+
+        for (i = 0; i < EMU68K_MAX_IMSG; i++)
+            if (!rs->imsg[i].native) break;
+        if (i == EMU68K_MAX_IMSG || !rs->guest_alloc)
+        {
+            ReplyMsg((struct Message *)im);      /* never strand Intuition's  */
+            if (err && errlen)
+                snprintf(err, errlen, "capability gap: more IntuiMessages in "
+                         "flight than this bridge keeps");
+            return 1;
+        }
+        guest_msg = rs->guest_alloc(rs->run, M68K_IntuiMessage_SIZEOF);
+        if (!guest_msg)
+        {
+            ReplyMsg((struct Message *)im);
+            if (err && errlen)
+                snprintf(err, errlen, "guest memory exhausted for an IntuiMessage");
+            return 1;
+        }
+        memset((UBYTE *)guest0 + guest_msg, 0, M68K_IntuiMessage_SIZEOF);
+        emu68k_to_guest(guest0, guest_msg, im, emu_fields_IntuiMessage,
+                        EMU_NFIELDS(emu_fields_IntuiMessage));
+        rs->imsg[i].native = im;
+        rs->imsg[i].guest  = guest_msg;
+        r->d[0] = guest_msg;
+        return 0;
+    }
+    if (strcmp(libname, "exec.library") == 0 && lvo == EXEC_LVO_REPLYMSG)
+    {
+        int i;
+        for (i = 0; i < EMU68K_MAX_IMSG; i++)
+            if (rs->imsg[i].native && rs->imsg[i].guest == r->a[1])
+            {
+                ReplyMsg((struct Message *)rs->imsg[i].native);
+                rs->imsg[i].native = NULL;
+                rs->imsg[i].guest = 0;
+                return 0;
+            }
+        return 1;                        /* the guest's own message: not ours */
+    }
 
     if (strcmp(libname, "dos.library") == 0)
     {

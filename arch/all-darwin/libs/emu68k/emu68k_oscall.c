@@ -720,6 +720,19 @@ void emu68k_object_consume(APTR guest0, ULONG token, UWORD type)
     memset(o, 0, sizeof *o);
 }
 
+/* Linked native families are destroyed through their head pointer, while the
+ * guest may hold a token for every member returned along the way. Invalidate a
+ * member by native identity before its storage is released. */
+void emu68k_object_consume_native(APTR guest0, APTR native, UWORD type)
+{
+    struct Emu68kRunState *rs = run_state(guest0);
+    int i;
+    if (!rs || !native) return;
+    for (i = 0; i < EMU68K_MAX_OBJECTS; i++)
+        if (rs->objects[i].native == native && rs->objects[i].type == type)
+            memset(&rs->objects[i], 0, sizeof rs->objects[i]);
+}
+
 /* ---- GUEST-SIDE STRUCTURE WRITES ------------------------------------------
  * Guest memory is BIG-ENDIAN with 32-bit fields; this side is little-endian
  * with 64-bit ones. So a structure is never copied, it is rebuilt a field at a

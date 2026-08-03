@@ -11,10 +11,78 @@
 #include <string.h>
 #include <stdio.h>
 #include <libraries/gadtools.h>
+#include <intuition/gadgetclass.h>
 #include <graphics/text.h>
 
 #include "emu68k_gen.h"
 #include "emu68k_layouts.h"
+
+static const struct EmuTagDesc emu_tagdesc_gadtools_create_gadget[] =
+{
+    { GA_Disabled, EMU_TAG_U32, "GA_Disabled", NULL, 0, 0, 0, 0, 0 },
+    { GA_Height, EMU_TAG_U32, "GA_Height", NULL, 0, 0, 0, 0, 0 },
+    { GA_ID, EMU_TAG_U32, "GA_ID", NULL, 0, 0, 0, 0, 0 },
+    { GA_Immediate, EMU_TAG_U32, "GA_Immediate", NULL, 0, 0, 0, 0, 0 },
+    { GA_Left, EMU_TAG_U32, "GA_Left", NULL, 0, 0, 0, 0, 0 },
+    { GA_Previous, EMU_TAG_OBJECT, "GA_Previous", NULL, 0, 0, 0, EMU_OBJ_Gadget, 1 },
+    { GA_RelVerify, EMU_TAG_U32, "GA_RelVerify", NULL, 0, 0, 0, 0, 0 },
+    { GA_TabCycle, EMU_TAG_U32, "GA_TabCycle", NULL, 0, 0, 0, 0, 0 },
+    { GA_Top, EMU_TAG_U32, "GA_Top", NULL, 0, 0, 0, 0, 0 },
+    { GA_Width, EMU_TAG_U32, "GA_Width", NULL, 0, 0, 0, 0, 0 },
+    { GTCB_Checked, EMU_TAG_U32, "GTCB_Checked", NULL, 0, 0, 0, 0, 0 },
+    { GTCB_Scaled, EMU_TAG_U32, "GTCB_Scaled", NULL, 0, 0, 0, 0, 0 },
+    { GTCY_Active, EMU_TAG_U32, "GTCY_Active", NULL, 0, 0, 0, 0, 0 },
+    { GTCY_Labels, EMU_TAG_REFUSE, "GTCY_Labels", NULL, 0, 0, 0, 0, 0 },
+    { GTIN_MaxChars, EMU_TAG_U32, "GTIN_MaxChars", NULL, 0, 0, 0, 0, 0 },
+    { GTIN_Number, EMU_TAG_U32, "GTIN_Number", NULL, 0, 0, 0, 0, 0 },
+    { GTLV_CallBack, EMU_TAG_REFUSE, "GTLV_CallBack", NULL, 0, 0, 0, 0, 0 },
+    { GTLV_ItemHeight, EMU_TAG_U32, "GTLV_ItemHeight", NULL, 0, 0, 0, 0, 0 },
+    { GTLV_Labels, EMU_TAG_REFUSE, "GTLV_Labels", NULL, 0, 0, 0, 0, 0 },
+    { GTLV_MakeVisible, EMU_TAG_U32, "GTLV_MakeVisible", NULL, 0, 0, 0, 0, 0 },
+    { GTLV_MaxPen, EMU_TAG_U32, "GTLV_MaxPen", NULL, 0, 0, 0, 0, 0 },
+    { GTLV_ReadOnly, EMU_TAG_U32, "GTLV_ReadOnly", NULL, 0, 0, 0, 0, 0 },
+    { GTLV_ScrollWidth, EMU_TAG_U32, "GTLV_ScrollWidth", NULL, 0, 0, 0, 0, 0 },
+    { GTLV_Selected, EMU_TAG_U32, "GTLV_Selected", NULL, 0, 0, 0, 0, 0 },
+    { GTLV_ShowSelected, EMU_TAG_OBJECT, "GTLV_ShowSelected", NULL, 0, 0, 0, EMU_OBJ_Gadget, 1 },
+    { GTLV_Top, EMU_TAG_U32, "GTLV_Top", NULL, 0, 0, 0, 0, 0 },
+    { GTMX_Active, EMU_TAG_U32, "GTMX_Active", NULL, 0, 0, 0, 0, 0 },
+    { GTMX_Labels, EMU_TAG_REFUSE, "GTMX_Labels", NULL, 0, 0, 0, 0, 0 },
+    { GTMX_Scaled, EMU_TAG_U32, "GTMX_Scaled", NULL, 0, 0, 0, 0, 0 },
+    { GTMX_Spacing, EMU_TAG_U32, "GTMX_Spacing", NULL, 0, 0, 0, 0, 0 },
+    { GTMX_TitlePlace, EMU_TAG_U32, "GTMX_TitlePlace", NULL, 0, 0, 0, 0, 0 },
+    { GTNM_Border, EMU_TAG_U32, "GTNM_Border", NULL, 0, 0, 0, 0, 0 },
+    { GTNM_Number, EMU_TAG_U32, "GTNM_Number", NULL, 0, 0, 0, 0, 0 },
+    { GTPA_IndicatorHeight, EMU_TAG_U32, "GTPA_IndicatorHeight", NULL, 0, 0, 0, 0, 0 },
+    { GTPA_NumColors, EMU_TAG_U32, "GTPA_NumColors", NULL, 0, 0, 0, 0, 0 },
+    { GTSC_Arrows, EMU_TAG_U32, "GTSC_Arrows", NULL, 0, 0, 0, 0, 0 },
+    { GTSC_Top, EMU_TAG_U32, "GTSC_Top", NULL, 0, 0, 0, 0, 0 },
+    { GTSC_Total, EMU_TAG_U32, "GTSC_Total", NULL, 0, 0, 0, 0, 0 },
+    { GTSC_Visible, EMU_TAG_U32, "GTSC_Visible", NULL, 0, 0, 0, 0, 0 },
+    { GTSL_DispFunc, EMU_TAG_REFUSE, "GTSL_DispFunc", NULL, 0, 0, 0, 0, 0 },
+    { GTSL_Justification, EMU_TAG_U32, "GTSL_Justification", NULL, 0, 0, 0, 0, 0 },
+    { GTSL_Level, EMU_TAG_U32, "GTSL_Level", NULL, 0, 0, 0, 0, 0 },
+    { GTSL_LevelFormat, EMU_TAG_CSTR, "GTSL_LevelFormat", NULL, 0, 0, 0, 0, 0 },
+    { GTSL_LevelPlace, EMU_TAG_U32, "GTSL_LevelPlace", NULL, 0, 0, 0, 0, 0 },
+    { GTSL_Max, EMU_TAG_U32, "GTSL_Max", NULL, 0, 0, 0, 0, 0 },
+    { GTSL_MaxLevelLen, EMU_TAG_U32, "GTSL_MaxLevelLen", NULL, 0, 0, 0, 0, 0 },
+    { GTSL_MaxPixelLen, EMU_TAG_U32, "GTSL_MaxPixelLen", NULL, 0, 0, 0, 0, 0 },
+    { GTSL_Min, EMU_TAG_U32, "GTSL_Min", NULL, 0, 0, 0, 0, 0 },
+    { GTST_EditHook, EMU_TAG_REFUSE, "GTST_EditHook", NULL, 0, 0, 0, 0, 0 },
+    { GTST_MaxChars, EMU_TAG_U32, "GTST_MaxChars", NULL, 0, 0, 0, 0, 0 },
+    { GTST_String, EMU_TAG_CSTR, "GTST_String", NULL, 0, 0, 0, 0, 0 },
+    { GTTX_Border, EMU_TAG_U32, "GTTX_Border", NULL, 0, 0, 0, 0, 0 },
+    { GTTX_CopyText, EMU_TAG_U32, "GTTX_CopyText", NULL, 0, 0, 0, 0, 0 },
+    { GTTX_Text, EMU_TAG_CSTR, "GTTX_Text", NULL, 0, 0, 0, 0, 0 },
+    { GT_Underscore, EMU_TAG_U32, "GT_Underscore", NULL, 0, 0, 0, 0, 0 },
+    { PGA_Freedom, EMU_TAG_U32, "PGA_Freedom", NULL, 0, 0, 0, 0, 0 },
+    { STRINGA_ExitHelp, EMU_TAG_U32, "STRINGA_ExitHelp", NULL, 0, 0, 0, 0, 0 },
+    { STRINGA_Justification, EMU_TAG_U32, "STRINGA_Justification", NULL, 0, 0, 0, 0, 0 },
+    { STRINGA_ReplaceMode, EMU_TAG_U32, "STRINGA_ReplaceMode", NULL, 0, 0, 0, 0, 0 },
+};
+static const struct EmuTagDomain emu_tagdomain_gadtools_create_gadget =
+{
+    emu_tagdesc_gadtools_create_gadget, 59, "gadtools.create_gadget"
+};
 
 static const struct EmuTagDesc emu_tagdesc_gadtools_create_menus[] =
 {
@@ -62,6 +130,12 @@ static const struct EmuTagDomain emu_tagdomain_gadtools_visual_info =
     emu_tagdesc_gadtools_visual_info, 0, "gadtools.visual_info"
 };
 
+static void emu_object_cleanup_Gadget(APTR emu_base, APTR emu_object)
+{
+    struct Library *GadToolsBase = emu_base;
+    FreeGadgets((struct Gadget *)emu_object);
+}
+
 static void emu_object_cleanup_Menu(APTR emu_base, APTR emu_object)
 {
     struct Library *GadToolsBase = emu_base;
@@ -82,6 +156,110 @@ int emu68k_gen_gadtools(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
 
     switch (lvo)
     {
+    case 5:  /* CreateGadgetA(ULONG kind, struct Gadget * previous, struct NewGadget * ng, struct TagItem * taglist) -> struct Gadget *  [-30] */
+    {
+        APTR emu_object_1;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_Gadget, 0,
+                                        "Gadget", &emu_object_1, err, errlen) < 0)
+            return 1;
+        struct NewGadget emu_struct_2;
+        if (emu68k_require_guest_range(r->a[1], M68K_NewGadget_SIZEOF,
+                                         "CreateGadgetA.ng", err, errlen) < 0)
+            return 1;
+        memset(&emu_struct_2, 0, sizeof(emu_struct_2));
+        emu68k_from_guest_sized(guest0, r->a[1], &emu_struct_2,
+                             emu_fields_NewGadget, EMU_NFIELDS(emu_fields_NewGadget), M68K_NewGadget_SIZEOF);
+        ULONG emu_struct_field_2_0 = (ULONG)
+            emu68k_scalar_from_guest(guest0, r->a[1] + M68K_NewGadget_ng_GadgetText, 4);
+        if (emu_struct_field_2_0 &&
+            emu68k_require_guest_range(emu_struct_field_2_0, 1,
+                "CreateGadgetA.ng.ng_GadgetText", err, errlen) < 0)
+            return 1;
+        emu_struct_2.ng_GadgetText = (__typeof__(emu_struct_2.ng_GadgetText))EMU_GPTR(guest0, emu_struct_field_2_0);
+        ULONG emu_struct_field_2_1 = (ULONG)
+            emu68k_scalar_from_guest(guest0, r->a[1] + M68K_NewGadget_ng_TextAttr, 4);
+        struct TextAttr emu_struct_nested_2_1;
+        memset(&emu_struct_nested_2_1, 0, sizeof(emu_struct_nested_2_1));
+        if (emu_struct_field_2_1)
+        {
+            if (emu68k_require_guest_range(emu_struct_field_2_1,
+                    M68K_TextAttr_SIZEOF, "CreateGadgetA.ng.ng_TextAttr", err, errlen) < 0)
+                return 1;
+            emu68k_from_guest_sized(guest0, emu_struct_field_2_1,
+                &emu_struct_nested_2_1, emu_fields_TextAttr,
+                EMU_NFIELDS(emu_fields_TextAttr), M68K_TextAttr_SIZEOF);
+            ULONG emu_struct_nested_field_2_1_0 = (ULONG)
+                emu68k_scalar_from_guest(guest0, emu_struct_field_2_1 + M68K_TextAttr_ta_Name, 4);
+            if (emu_struct_nested_field_2_1_0 &&
+                emu68k_require_guest_range(emu_struct_nested_field_2_1_0, 1,
+                    "CreateGadgetA.ng.ng_TextAttr.ta_Name", err, errlen) < 0)
+                return 1;
+            if (!emu_struct_nested_field_2_1_0)
+            {
+                if (err && errlen)
+                    snprintf(err, errlen, "CreateGadgetA.ng.ng_TextAttr.ta_Name requires non-NULL");
+                return 1;
+            }
+            emu_struct_nested_2_1.ta_Name = (__typeof__(emu_struct_nested_2_1.ta_Name))EMU_GPTR(guest0, emu_struct_nested_field_2_1_0);
+            emu_struct_2.ng_TextAttr = &emu_struct_nested_2_1;
+        }
+        ULONG emu_struct_field_2_2 = (ULONG)
+            emu68k_scalar_from_guest(guest0, r->a[1] + M68K_NewGadget_ng_VisualInfo, 4);
+        APTR emu_struct_object_2_2;
+        if (emu68k_object_from_guest(guest0, emu_struct_field_2_2,
+                EMU_OBJ_VisualInfo, 0, "VisualInfo", &emu_struct_object_2_2,
+                err, errlen) < 0)
+            return 1;
+        emu_struct_2.ng_VisualInfo = (__typeof__(emu_struct_2.ng_VisualInfo))emu_struct_object_2_2;
+        ULONG emu_struct_field_2_3 = (ULONG)
+            emu68k_scalar_from_guest(guest0, r->a[1] + M68K_NewGadget_ng_UserData, 4);
+        emu_struct_2.ng_UserData = (__typeof__(emu_struct_2.ng_UserData))(IPTR)emu_struct_field_2_3;
+        struct TagItem emu_tags_3[129];
+        if (emu68k_tags_to_native(guest0, r->a[2], &emu_tagdomain_gadtools_create_gadget,
+                                     emu_tags_3, 129, NULL, 0, err, errlen) < 0)
+            return 1;
+        APTR emu_result = (APTR)CreateGadgetA((ULONG)r->d[0],
+              (struct Gadget *)emu_object_1,
+              (struct NewGadget *)&emu_struct_2,
+              (struct TagItem *)(r->a[2] ? emu_tags_3 : NULL));
+        if (emu68k_object_to_guest(guest0, emu_result, EMU_OBJ_Gadget,
+                                      base, NULL,
+                                      "Gadget", &r->d[0], err, errlen) < 0)
+            return 1;
+            return 0;
+    }
+    case 6:  /* FreeGadgets(struct Gadget * glist) -> void  [-36] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_Gadget, 1,
+                                        "Gadget", &emu_object_0, err, errlen) < 0)
+            return 1;
+        ULONG emu_family_count_0 = 0;
+        struct Gadget * emu_family_scan_0 = (struct Gadget *)emu_object_0;
+        while (emu_family_scan_0 && emu_family_count_0 < 4096)
+        {
+            emu_family_scan_0 = (struct Gadget *)emu_family_scan_0->NextGadget;
+            emu_family_count_0++;
+        }
+        if (emu_family_scan_0)
+        {
+            if (err && errlen)
+                snprintf(err, errlen, "FreeGadgets.glist linked Gadget family exceeds 4096 members or contains a cycle");
+            return 1;
+        }
+        struct Gadget * emu_family_member_0 = (struct Gadget *)emu_object_0;
+        for (ULONG emu_family_i_0 = 0;
+             emu_family_i_0 < emu_family_count_0; emu_family_i_0++)
+        {
+            struct Gadget * emu_family_next_0 = (struct Gadget *)emu_family_member_0->NextGadget;
+            emu68k_object_consume_native(guest0, emu_family_member_0,
+                EMU_OBJ_Gadget);
+            emu_family_member_0 = emu_family_next_0;
+        }
+            FreeGadgets((struct Gadget *)emu_object_0);
+        emu68k_object_consume(guest0, r->a[0], EMU_OBJ_Gadget);
+            return 0;
+    }
     case 8:  /* CreateMenusA(struct NewMenu * newmenu, struct TagItem * tagList) -> struct Menu *  [-48] */
     {
         ULONG emu_record_count_0 = 0;
@@ -279,6 +457,33 @@ int emu68k_gen_gadtools(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
             snprintf(err, errlen, "capability gap: gadtools.library.GT_PostFilterIMsg refused: post-filter copies guest-visible mutations and releases embedded or allocated wrapper state");
         r->d[0] = 0;
         return 1;
+    case 19:  /* CreateContext(struct Gadget ** glistpointer) -> struct Gadget *  [-114] */
+    {
+        if (emu68k_require_guest_range(r->a[0], 4,
+                                         "CreateContext.glistpointer", err, errlen) < 0)
+            return 1;
+        if (emu68k_scalar_from_guest(guest0, r->a[0], 4) != 0)
+        {
+            if (err && errlen)
+                snprintf(err, errlen, "CreateContext.glistpointer must initially contain NULL");
+            return 1;
+        }
+        struct Gadget * emu_result_store_native = NULL;
+        APTR emu_result = (APTR)CreateContext((struct Gadget **)&emu_result_store_native);
+        if ((APTR)emu_result_store_native != emu_result)
+        {
+            if (emu_result) emu_object_cleanup_Gadget(base, emu_result);
+            if (err && errlen)
+                snprintf(err, errlen, "CreateContext.glistpointer did not match its returned object");
+            return 1;
+        }
+        if (emu68k_object_to_guest(guest0, emu_result, EMU_OBJ_Gadget,
+                                      base, emu_object_cleanup_Gadget,
+                                      "Gadget", &r->d[0], err, errlen) < 0)
+            return 1;
+        emu68k_scalar_to_guest(guest0, r->a[0], 4, r->d[0]);
+            return 0;
+    }
     case 20:  /* DrawBevelBoxA(struct RastPort * rport, WORD left, WORD top, WORD width, WORD height, struct TagItem * taglist) -> void  [-120] */
     {
         APTR emu_object_0;

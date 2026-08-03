@@ -613,6 +613,19 @@ struct EmuField
 #define M68K_NewMenu_nm_MutualExclude 12   /* native @28 - CONVERT */
 #define M68K_NewMenu_nm_UserData 16   /* native @32 - CONVERT */
 
+/* struct NewGadget: 30 bytes on m68k (NewGadget), 48 native (NewGadget) */
+#define M68K_NewGadget_SIZEOF 30
+#define M68K_NewGadget_ng_LeftEdge 0
+#define M68K_NewGadget_ng_TopEdge 2
+#define M68K_NewGadget_ng_Width 4
+#define M68K_NewGadget_ng_Height 6
+#define M68K_NewGadget_ng_GadgetText 8
+#define M68K_NewGadget_ng_TextAttr 12   /* native @16 - CONVERT */
+#define M68K_NewGadget_ng_GadgetID 16   /* native @24 - CONVERT */
+#define M68K_NewGadget_ng_Flags 18   /* native @28 - CONVERT */
+#define M68K_NewGadget_ng_VisualInfo 22   /* native @32 - CONVERT */
+#define M68K_NewGadget_ng_UserData 26   /* native @40 - CONVERT */
+
 /* The conversion tables. Each row is one field: where it lives on
  * each side, how wide it is on each side, and what may be done to it.
  * A generic walker (emu68k_marshal.c) is all that is needed to convert
@@ -1219,6 +1232,21 @@ static const struct EmuField emu_fields_NewMenu[] = {
  *   nm_Label (CONST_STRPTR)
  *   nm_CommKey (CONST_STRPTR)
  *   nm_UserData (APTR)
+ */
+
+static const struct EmuField emu_fields_NewGadget[] = {
+    {    0,    0,    1, 2, 2, EMU_F_SCALAR },   /* ng_LeftEdge              WORD */
+    {    2,    2,    1, 2, 2, EMU_F_SCALAR },   /* ng_TopEdge               WORD */
+    {    4,    4,    1, 2, 2, EMU_F_SCALAR },   /* ng_Width                 WORD */
+    {    6,    6,    1, 2, 2, EMU_F_SCALAR },   /* ng_Height                WORD */
+    {   16,   24,    1, 2, 2, EMU_F_SCALAR },   /* ng_GadgetID              UWORD */
+    {   18,   28,    1, 4, 4, EMU_F_SCALAR },   /* ng_Flags                 ULONG */
+};
+/* NOT converted, and deliberately not guessed at:
+ *   ng_GadgetText (CONST_STRPTR)
+ *   ng_TextAttr (struct TextAttr *)
+ *   ng_VisualInfo (APTR)
+ *   ng_UserData (APTR)
  */
 
 #endif /* EMU68K_LAYOUTS_H */

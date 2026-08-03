@@ -102,6 +102,7 @@ LONG emu68k_object_alias_to_guest(APTR guest0, ULONG token, APTR native,
                                   char *err, ULONG errlen);
 void emu68k_object_release(APTR guest0, ULONG token, UWORD type);
 void emu68k_object_consume(APTR guest0, ULONG token, UWORD type);
+void emu68k_object_consume_native(APTR guest0, APTR native, UWORD type);
 LONG emu68k_hook_prepare(APTR guest0, ULONG guest_hook,
                          struct Emu68kHookBridge *bridge,
                          char *err, ULONG errlen);
@@ -191,6 +192,7 @@ enum
     EMU_OBJ_Menu = 17,
     EMU_OBJ_RastPort = 18,
     EMU_OBJ_Window = 19,
+    EMU_OBJ_Gadget = 20,
 };
 int emu68k_gen_exec(int lvo, struct Emu68kRegs *r,
                   APTR guest0, APTR base,

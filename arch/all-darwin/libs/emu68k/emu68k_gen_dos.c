@@ -36,6 +36,12 @@ int emu68k_gen_dos(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
     case 17:  /* Examine(BPTR lock, struct FileInfoBlock* fib) -> LONG  [-102] */
     {
         struct FileInfoBlock emu_struct_1;
+        if (!r->d[2])
+        {
+            if (err && errlen)
+                snprintf(err, errlen, "capability gap: Examine.fib requires a structure");
+            return 1;
+        }
         if (emu68k_require_guest_range(r->d[2], M68K_FileInfoBlock_SIZEOF,
                                          "Examine.fib", err, errlen) < 0)
             return 1;
@@ -53,6 +59,12 @@ int emu68k_gen_dos(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
     case 18:  /* ExNext(BPTR lock, struct FileInfoBlock* fileInfoBlock) -> LONG  [-108] */
     {
         struct FileInfoBlock emu_struct_1;
+        if (!r->d[2])
+        {
+            if (err && errlen)
+                snprintf(err, errlen, "capability gap: ExNext.fileInfoBlock requires a structure");
+            return 1;
+        }
         if (emu68k_require_guest_range(r->d[2], M68K_FileInfoBlock_SIZEOF,
                                          "ExNext.fileInfoBlock", err, errlen) < 0)
             return 1;
@@ -72,6 +84,12 @@ int emu68k_gen_dos(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
     case 19:  /* Info(BPTR lock, struct InfoData* parameterBlock) -> LONG  [-114] */
     {
         struct InfoData emu_struct_1;
+        if (!r->d[2])
+        {
+            if (err && errlen)
+                snprintf(err, errlen, "capability gap: Info.parameterBlock requires a structure");
+            return 1;
+        }
         if (emu68k_require_guest_range(r->d[2], M68K_InfoData_SIZEOF,
                                          "Info.parameterBlock", err, errlen) < 0)
             return 1;
@@ -100,6 +118,12 @@ int emu68k_gen_dos(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
     case 32:  /* DateStamp(struct DateStamp * date) -> struct DateStamp *  [-192] */
     {
         struct DateStamp emu_struct_0;
+        if (!r->d[1])
+        {
+            if (err && errlen)
+                snprintf(err, errlen, "capability gap: DateStamp.date requires a structure");
+            return 1;
+        }
         if (emu68k_require_guest_range(r->d[1], M68K_DateStamp_SIZEOF,
                                          "DateStamp.date", err, errlen) < 0)
             return 1;
@@ -275,6 +299,12 @@ int emu68k_gen_dos(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
     case 123:  /* CompareDates(const struct DateStamp * date1, const struct DateStamp * date2) -> LONG  [-738] */
     {
         struct DateStamp emu_struct_0;
+        if (!r->d[1])
+        {
+            if (err && errlen)
+                snprintf(err, errlen, "capability gap: CompareDates.date1 requires a structure");
+            return 1;
+        }
         if (emu68k_require_guest_range(r->d[1], M68K_DateStamp_SIZEOF,
                                          "CompareDates.date1", err, errlen) < 0)
             return 1;
@@ -282,6 +312,12 @@ int emu68k_gen_dos(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
         emu68k_from_guest_sized(guest0, r->d[1], &emu_struct_0,
                              emu_fields_DateStamp, EMU_NFIELDS(emu_fields_DateStamp), M68K_DateStamp_SIZEOF);
         struct DateStamp emu_struct_1;
+        if (!r->d[2])
+        {
+            if (err && errlen)
+                snprintf(err, errlen, "capability gap: CompareDates.date2 requires a structure");
+            return 1;
+        }
         if (emu68k_require_guest_range(r->d[2], M68K_DateStamp_SIZEOF,
                                          "CompareDates.date2", err, errlen) < 0)
             return 1;
@@ -299,47 +335,68 @@ int emu68k_gen_dos(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
     case 137:  /* MatchFirst(CONST_STRPTR pat, struct AnchorPath * AP) -> LONG  [-822] */
     {
         struct AnchorPath emu_struct_1;
-        if (emu68k_require_guest_range(r->d[2], M68K_AnchorPath_SIZEOF,
-                                         "MatchFirst.AP", err, errlen) < 0)
-            return 1;
-        memset(&emu_struct_1, 0, sizeof(emu_struct_1));
+        struct AnchorPath *emu_structp_1 = NULL;
+        if (r->d[2])
+        {
+            emu_structp_1 = &emu_struct_1;
+            if (emu68k_require_guest_range(r->d[2], M68K_AnchorPath_SIZEOF,
+                                             "MatchFirst.AP", err, errlen) < 0)
+                return 1;
+            memset(&emu_struct_1, 0, sizeof(emu_struct_1));
         emu68k_from_guest_sized(guest0, r->d[2], &emu_struct_1,
                              emu_fields_AnchorPath, EMU_NFIELDS(emu_fields_AnchorPath), M68K_AnchorPath_SIZEOF);
+        }
             r->d[0] = (ULONG)MatchFirst((CONST_STRPTR)EMU_GPTR(guest0, r->d[1]),
-              (struct AnchorPath *)&emu_struct_1);
-        memset(EMU_GPTR(guest0, r->d[2]), 0, M68K_AnchorPath_SIZEOF);
-        emu68k_to_guest_sized(guest0, r->d[2], &emu_struct_1,
-                           emu_fields_AnchorPath, EMU_NFIELDS(emu_fields_AnchorPath), M68K_AnchorPath_SIZEOF);
+              (struct AnchorPath *)emu_structp_1);
+        if (emu_structp_1)
+        {
+            emu68k_to_guest_sized(guest0, r->d[2], &emu_struct_1,
+                               emu_fields_AnchorPath, EMU_NFIELDS(emu_fields_AnchorPath), M68K_AnchorPath_SIZEOF);
+        }
             return 0;
     }
     case 138:  /* MatchNext(struct AnchorPath * AP) -> LONG  [-828] */
     {
         struct AnchorPath emu_struct_0;
-        if (emu68k_require_guest_range(r->d[1], M68K_AnchorPath_SIZEOF,
-                                         "MatchNext.AP", err, errlen) < 0)
-            return 1;
-        memset(&emu_struct_0, 0, sizeof(emu_struct_0));
+        struct AnchorPath *emu_structp_0 = NULL;
+        if (r->d[1])
+        {
+            emu_structp_0 = &emu_struct_0;
+            if (emu68k_require_guest_range(r->d[1], M68K_AnchorPath_SIZEOF,
+                                             "MatchNext.AP", err, errlen) < 0)
+                return 1;
+            memset(&emu_struct_0, 0, sizeof(emu_struct_0));
         emu68k_from_guest_sized(guest0, r->d[1], &emu_struct_0,
                              emu_fields_AnchorPath, EMU_NFIELDS(emu_fields_AnchorPath), M68K_AnchorPath_SIZEOF);
-            r->d[0] = (ULONG)MatchNext((struct AnchorPath *)&emu_struct_0);
-        memset(EMU_GPTR(guest0, r->d[1]), 0, M68K_AnchorPath_SIZEOF);
-        emu68k_to_guest_sized(guest0, r->d[1], &emu_struct_0,
-                           emu_fields_AnchorPath, EMU_NFIELDS(emu_fields_AnchorPath), M68K_AnchorPath_SIZEOF);
+        }
+            r->d[0] = (ULONG)MatchNext((struct AnchorPath *)emu_structp_0);
+        if (emu_structp_0)
+        {
+            emu68k_to_guest_sized(guest0, r->d[1], &emu_struct_0,
+                               emu_fields_AnchorPath, EMU_NFIELDS(emu_fields_AnchorPath), M68K_AnchorPath_SIZEOF);
+        }
             return 0;
     }
     case 139:  /* MatchEnd(struct AnchorPath * AP) -> void  [-834] */
     {
         struct AnchorPath emu_struct_0;
-        if (emu68k_require_guest_range(r->d[1], M68K_AnchorPath_SIZEOF,
-                                         "MatchEnd.AP", err, errlen) < 0)
-            return 1;
-        memset(&emu_struct_0, 0, sizeof(emu_struct_0));
+        struct AnchorPath *emu_structp_0 = NULL;
+        if (r->d[1])
+        {
+            emu_structp_0 = &emu_struct_0;
+            if (emu68k_require_guest_range(r->d[1], M68K_AnchorPath_SIZEOF,
+                                             "MatchEnd.AP", err, errlen) < 0)
+                return 1;
+            memset(&emu_struct_0, 0, sizeof(emu_struct_0));
         emu68k_from_guest_sized(guest0, r->d[1], &emu_struct_0,
                              emu_fields_AnchorPath, EMU_NFIELDS(emu_fields_AnchorPath), M68K_AnchorPath_SIZEOF);
-            MatchEnd((struct AnchorPath *)&emu_struct_0);
-        memset(EMU_GPTR(guest0, r->d[1]), 0, M68K_AnchorPath_SIZEOF);
-        emu68k_to_guest_sized(guest0, r->d[1], &emu_struct_0,
-                           emu_fields_AnchorPath, EMU_NFIELDS(emu_fields_AnchorPath), M68K_AnchorPath_SIZEOF);
+        }
+            MatchEnd((struct AnchorPath *)emu_structp_0);
+        if (emu_structp_0)
+        {
+            emu68k_to_guest_sized(guest0, r->d[1], &emu_struct_0,
+                               emu_fields_AnchorPath, EMU_NFIELDS(emu_fields_AnchorPath), M68K_AnchorPath_SIZEOF);
+        }
             return 0;
     }
     case 140:  /* ParsePattern(CONST_STRPTR Source, STRPTR Dest, LONG DestLength) -> LONG  [-840] */

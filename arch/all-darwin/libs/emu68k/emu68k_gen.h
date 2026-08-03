@@ -97,6 +97,35 @@ LONG emu68k_object_to_guest_facade(APTR guest0, APTR native, UWORD type,
                                    const char *type_name, ULONG facade_size,
                                    const struct EmuField *fields, int field_count,
                                    ULONG *token, char *err, ULONG errlen);
+/* How one guest-owned structure is mirrored. `base_size`/`flag_off`/`flag_mask`
+ * describe a structure with a short and a long form (a Gadget is 44 bytes
+ * unless GFLG_EXTENDED says 56): converting the long form over the short one
+ * would read past the program's memory. */
+struct EmuMirror
+{
+    const struct EmuField *fields;
+    int   field_count;
+    ULONG native_size;
+    ULONG m68k_size;      /* the full layout                                  */
+    ULONG base_size;      /* the short variant, 0 when there is only one form */
+    LONG  flag_off;       /* guest offset of the UWORD that selects, -1 none  */
+    ULONG flag_mask;
+    LONG  native_link;    /* offset of the family link on each side, -1 none  */
+    LONG  guest_link;
+    ULONG limit;          /* family members, past which it is a cycle         */
+};
+
+/* A structure the PROGRAM allocated and the library will keep. It cannot be
+ * passed through (big-endian, 32-bit pointers), so the run mirrors it natively
+ * under its guest address and converts in and back out around the call. A
+ * linked family is adopted whole, since the library walks the native chain. */
+LONG emu68k_object_adopt_guest(APTR guest0, ULONG addr, UWORD type,
+                               const char *type_name,
+                               const struct EmuMirror *m, APTR *native,
+                               char *err, ULONG errlen);
+LONG emu68k_object_sync_guest(APTR guest0, ULONG addr, UWORD type,
+                              const char *type_name, const struct EmuMirror *m,
+                              char *err, ULONG errlen);
 LONG emu68k_object_alias_to_guest(APTR guest0, ULONG token, APTR native,
                                   UWORD type, const char *type_name,
                                   char *err, ULONG errlen);

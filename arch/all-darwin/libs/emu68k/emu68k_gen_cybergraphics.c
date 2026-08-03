@@ -49,6 +49,12 @@ int emu68k_gen_cybergraphics(int lvo, struct Emu68kRegs *r, APTR guest0, APTR ba
     case 13:  /* FreeCModeList(struct List * modeList) -> void  [-78] */
     {
         struct List emu_struct_0;
+        if (!r->a[0])
+        {
+            if (err && errlen)
+                snprintf(err, errlen, "capability gap: FreeCModeList.modeList requires a structure");
+            return 1;
+        }
         if (emu68k_require_guest_range(r->a[0], M68K_List_SIZEOF,
                                          "FreeCModeList.modeList", err, errlen) < 0)
             return 1;
@@ -56,7 +62,6 @@ int emu68k_gen_cybergraphics(int lvo, struct Emu68kRegs *r, APTR guest0, APTR ba
         emu68k_from_guest_sized(guest0, r->a[0], &emu_struct_0,
                              emu_fields_List, EMU_NFIELDS(emu_fields_List), M68K_List_SIZEOF);
             FreeCModeList((struct List *)&emu_struct_0);
-        memset(EMU_GPTR(guest0, r->a[0]), 0, M68K_List_SIZEOF);
         emu68k_to_guest_sized(guest0, r->a[0], &emu_struct_0,
                            emu_fields_List, EMU_NFIELDS(emu_fields_List), M68K_List_SIZEOF);
             return 0;
@@ -64,6 +69,12 @@ int emu68k_gen_cybergraphics(int lvo, struct Emu68kRegs *r, APTR guest0, APTR ba
     case 16:  /* GetCyberMapAttr(struct BitMap * bitMap, IPTR attribute) -> IPTR  [-96] */
     {
         struct BitMap emu_struct_0;
+        if (!r->a[0])
+        {
+            if (err && errlen)
+                snprintf(err, errlen, "capability gap: GetCyberMapAttr.bitMap requires a structure");
+            return 1;
+        }
         if (emu68k_require_guest_range(r->a[0], M68K_BitMap_SIZEOF,
                                          "GetCyberMapAttr.bitMap", err, errlen) < 0)
             return 1;
@@ -72,7 +83,6 @@ int emu68k_gen_cybergraphics(int lvo, struct Emu68kRegs *r, APTR guest0, APTR ba
                              emu_fields_BitMap, EMU_NFIELDS(emu_fields_BitMap), M68K_BitMap_SIZEOF);
             r->d[0] = (ULONG)GetCyberMapAttr((struct BitMap *)&emu_struct_0,
               (IPTR)(LONG)r->d[0]);   /* narrowed: an integer, never an address */
-        memset(EMU_GPTR(guest0, r->a[0]), 0, M68K_BitMap_SIZEOF);
         emu68k_to_guest_sized(guest0, r->a[0], &emu_struct_0,
                            emu_fields_BitMap, EMU_NFIELDS(emu_fields_BitMap), M68K_BitMap_SIZEOF);
             return 0;
@@ -153,6 +163,12 @@ int emu68k_gen_cybergraphics(int lvo, struct Emu68kRegs *r, APTR guest0, APTR ba
                                         "RastPort", &emu_object_0, err, errlen) < 0)
             return 1;
         struct BitMap emu_struct_1;
+        if (!r->a[1])
+        {
+            if (err && errlen)
+                snprintf(err, errlen, "capability gap: ExtractColor.SingleMap requires a structure");
+            return 1;
+        }
         if (emu68k_require_guest_range(r->a[1], M68K_BitMap_SIZEOF,
                                          "ExtractColor.SingleMap", err, errlen) < 0)
             return 1;
@@ -166,7 +182,6 @@ int emu68k_gen_cybergraphics(int lvo, struct Emu68kRegs *r, APTR guest0, APTR ba
               (ULONG)r->d[2],
               (ULONG)r->d[3],
               (ULONG)r->d[4]);
-        memset(EMU_GPTR(guest0, r->a[1]), 0, M68K_BitMap_SIZEOF);
         emu68k_to_guest_sized(guest0, r->a[1], &emu_struct_1,
                            emu_fields_BitMap, EMU_NFIELDS(emu_fields_BitMap), M68K_BitMap_SIZEOF);
             return 0;

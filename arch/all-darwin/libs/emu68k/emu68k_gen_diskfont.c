@@ -24,6 +24,12 @@ int emu68k_gen_diskfont(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
     case 5:  /* OpenDiskFont(struct TextAttr * textAttr) -> struct TextFont *  [-30] */
     {
         struct TextAttr emu_struct_0;
+        if (!r->a[0])
+        {
+            if (err && errlen)
+                snprintf(err, errlen, "capability gap: OpenDiskFont.textAttr requires a structure");
+            return 1;
+        }
         if (emu68k_require_guest_range(r->a[0], M68K_TextAttr_SIZEOF,
                                          "OpenDiskFont.textAttr", err, errlen) < 0)
             return 1;

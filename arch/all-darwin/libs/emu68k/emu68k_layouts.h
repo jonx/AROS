@@ -677,6 +677,47 @@ struct EmuField
 #define M68K_Requester_ReqImage 76   /* native @112 - CONVERT */
 #define M68K_Requester_ReqPad2 80   /* native @120 - CONVERT */
 
+/* struct Gadget: 44 bytes on m68k (Gadget), 80 native (Gadget) */
+#define M68K_Gadget_SIZEOF 44
+#define M68K_Gadget_NextGadget 0
+#define M68K_Gadget_LeftEdge 4   /* native @8 - CONVERT */
+#define M68K_Gadget_TopEdge 6   /* native @10 - CONVERT */
+#define M68K_Gadget_Width 8   /* native @12 - CONVERT */
+#define M68K_Gadget_Height 10   /* native @14 - CONVERT */
+#define M68K_Gadget_Flags 12   /* native @16 - CONVERT */
+#define M68K_Gadget_Activation 14   /* native @18 - CONVERT */
+#define M68K_Gadget_GadgetType 16   /* native @20 - CONVERT */
+#define M68K_Gadget_GadgetRender 18   /* native @24 - CONVERT */
+#define M68K_Gadget_SelectRender 22   /* native @32 - CONVERT */
+#define M68K_Gadget_GadgetText 26   /* native @40 - CONVERT */
+#define M68K_Gadget_MutualExclude 30   /* native @48 - CONVERT */
+#define M68K_Gadget_SpecialInfo 34   /* native @56 - CONVERT */
+#define M68K_Gadget_GadgetID 38   /* native @64 - CONVERT */
+#define M68K_Gadget_UserData 40   /* native @72 - CONVERT */
+
+/* struct ExtGadget: 56 bytes on m68k (ExtGadget), 96 native (ExtGadget) */
+#define M68K_ExtGadget_SIZEOF 56
+#define M68K_ExtGadget_NextGadget 0
+#define M68K_ExtGadget_LeftEdge 4   /* native @8 - CONVERT */
+#define M68K_ExtGadget_TopEdge 6   /* native @10 - CONVERT */
+#define M68K_ExtGadget_Width 8   /* native @12 - CONVERT */
+#define M68K_ExtGadget_Height 10   /* native @14 - CONVERT */
+#define M68K_ExtGadget_Flags 12   /* native @16 - CONVERT */
+#define M68K_ExtGadget_Activation 14   /* native @18 - CONVERT */
+#define M68K_ExtGadget_GadgetType 16   /* native @20 - CONVERT */
+#define M68K_ExtGadget_GadgetRender 18   /* native @24 - CONVERT */
+#define M68K_ExtGadget_SelectRender 22   /* native @32 - CONVERT */
+#define M68K_ExtGadget_GadgetText 26   /* native @40 - CONVERT */
+#define M68K_ExtGadget_MutualExclude 30   /* native @48 - CONVERT */
+#define M68K_ExtGadget_SpecialInfo 34   /* native @56 - CONVERT */
+#define M68K_ExtGadget_GadgetID 38   /* native @64 - CONVERT */
+#define M68K_ExtGadget_UserData 40   /* native @72 - CONVERT */
+#define M68K_ExtGadget_MoreFlags 44   /* native @80 - CONVERT */
+#define M68K_ExtGadget_BoundsLeftEdge 48   /* native @84 - CONVERT */
+#define M68K_ExtGadget_BoundsTopEdge 50   /* native @86 - CONVERT */
+#define M68K_ExtGadget_BoundsWidth 52   /* native @88 - CONVERT */
+#define M68K_ExtGadget_BoundsHeight 54   /* native @90 - CONVERT */
+
 /* The conversion tables. Each row is one field: where it lives on
  * each side, how wide it is on each side, and what may be done to it.
  * A generic walker (emu68k_marshal.c) is all that is needed to convert
@@ -1355,6 +1396,51 @@ static const struct EmuField emu_fields_Requester[] = {
  *   ImageBMap (struct BitMap *)
  *   RWindow (struct Window *)
  *   ReqImage (struct Image *)
+ */
+
+static const struct EmuField emu_fields_Gadget[] = {
+    {    4,    8,    1, 2, 2, EMU_F_SCALAR },   /* LeftEdge                 WORD */
+    {    6,   10,    1, 2, 2, EMU_F_SCALAR },   /* TopEdge                  WORD */
+    {    8,   12,    1, 2, 2, EMU_F_SCALAR },   /* Width                    WORD */
+    {   10,   14,    1, 2, 2, EMU_F_SCALAR },   /* Height                   WORD */
+    {   12,   16,    1, 2, 2, EMU_F_SCALAR },   /* Flags                    UWORD */
+    {   14,   18,    1, 2, 2, EMU_F_SCALAR },   /* Activation               UWORD */
+    {   16,   20,    1, 2, 2, EMU_F_SCALAR },   /* GadgetType               UWORD */
+    {   38,   64,    1, 2, 2, EMU_F_SCALAR },   /* GadgetID                 UWORD */
+};
+/* NOT converted, and deliberately not guessed at:
+ *   NextGadget (struct Gadget *)
+ *   GadgetRender (APTR)
+ *   SelectRender (APTR)
+ *   GadgetText (struct IntuiText *)
+ *   MutualExclude (IPTR)
+ *   SpecialInfo (APTR)
+ *   UserData (APTR)
+ */
+
+static const struct EmuField emu_fields_ExtGadget[] = {
+    {    4,    8,    1, 2, 2, EMU_F_SCALAR },   /* LeftEdge                 WORD */
+    {    6,   10,    1, 2, 2, EMU_F_SCALAR },   /* TopEdge                  WORD */
+    {    8,   12,    1, 2, 2, EMU_F_SCALAR },   /* Width                    WORD */
+    {   10,   14,    1, 2, 2, EMU_F_SCALAR },   /* Height                   WORD */
+    {   12,   16,    1, 2, 2, EMU_F_SCALAR },   /* Flags                    UWORD */
+    {   14,   18,    1, 2, 2, EMU_F_SCALAR },   /* Activation               UWORD */
+    {   16,   20,    1, 2, 2, EMU_F_SCALAR },   /* GadgetType               UWORD */
+    {   30,   48,    1, 4, 8, EMU_F_SCALAR },   /* MutualExclude            IPTR */
+    {   38,   64,    1, 2, 2, EMU_F_SCALAR },   /* GadgetID                 UWORD */
+    {   40,   72,    1, 4, 8, EMU_F_SCALAR },   /* UserData                 APTR */
+    {   44,   80,    1, 4, 4, EMU_F_SCALAR },   /* MoreFlags                ULONG */
+    {   48,   84,    1, 2, 2, EMU_F_SCALAR },   /* BoundsLeftEdge           WORD */
+    {   50,   86,    1, 2, 2, EMU_F_SCALAR },   /* BoundsTopEdge            WORD */
+    {   52,   88,    1, 2, 2, EMU_F_SCALAR },   /* BoundsWidth              WORD */
+    {   54,   90,    1, 2, 2, EMU_F_SCALAR },   /* BoundsHeight             WORD */
+};
+/* NOT converted, and deliberately not guessed at:
+ *   NextGadget (struct ExtGadget *)
+ *   GadgetRender (APTR)
+ *   SelectRender (APTR)
+ *   GadgetText (struct IntuiText *)
+ *   SpecialInfo (APTR)
  */
 
 #endif /* EMU68K_LAYOUTS_H */

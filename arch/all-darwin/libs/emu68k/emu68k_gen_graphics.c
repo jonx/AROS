@@ -114,6 +114,12 @@ int emu68k_gen_graphics(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
     case 12:  /* OpenFont(const struct TextAttr * textAttr) -> struct TextFont *  [-72] */
     {
         struct TextAttr emu_struct_0;
+        if (!r->a[0])
+        {
+            if (err && errlen)
+                snprintf(err, errlen, "capability gap: OpenFont.textAttr requires a structure");
+            return 1;
+        }
         if (emu68k_require_guest_range(r->a[0], M68K_TextAttr_SIZEOF,
                                          "OpenFont.textAttr", err, errlen) < 0)
             return 1;
@@ -220,6 +226,12 @@ int emu68k_gen_graphics(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
     case 33:  /* InitRastPort(struct RastPort * rp) -> void  [-198] */
     {
         struct RastPort emu_struct_0;
+        if (!r->a[1])
+        {
+            if (err && errlen)
+                snprintf(err, errlen, "capability gap: InitRastPort.rp requires a structure");
+            return 1;
+        }
         if (emu68k_require_guest_range(r->a[1], M68K_RastPort_SIZEOF,
                                          "InitRastPort.rp", err, errlen) < 0)
             return 1;
@@ -404,6 +416,12 @@ int emu68k_gen_graphics(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
     case 65:  /* InitBitMap(struct BitMap * bm, BYTE depth, UWORD width, UWORD height) -> void  [-390] */
     {
         struct BitMap emu_struct_0;
+        if (!r->a[0])
+        {
+            if (err && errlen)
+                snprintf(err, errlen, "capability gap: InitBitMap.bm requires a structure");
+            return 1;
+        }
         if (emu68k_require_guest_range(r->a[0], M68K_BitMap_SIZEOF,
                                          "InitBitMap.bm", err, errlen) < 0)
             return 1;
@@ -449,6 +467,31 @@ int emu68k_gen_graphics(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
     case 77:  /* DisownBlitter(void) -> void  [-462] */
         DisownBlitter();
         return 0;
+    case 79:  /* AskFont(struct RastPort * rp, struct TextAttr * textAttr) -> void  [-474] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[1], EMU_OBJ_RastPort, 1,
+                                        "RastPort", &emu_object_0, err, errlen) < 0)
+            return 1;
+        struct TextAttr emu_struct_1;
+        if (!r->a[0])
+        {
+            if (err && errlen)
+                snprintf(err, errlen, "capability gap: AskFont.textAttr requires a structure");
+            return 1;
+        }
+        if (emu68k_require_guest_range(r->a[0], M68K_TextAttr_SIZEOF,
+                                         "AskFont.textAttr", err, errlen) < 0)
+            return 1;
+        memset(&emu_struct_1, 0, sizeof(emu_struct_1));
+        emu68k_from_guest_sized(guest0, r->a[0], &emu_struct_1,
+                             emu_fields_TextAttr, EMU_NFIELDS(emu_fields_TextAttr), M68K_TextAttr_SIZEOF);
+            AskFont((struct RastPort *)emu_object_0,
+              (struct TextAttr *)&emu_struct_1);
+        emu68k_to_guest_sized(guest0, r->a[0], &emu_struct_1,
+                           emu_fields_TextAttr, EMU_NFIELDS(emu_fields_TextAttr), M68K_TextAttr_SIZEOF);
+            return 0;
+    }
     case 80:  /* AddFont(struct TextFont * textFont) -> void  [-480] */
     {
         APTR emu_object_0;
@@ -474,6 +517,12 @@ int emu68k_gen_graphics(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
                                         "Region", &emu_object_0, err, errlen) < 0)
             return 1;
         struct Rectangle emu_struct_1;
+        if (!r->a[1])
+        {
+            if (err && errlen)
+                snprintf(err, errlen, "capability gap: AndRectRegion.Rect requires a structure");
+            return 1;
+        }
         if (emu68k_require_guest_range(r->a[1], M68K_Rectangle_SIZEOF,
                                          "AndRectRegion.Rect", err, errlen) < 0)
             return 1;
@@ -491,6 +540,12 @@ int emu68k_gen_graphics(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
                                         "Region", &emu_object_0, err, errlen) < 0)
             return 1;
         struct Rectangle emu_struct_1;
+        if (!r->a[1])
+        {
+            if (err && errlen)
+                snprintf(err, errlen, "capability gap: OrRectRegion.Rect requires a structure");
+            return 1;
+        }
         if (emu68k_require_guest_range(r->a[1], M68K_Rectangle_SIZEOF,
                                          "OrRectRegion.Rect", err, errlen) < 0)
             return 1;
@@ -517,6 +572,12 @@ int emu68k_gen_graphics(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
                                         "Region", &emu_object_0, err, errlen) < 0)
             return 1;
         struct Rectangle emu_struct_1;
+        if (!r->a[1])
+        {
+            if (err && errlen)
+                snprintf(err, errlen, "capability gap: ClearRectRegion.Rect requires a structure");
+            return 1;
+        }
         if (emu68k_require_guest_range(r->a[1], M68K_Rectangle_SIZEOF,
                                          "ClearRectRegion.Rect", err, errlen) < 0)
             return 1;
@@ -555,6 +616,27 @@ int emu68k_gen_graphics(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
             FreeVPortCopLists((struct ViewPort *)emu_object_0);
             return 0;
     }
+    case 92:  /* ClipBlit(struct RastPort * srcRP, WORD xSrc, WORD ySrc, struct RastPort * destRP, WORD xDest, WORD yDest, WORD xSize, WORD ySize, UBYTE minterm) -> void  [-552] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_RastPort, 1,
+                                        "RastPort", &emu_object_0, err, errlen) < 0)
+            return 1;
+        APTR emu_object_3;
+        if (emu68k_object_from_guest(guest0, r->a[1], EMU_OBJ_RastPort, 1,
+                                        "RastPort", &emu_object_3, err, errlen) < 0)
+            return 1;
+            ClipBlit((struct RastPort *)emu_object_0,
+              (WORD)r->d[0],
+              (WORD)r->d[1],
+              (struct RastPort *)emu_object_3,
+              (WORD)r->d[2],
+              (WORD)r->d[3],
+              (WORD)r->d[4],
+              (WORD)r->d[5],
+              (UBYTE)r->d[6]);
+            return 0;
+    }
     case 93:  /* XorRectRegion(struct Region * Reg, struct Rectangle * Rect) -> BOOL  [-558] */
     {
         APTR emu_object_0;
@@ -562,6 +644,12 @@ int emu68k_gen_graphics(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
                                         "Region", &emu_object_0, err, errlen) < 0)
             return 1;
         struct Rectangle emu_struct_1;
+        if (!r->a[1])
+        {
+            if (err && errlen)
+                snprintf(err, errlen, "capability gap: XorRectRegion.Rect requires a structure");
+            return 1;
+        }
         if (emu68k_require_guest_range(r->a[1], M68K_Rectangle_SIZEOF,
                                          "XorRectRegion.Rect", err, errlen) < 0)
             return 1;
@@ -598,6 +686,40 @@ int emu68k_gen_graphics(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
                                         "ViewPort", &emu_object_0, err, errlen) < 0)
             return 1;
             ScrollVPort((struct ViewPort *)emu_object_0);
+            return 0;
+    }
+    case 101:  /* BltBitMapRastPort(struct BitMap * srcBitMap, WORD xSrc, WORD ySrc, struct RastPort * destRP, WORD xDest, WORD yDest, WORD xSize, WORD ySize, ULONG minterm) -> void  [-606] */
+    {
+        struct BitMap emu_struct_0;
+        struct BitMap *emu_structp_0 = NULL;
+        if (r->a[0])
+        {
+            emu_structp_0 = &emu_struct_0;
+            if (emu68k_require_guest_range(r->a[0], M68K_BitMap_SIZEOF,
+                                             "BltBitMapRastPort.srcBitMap", err, errlen) < 0)
+                return 1;
+            memset(&emu_struct_0, 0, sizeof(emu_struct_0));
+        emu68k_from_guest_sized(guest0, r->a[0], &emu_struct_0,
+                             emu_fields_BitMap, EMU_NFIELDS(emu_fields_BitMap), M68K_BitMap_SIZEOF);
+        }
+        APTR emu_object_3;
+        if (emu68k_object_from_guest(guest0, r->a[1], EMU_OBJ_RastPort, 1,
+                                        "RastPort", &emu_object_3, err, errlen) < 0)
+            return 1;
+            BltBitMapRastPort((struct BitMap *)emu_structp_0,
+              (WORD)r->d[0],
+              (WORD)r->d[1],
+              (struct RastPort *)emu_object_3,
+              (WORD)r->d[2],
+              (WORD)r->d[3],
+              (WORD)r->d[4],
+              (WORD)r->d[5],
+              (ULONG)r->d[6]);
+        if (emu_structp_0)
+        {
+            emu68k_to_guest_sized(guest0, r->a[0], &emu_struct_0,
+                               emu_fields_BitMap, EMU_NFIELDS(emu_fields_BitMap), M68K_BitMap_SIZEOF);
+        }
             return 0;
     }
     case 102:  /* OrRegionRegion(struct Region * R1, struct Region * R2) -> BOOL  [-612] */
@@ -936,6 +1058,28 @@ int emu68k_gen_graphics(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
               (ULONG)r->d[2]);
             return 0;
     }
+    case 154:  /* FreeBitMap(struct BitMap * bm) -> void  [-924] */
+    {
+        struct BitMap emu_struct_0;
+        struct BitMap *emu_structp_0 = NULL;
+        if (r->a[0])
+        {
+            emu_structp_0 = &emu_struct_0;
+            if (emu68k_require_guest_range(r->a[0], M68K_BitMap_SIZEOF,
+                                             "FreeBitMap.bm", err, errlen) < 0)
+                return 1;
+            memset(&emu_struct_0, 0, sizeof(emu_struct_0));
+        emu68k_from_guest_sized(guest0, r->a[0], &emu_struct_0,
+                             emu_fields_BitMap, EMU_NFIELDS(emu_fields_BitMap), M68K_BitMap_SIZEOF);
+        }
+            FreeBitMap((struct BitMap *)emu_structp_0);
+        if (emu_structp_0)
+        {
+            emu68k_to_guest_sized(guest0, r->a[0], &emu_struct_0,
+                               emu_fields_BitMap, EMU_NFIELDS(emu_fields_BitMap), M68K_BitMap_SIZEOF);
+        }
+            return 0;
+    }
     case 156:  /* CoerceMode(struct ViewPort * RealViewPort, ULONG MonitorID, ULONG Flags) -> ULONG  [-936] */
     {
         APTR emu_object_0;
@@ -969,6 +1113,27 @@ int emu68k_gen_graphics(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
               (ULONG)r->d[2],
               (ULONG)r->d[3],
               (ULONG)r->d[4]);
+            return 0;
+    }
+    case 160:  /* GetBitMapAttr(struct BitMap * bitmap, ULONG attribute) -> IPTR  [-960] */
+    {
+        struct BitMap emu_struct_0;
+        if (!r->a[0])
+        {
+            if (err && errlen)
+                snprintf(err, errlen, "capability gap: GetBitMapAttr.bitmap requires a structure");
+            return 1;
+        }
+        if (emu68k_require_guest_range(r->a[0], M68K_BitMap_SIZEOF,
+                                         "GetBitMapAttr.bitmap", err, errlen) < 0)
+            return 1;
+        memset(&emu_struct_0, 0, sizeof(emu_struct_0));
+        emu68k_from_guest_sized(guest0, r->a[0], &emu_struct_0,
+                             emu_fields_BitMap, EMU_NFIELDS(emu_fields_BitMap), M68K_BitMap_SIZEOF);
+            r->d[0] = (ULONG)GetBitMapAttr((struct BitMap *)&emu_struct_0,
+              (ULONG)r->d[1]);   /* narrowed: an integer, never an address */
+        emu68k_to_guest_sized(guest0, r->a[0], &emu_struct_0,
+                           emu_fields_BitMap, EMU_NFIELDS(emu_fields_BitMap), M68K_BitMap_SIZEOF);
             return 0;
     }
     case 163:  /* SetOutlinePen(struct RastPort * rp, ULONG pen) -> ULONG  [-978] */
@@ -1118,6 +1283,35 @@ int emu68k_gen_graphics(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
               (WORD)r->d[1]);
             return 0;
     }
+    case 185:  /* ScrollRegion(struct Region * region, struct Rectangle * rect, WORD dx, WORD dy) -> BOOL  [-1110] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_Region, 1,
+                                        "Region", &emu_object_0, err, errlen) < 0)
+            return 1;
+        struct Rectangle emu_struct_1;
+        struct Rectangle *emu_structp_1 = NULL;
+        if (r->a[1])
+        {
+            emu_structp_1 = &emu_struct_1;
+            if (emu68k_require_guest_range(r->a[1], M68K_Rectangle_SIZEOF,
+                                             "ScrollRegion.rect", err, errlen) < 0)
+                return 1;
+            memset(&emu_struct_1, 0, sizeof(emu_struct_1));
+        emu68k_from_guest_sized(guest0, r->a[1], &emu_struct_1,
+                             emu_fields_Rectangle, EMU_NFIELDS(emu_fields_Rectangle), M68K_Rectangle_SIZEOF);
+        }
+            r->d[0] = (ULONG)ScrollRegion((struct Region *)emu_object_0,
+              (struct Rectangle *)emu_structp_1,
+              (WORD)r->d[0],
+              (WORD)r->d[1]);
+        if (emu_structp_1)
+        {
+            emu68k_to_guest_sized(guest0, r->a[1], &emu_struct_1,
+                               emu_fields_Rectangle, EMU_NFIELDS(emu_fields_Rectangle), M68K_Rectangle_SIZEOF);
+        }
+            return 0;
+    }
     case 198:  /* FillRectPenDrMd(struct RastPort * rp, WORD x1, WORD y1, WORD x2, WORD y2, ULONG pix, IPTR drmd, BOOL do_update) -> LONG  [-1188] */
     {
         APTR emu_object_0;
@@ -1132,6 +1326,32 @@ int emu68k_gen_graphics(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
               (ULONG)r->d[4],
               (IPTR)(LONG)r->d[5],
               (BOOL)r->d[6]);
+            return 0;
+    }
+    case 201:  /* UpdateBitMap(struct BitMap * bitmap, UWORD x, UWORD y, UWORD width, UWORD height) -> void  [-1206] */
+    {
+        struct BitMap emu_struct_0;
+        struct BitMap *emu_structp_0 = NULL;
+        if (r->a[0])
+        {
+            emu_structp_0 = &emu_struct_0;
+            if (emu68k_require_guest_range(r->a[0], M68K_BitMap_SIZEOF,
+                                             "UpdateBitMap.bitmap", err, errlen) < 0)
+                return 1;
+            memset(&emu_struct_0, 0, sizeof(emu_struct_0));
+        emu68k_from_guest_sized(guest0, r->a[0], &emu_struct_0,
+                             emu_fields_BitMap, EMU_NFIELDS(emu_fields_BitMap), M68K_BitMap_SIZEOF);
+        }
+            UpdateBitMap((struct BitMap *)emu_structp_0,
+              (UWORD)r->d[0],
+              (UWORD)r->d[1],
+              (UWORD)r->d[2],
+              (UWORD)r->d[3]);
+        if (emu_structp_0)
+        {
+            emu68k_to_guest_sized(guest0, r->a[0], &emu_struct_0,
+                               emu_fields_BitMap, EMU_NFIELDS(emu_fields_BitMap), M68K_BitMap_SIZEOF);
+        }
             return 0;
     }
     }

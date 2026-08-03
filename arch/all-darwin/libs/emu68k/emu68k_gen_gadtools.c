@@ -215,6 +215,16 @@ static void emu_object_cleanup_VisualInfo(APTR emu_base, APTR emu_object)
     FreeVisualInfo((APTR)emu_object);
 }
 
+/* A Gadget the program allocated itself: mirrored natively under its
+ * guest address, converted in and back out around every call. */
+static const struct EmuMirror emu_mirror_Gadget =
+{
+    emu_fields_ExtGadget, EMU_NFIELDS(emu_fields_ExtGadget),
+    sizeof(struct ExtGadget), M68K_ExtGadget_SIZEOF,
+    M68K_Gadget_SIZEOF, M68K_ExtGadget_Flags, 0x8000,
+    offsetof(struct ExtGadget, NextGadget), M68K_ExtGadget_NextGadget, 4096
+};
+
 int emu68k_gen_gadtools(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
                   char *err, ULONG errlen)
 {
@@ -226,10 +236,16 @@ int emu68k_gen_gadtools(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
     case 5:  /* CreateGadgetA(ULONG kind, struct Gadget * previous, struct NewGadget * ng, struct TagItem * taglist) -> struct Gadget *  [-30] */
     {
         APTR emu_object_1;
-        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_Gadget, 0,
-                                        "Gadget", &emu_object_1, err, errlen) < 0)
+        if (emu68k_object_adopt_guest(guest0, r->a[0], EMU_OBJ_Gadget,
+                        "Gadget", &emu_mirror_Gadget, &emu_object_1, err, errlen) < 0)
             return 1;
         struct NewGadget emu_struct_2;
+        if (!r->a[1])
+        {
+            if (err && errlen)
+                snprintf(err, errlen, "capability gap: CreateGadgetA.ng requires a structure");
+            return 1;
+        }
         if (emu68k_require_guest_range(r->a[1], M68K_NewGadget_SIZEOF,
                                          "CreateGadgetA.ng", err, errlen) < 0)
             return 1;
@@ -288,6 +304,9 @@ int emu68k_gen_gadtools(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
               (struct Gadget *)emu_object_1,
               (struct NewGadget *)&emu_struct_2,
               (struct TagItem *)(r->a[2] ? emu_tags_3 : NULL));
+        if (emu68k_object_sync_guest(guest0, r->a[0], EMU_OBJ_Gadget,
+                                     "Gadget", &emu_mirror_Gadget, err, errlen) < 0)
+            return 1;
         if (emu68k_object_to_guest(guest0, emu_result, EMU_OBJ_Gadget,
                                       base, NULL,
                                       "Gadget", &r->d[0], err, errlen) < 0)
@@ -297,8 +316,8 @@ int emu68k_gen_gadtools(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
     case 6:  /* FreeGadgets(struct Gadget * glist) -> void  [-36] */
     {
         APTR emu_object_0;
-        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_Gadget, 1,
-                                        "Gadget", &emu_object_0, err, errlen) < 0)
+        if (emu68k_object_adopt_guest(guest0, r->a[0], EMU_OBJ_Gadget,
+                        "Gadget", &emu_mirror_Gadget, &emu_object_0, err, errlen) < 0)
             return 1;
         ULONG emu_family_count_0 = 0;
         struct Gadget * emu_family_scan_0 = (struct Gadget *)emu_object_0;
@@ -323,14 +342,17 @@ int emu68k_gen_gadtools(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
             emu_family_member_0 = emu_family_next_0;
         }
             FreeGadgets((struct Gadget *)emu_object_0);
+        if (emu68k_object_sync_guest(guest0, r->a[0], EMU_OBJ_Gadget,
+                                     "Gadget", &emu_mirror_Gadget, err, errlen) < 0)
+            return 1;
         emu68k_object_consume(guest0, r->a[0], EMU_OBJ_Gadget);
             return 0;
     }
     case 7:  /* GT_SetGadgetAttrsA(struct Gadget * gad, struct Window * win, struct Requester * req, struct TagItem * tagList) -> void  [-42] */
     {
         APTR emu_object_0;
-        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_Gadget, 1,
-                                        "Gadget", &emu_object_0, err, errlen) < 0)
+        if (emu68k_object_adopt_guest(guest0, r->a[0], EMU_OBJ_Gadget,
+                        "Gadget", &emu_mirror_Gadget, &emu_object_0, err, errlen) < 0)
             return 1;
         APTR emu_object_1;
         if (emu68k_object_from_guest(guest0, r->a[1], EMU_OBJ_Window, 1,
@@ -349,6 +371,9 @@ int emu68k_gen_gadtools(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
               (struct Window *)emu_object_1,
               (struct Requester *)NULL,
               (struct TagItem *)(r->a[3] ? emu_tags_3 : NULL));
+        if (emu68k_object_sync_guest(guest0, r->a[0], EMU_OBJ_Gadget,
+                                     "Gadget", &emu_mirror_Gadget, err, errlen) < 0)
+            return 1;
             return 0;
     }
     case 8:  /* CreateMenusA(struct NewMenu * newmenu, struct TagItem * tagList) -> struct Menu *  [-48] */
@@ -659,8 +684,8 @@ int emu68k_gen_gadtools(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
     case 29:  /* GT_GetGadgetAttrsA(struct Gadget * gad, struct Window * win, struct Requester * req, struct TagItem * taglist) -> LONG  [-174] */
     {
         APTR emu_object_0;
-        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_Gadget, 1,
-                                        "Gadget", &emu_object_0, err, errlen) < 0)
+        if (emu68k_object_adopt_guest(guest0, r->a[0], EMU_OBJ_Gadget,
+                        "Gadget", &emu_mirror_Gadget, &emu_object_0, err, errlen) < 0)
             return 1;
         APTR emu_object_1;
         if (emu68k_object_from_guest(guest0, r->a[1], EMU_OBJ_Window, 1,
@@ -687,6 +712,9 @@ int emu68k_gen_gadtools(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
         {
             return 1;
         }
+        if (emu68k_object_sync_guest(guest0, r->a[0], EMU_OBJ_Gadget,
+                                     "Gadget", &emu_mirror_Gadget, err, errlen) < 0)
+            return 1;
             return 0;
     }
     }

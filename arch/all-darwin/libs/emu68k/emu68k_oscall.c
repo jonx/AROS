@@ -165,10 +165,19 @@ void emu68k_scalar_to_guest(APTR guest0, ULONG addr, UBYTE width, UQUAD value)
  * the case we are serving yet, and it fails cleanly rather than corrupting. */
 #define EMU68K_MAX_HANDLES ((int)EMU68K_GUEST_FH_MAX)
 #define EMU68K_MAX_SCANS   4
-#define EMU68K_MAX_OBJECTS 64
+/* A classic GUI hands over a whole gadget family at once and takes a RastPort
+ * per render, so a real program needs far more live objects than a test does. */
+#define EMU68K_MAX_OBJECTS 1024
 #define EMU68K_MAX_BITMAPS 64
 #define EMU68K_MAX_RUNS    4
 #define EMU68K_OBJECT_TOKEN_BASE 0xE6800000UL
+
+/* A slot holds either an object the BRIDGE issued (a native object the guest
+ * knows by token) or a MIRROR of a structure the PROGRAM allocated. The two
+ * cannot be confused: only a mirror's token is a readable guest address, so
+ * anything that walks or rewrites guest memory has to know which it has. */
+#define EMU68K_OBJ_GUEST_OWNED  0x0001   /* a mirror of the program's memory  */
+#define EMU68K_OBJ_ADOPT_FRESH  0x0002   /* created by the adoption in flight */
 
 struct Emu68kObject
 {
@@ -178,6 +187,7 @@ struct Emu68kObject
     ULONG token;
     ULONG refs;
     UWORD type;
+    UWORD flags;
 };
 
 /* ---- PER-RUN STATE --------------------------------------------------------
@@ -484,6 +494,315 @@ static ULONG object_new_token(struct Emu68kRunState *rs)
         if (!rs->next_object) rs->next_object = 1;
         token = EMU68K_OBJECT_TOKEN_BASE | rs->next_object;
         if (!object_by_token(rs, token)) return token;
+    }
+    return 0;
+}
+
+/* ---- GUEST-OWNED OBJECTS ---------------------------------------------------
+ *
+ * Classic Intuition code allocates its own Gadget list and hands it to
+ * AddGList; the library then keeps, renders and hit-tests those structures for
+ * as long as the window lives. Nothing issued a token, so the object table had
+ * nothing to resolve and the crossing failed closed - correctly, but the
+ * program is doing something completely ordinary.
+ *
+ * The guest structure cannot be passed through: it is big-endian with 32-bit
+ * pointers and a different layout. So the run ADOPTS it - one native mirror per
+ * guest structure, registered under the guest address so identity survives,
+ * converted in before every call and back out after it.
+ *
+ * Rules the mirrors obey, each of which is a way this can be wrong:
+ *
+ *  - The whole structure is validated on EVERY crossing, not once. A program
+ *    that sets GadgetRender after the mirror exists must be refused, not
+ *    silently rendered blank.
+ *  - A linked family is adopted whole and walked with a bound; exceeding it
+ *    means truncation or a cycle, and either is a named gap, never a quiet
+ *    short list.
+ *  - Adoption is all or nothing. A family that fails on its third node leaves
+ *    no mirrors behind for the first two.
+ *  - Copyback walks the NATIVE chain, because the library relinks it. The
+ *    guest link is written as the guest address of the next mirror, so the
+ *    program reads its own addresses back, never a native pointer.
+ *  - A chain may not mix mirrors with bridge-issued objects: their tokens mean
+ *    different things and only one of the two is guest memory.
+ */
+static struct Emu68kObject *object_slot(struct Emu68kRunState *rs)
+{
+    int i;
+    if (!rs) return NULL;
+    for (i = 0; i < EMU68K_MAX_OBJECTS; i++)
+        if (!rs->objects[i].native) return &rs->objects[i];
+    return NULL;
+}
+
+static struct Emu68kObject *object_by_native(struct Emu68kRunState *rs,
+                                             APTR native)
+{
+    int i;
+    if (!rs || !native) return NULL;
+    for (i = 0; i < EMU68K_MAX_OBJECTS; i++)
+        if (rs->objects[i].native == native) return &rs->objects[i];
+    return NULL;
+}
+
+static void emu68k_mirror_cleanup(APTR base, APTR object)
+{
+    (void)base;
+    FreeVec(object);
+}
+
+/* How much of the guest structure this crossing covers. A variant flag (a
+ * Gadget is a shorter structure unless GFLG_EXTENDED is set) decides between
+ * the base layout and the extended one; converting the long form over a short
+ * allocation would read past the program's memory. */
+static ULONG mirror_guest_size(APTR guest0, ULONG addr, const struct EmuMirror *m)
+{
+    ULONG flags;
+    if (m->flag_off < 0 || !m->base_size) return m->m68k_size;
+    flags = (ULONG)emu68k_scalar_from_guest(guest0, addr + (ULONG)m->flag_off, 2);
+    return (flags & m->flag_mask) ? m->m68k_size : m->base_size;
+}
+
+/* Every byte of the guest structure this crossing does NOT carry must still be
+ * zero. A render Image, a label, a SpecialInfo is a guest pointer with no
+ * native meaning; dropping it quietly would draw nothing and blame nobody. */
+static LONG mirror_check_cover(APTR guest0, ULONG addr, const struct EmuMirror *m,
+                               ULONG span, const char *type_name,
+                               char *err, ULONG errlen)
+{
+    ULONG b;
+    for (b = 0; b < span; b++)
+    {
+        int covered = (m->guest_link >= 0 && (LONG)b >= m->guest_link &&
+                       (LONG)b < m->guest_link + 4);
+        int fi;
+        for (fi = 0; !covered && fi < m->field_count; fi++)
+        {
+            ULONG lo = m->fields[fi].g_off;
+            ULONG hi = lo + (ULONG)m->fields[fi].g_w *
+                            (m->fields[fi].count ? m->fields[fi].count : 1);
+            covered = (b >= lo && b < hi);
+        }
+        if (covered || !((const UBYTE *)guest0)[addr + b]) continue;
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: %s at %08lx sets byte %lu, "
+                     "which this mirror cannot carry", type_name,
+                     (unsigned long)addr, (unsigned long)b);
+        return -1;
+    }
+    return 0;
+}
+
+static void mirror_rollback(struct Emu68kRunState *rs)
+{
+    int i;
+    for (i = 0; i < EMU68K_MAX_OBJECTS; i++)
+        if (rs->objects[i].flags & EMU68K_OBJ_ADOPT_FRESH)
+        {
+            FreeVec(rs->objects[i].native);
+            memset(&rs->objects[i], 0, sizeof rs->objects[i]);
+        }
+}
+
+static void mirror_commit(struct Emu68kRunState *rs)
+{
+    int i;
+    for (i = 0; i < EMU68K_MAX_OBJECTS; i++)
+        rs->objects[i].flags &= (UWORD)~EMU68K_OBJ_ADOPT_FRESH;
+}
+
+LONG emu68k_object_adopt_guest(APTR guest0, ULONG addr, UWORD type,
+                               const char *type_name,
+                               const struct EmuMirror *m,
+                               APTR *native, char *err, ULONG errlen)
+{
+    struct Emu68kRunState *rs = run_state(guest0);
+    APTR head = NULL, prev = NULL;
+    ULONG walk, count, needed = 0;
+
+    if (native) *native = NULL;
+    if (!addr) return 0;
+    if (!rs)
+    {
+        if (err && errlen)
+            snprintf(err, errlen, "no per-run state to adopt a %s", type_name);
+        return -1;
+    }
+
+    /* Pass one validates the whole family and creates nothing, so a failure
+     * anywhere leaves the table exactly as it was. */
+    for (walk = addr, count = 0; walk; count++)
+    {
+        struct Emu68kObject *o = object_by_token(rs, walk);
+        ULONG span;
+
+        if (count >= m->limit)
+        {
+            if (err && errlen)
+                snprintf(err, errlen, "capability gap: the %s family at %08lx "
+                         "exceeds %lu members or contains a cycle", type_name,
+                         (unsigned long)addr, (unsigned long)m->limit);
+            return -1;
+        }
+        if (o && !(o->flags & EMU68K_OBJ_GUEST_OWNED))
+        {
+            /* At the head this is not adoption at all: the program is passing
+             * back an object the bridge issued, which resolves normally. Deeper
+             * in the chain it is a family that mixes the two, and their tokens
+             * do not mean the same thing - only a mirror's is guest memory. */
+            if (count == 0 && o->type == type)
+            {
+                if (native) *native = o->native;
+                return 0;
+            }
+            if (err && errlen)
+                snprintf(err, errlen, "capability gap: the %s family at %08lx "
+                         "reaches %08lx, an object this bridge issued",
+                         type_name, (unsigned long)addr, (unsigned long)walk);
+            return -1;
+        }
+        if (o && o->type != type)
+        {
+            if (err && errlen)
+                snprintf(err, errlen, "capability gap: %08lx is already a "
+                         "different object than %s", (unsigned long)walk,
+                         type_name);
+            return -1;
+        }
+        if (emu68k_require_guest_range(walk, m->m68k_size, type_name,
+                                       NULL, 0) < 0)
+        {
+            /* Not a live token and not guest memory either. Almost always a
+             * token this run has already released, so say that rather than
+             * describing the program's memory it never was. */
+            if (err && errlen)
+                snprintf(err, errlen, "capability gap: stale or unknown %s "
+                         "object token %08lx", type_name, (unsigned long)walk);
+            return -1;
+        }
+        span = mirror_guest_size(guest0, walk, m);
+        if (mirror_check_cover(guest0, walk, m, span, type_name, err, errlen) < 0)
+            return -1;
+        if (!o) needed++;
+        if (m->guest_link < 0) { count++; break; }
+        walk = gr32(guest0, walk + m->guest_link);
+    }
+
+    if (needed)
+    {
+        ULONG free_slots = 0;
+        int i;
+        for (i = 0; i < EMU68K_MAX_OBJECTS; i++)
+            if (!rs->objects[i].native) free_slots++;
+        if (free_slots < needed)
+        {
+            if (err && errlen)
+                snprintf(err, errlen, "more live objects than this bridge "
+                         "keeps: adopting this %s family needs %lu more",
+                         type_name, (unsigned long)needed);
+            return -1;
+        }
+    }
+
+    /* Pass two creates and converts. Only allocation can still fail, and a
+     * failure rolls back every mirror this call made. */
+    for (walk = addr, count = 0; walk && count < m->limit; count++)
+    {
+        struct Emu68kObject *o = object_by_token(rs, walk);
+        APTR mirror;
+
+        if (o)
+            mirror = o->native;
+        else
+        {
+            mirror = AllocVec(m->native_size, MEMF_CLEAR);
+            if (!mirror)
+            {
+                mirror_rollback(rs);
+                if (err && errlen)
+                    snprintf(err, errlen, "out of memory mirroring a %s",
+                             type_name);
+                return -1;
+            }
+            o = object_slot(rs);
+            o->native  = mirror;
+            o->base    = NULL;
+            o->cleanup = emu68k_mirror_cleanup;
+            o->token   = walk;
+            o->refs    = 1;
+            o->type    = type;
+            o->flags   = EMU68K_OBJ_GUEST_OWNED | EMU68K_OBJ_ADOPT_FRESH;
+        }
+
+        emu68k_from_guest_sized(guest0, walk, mirror, m->fields, m->field_count,
+                                mirror_guest_size(guest0, walk, m));
+        if (m->native_link >= 0)
+            *(APTR *)((UBYTE *)mirror + m->native_link) = NULL;
+        if (prev && m->native_link >= 0)
+            *(APTR *)((UBYTE *)prev + m->native_link) = mirror;
+        if (!head) head = mirror;
+        prev = mirror;
+
+        if (m->guest_link < 0) break;
+        walk = gr32(guest0, walk + m->guest_link);
+    }
+
+    mirror_commit(rs);
+    if (native) *native = head;
+    return 0;
+}
+
+/* Write the library's view back where the program can read it.
+ *
+ * The walk follows the NATIVE chain, not the guest one, because the library
+ * relinks it: AddGList splices the program's list into the window's, so the
+ * last node's successor is decided by the library, not by what the guest wrote.
+ * Each link is written back as the next mirror's guest address; a successor
+ * with no guest form is a gap worth naming rather than a zero that claims the
+ * list ended. */
+LONG emu68k_object_sync_guest(APTR guest0, ULONG addr, UWORD type,
+                              const char *type_name, const struct EmuMirror *m,
+                              char *err, ULONG errlen)
+{
+    struct Emu68kRunState *rs = run_state(guest0);
+    struct Emu68kObject *o;
+    APTR node;
+    ULONG count;
+
+    if (!rs || !addr) return 0;
+    o = object_by_token(rs, addr);
+    if (!o || o->type != type || !(o->flags & EMU68K_OBJ_GUEST_OWNED))
+        return 0;
+
+    for (node = o->native, count = 0; node && count < m->limit; count++)
+    {
+        struct Emu68kObject *self = object_by_native(rs, node);
+        APTR next = (m->native_link >= 0)
+                  ? *(APTR *)((UBYTE *)node + m->native_link) : NULL;
+        ULONG next_token = 0;
+
+        if (!self || !(self->flags & EMU68K_OBJ_GUEST_OWNED)) return 0;
+        if (next)
+        {
+            struct Emu68kObject *no = object_by_native(rs, next);
+            if (!no || !(no->flags & EMU68K_OBJ_GUEST_OWNED))
+            {
+                if (err && errlen)
+                    snprintf(err, errlen, "capability gap: the library linked "
+                             "%s %08lx to an object with no guest form",
+                             type_name, (unsigned long)self->token);
+                return -1;
+            }
+            next_token = no->token;
+        }
+        emu68k_to_guest_sized(guest0, self->token, node, m->fields,
+                              m->field_count,
+                              mirror_guest_size(guest0, self->token, m));
+        if (m->guest_link >= 0)
+            emu68k_scalar_to_guest(guest0, self->token + m->guest_link, 4,
+                                   next_token);
+        node = next;
     }
     return 0;
 }
@@ -912,14 +1231,23 @@ void Emu68k_OSCallEndRun(APTR guest0)
                 MatchEnd(rs->scans[j].nap);
                 FreeVec(rs->scans[j].nap);
             }
-        for (int j = 0; j < EMU68K_MAX_OBJECTS; j++)
-            if (rs->objects[j].native && rs->objects[j].cleanup)
+        /* Bridge-issued objects first, mirrors second. A native Window still
+         * points at the mirrors of the gadgets the program gave it, so closing
+         * it has to happen while those mirrors are still there. */
+        for (int pass = 0; pass < 2; pass++)
+            for (int j = 0; j < EMU68K_MAX_OBJECTS; j++)
+            {
+                BOOL mirror = (rs->objects[j].flags &
+                               EMU68K_OBJ_GUEST_OWNED) != 0;
+                if (mirror != (pass == 1)) continue;
+                if (!rs->objects[j].native || !rs->objects[j].cleanup) continue;
                 while (rs->objects[j].refs)
                 {
                     rs->objects[j].refs--;
                     rs->objects[j].cleanup(rs->objects[j].base,
                                            rs->objects[j].native);
                 }
+            }
         memset(rs, 0, sizeof *rs);
     }
 }

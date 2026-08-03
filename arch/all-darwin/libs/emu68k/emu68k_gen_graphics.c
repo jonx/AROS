@@ -11,10 +11,21 @@
 #include <string.h>
 #include <stdio.h>
 #include <graphics/displayinfo.h>
+#include <graphics/view.h>
 #include <graphics/modeid.h>
 
 #include "emu68k_gen.h"
 #include "emu68k_layouts.h"
+
+static const struct EmuTagDesc emu_tagdesc_import_graphics_ObtainBestPenA_tags[] =
+{
+    { OBP_FailIfBad, EMU_TAG_U32, "OBP_FailIfBad", NULL, 0, 0, 0, 0, 0 },
+    { OBP_Precision, EMU_TAG_U32, "OBP_Precision", NULL, 0, 0, 0, 0, 0 },
+};
+static const struct EmuTagDomain emu_tagdomain_import_graphics_ObtainBestPenA_tags =
+{
+    emu_tagdesc_import_graphics_ObtainBestPenA_tags, 2, "import.graphics.ObtainBestPenA.tags"
+};
 
 static const struct EmuTagDesc emu_tagdesc_graphics_best_mode[] =
 {
@@ -962,6 +973,22 @@ int emu68k_gen_graphics(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
             return 1;
             r->d[0] = (ULONG)AttachPalExtra((struct ColorMap *)emu_object_0,
               (struct ViewPort *)emu_object_1);
+            return 0;
+    }
+    case 140:  /* ObtainBestPenA(struct ColorMap * cm, ULONG r, ULONG g, ULONG b, struct TagItem * tags) -> LONG  [-840] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_ColorMap, 1,
+                                        "ColorMap", &emu_object_0, err, errlen) < 0)
+            return 1;
+        struct TagItem emu_tags_4[9];
+        if (emu68k_tags_to_native(guest0, r->a[1], &emu_tagdomain_import_graphics_ObtainBestPenA_tags, emu_tags_4, 9, NULL, 0, err, errlen) < 0)
+            return 1;
+            r->d[0] = (ULONG)ObtainBestPenA((struct ColorMap *)emu_object_0,
+              (ULONG)r->d[1],
+              (ULONG)r->d[2],
+              (ULONG)r->d[3],
+              (struct TagItem *)(r->a[1] ? emu_tags_4 : NULL));
             return 0;
     }
     case 142:  /* SetRGB32(struct ViewPort * vp, ULONG n, ULONG r, ULONG g, ULONG b) -> void  [-852] */

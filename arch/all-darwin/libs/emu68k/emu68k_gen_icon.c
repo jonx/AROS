@@ -29,6 +29,30 @@ static const struct EmuTagDomain emu_tagdomain_icon_duplicate =
     emu_tagdesc_icon_duplicate, 7, "icon.duplicate"
 };
 
+static const struct EmuTagDesc emu_tagdesc_import_icon_GetIconRectangleA_tags[] =
+{
+    { ICONDRAWA_Borderless, EMU_TAG_U32, "ICONDRAWA_Borderless", NULL, 0, 0, 0, 0, 0 },
+    { ICONDRAWA_Frameless, EMU_TAG_U32, "ICONDRAWA_Frameless", NULL, 0, 0, 0, 0, 0 },
+};
+static const struct EmuTagDomain emu_tagdomain_import_icon_GetIconRectangleA_tags =
+{
+    emu_tagdesc_import_icon_GetIconRectangleA_tags, 2, "import.icon.GetIconRectangleA.tags"
+};
+
+static const struct EmuTagDesc emu_tagdesc_import_icon_PutIconTagList_tags[] =
+{
+    { ICONPUTA_DropChunkyIconImage, EMU_TAG_U32, "ICONPUTA_DropChunkyIconImage", NULL, 0, 0, 0, 0, 0 },
+    { ICONPUTA_DropNewIconToolTypes, EMU_TAG_U32, "ICONPUTA_DropNewIconToolTypes", NULL, 0, 0, 0, 0, 0 },
+    { ICONPUTA_DropPlanarIconImage, EMU_TAG_U32, "ICONPUTA_DropPlanarIconImage", NULL, 0, 0, 0, 0, 0 },
+    { ICONPUTA_OnlyUpdatePosition, EMU_TAG_U32, "ICONPUTA_OnlyUpdatePosition", NULL, 0, 0, 0, 0, 0 },
+    { ICONPUTA_OptimizeImageSpace, EMU_TAG_U32, "ICONPUTA_OptimizeImageSpace", NULL, 0, 0, 0, 0, 0 },
+    { ICONPUTA_PreserveOldIconImages, EMU_TAG_U32, "ICONPUTA_PreserveOldIconImages", NULL, 0, 0, 0, 0, 0 },
+};
+static const struct EmuTagDomain emu_tagdomain_import_icon_PutIconTagList_tags =
+{
+    emu_tagdesc_import_icon_PutIconTagList_tags, 6, "import.icon.PutIconTagList.tags"
+};
+
 static void emu_object_cleanup_DiskObject(APTR emu_base, APTR emu_object)
 {
     struct Library *IconBase = emu_base;
@@ -131,6 +155,41 @@ int emu68k_gen_icon(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
             return 1;
             return 0;
     }
+    case 28:  /* GetIconRectangleA(struct RastPort * rp, struct DiskObject * icon, STRPTR label, struct Rectangle * rectangle, struct TagItem * tags) -> BOOL  [-168] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_RastPort, 1,
+                                        "RastPort", &emu_object_0, err, errlen) < 0)
+            return 1;
+        APTR emu_object_1;
+        if (emu68k_object_from_guest(guest0, r->a[1], EMU_OBJ_DiskObject, 1,
+                                        "DiskObject", &emu_object_1, err, errlen) < 0)
+            return 1;
+        struct Rectangle emu_struct_3;
+        if (!r->a[3])
+        {
+            if (err && errlen)
+                snprintf(err, errlen, "capability gap: GetIconRectangleA.rectangle requires a structure");
+            return 1;
+        }
+        if (emu68k_require_guest_range(r->a[3], M68K_Rectangle_SIZEOF,
+                                         "GetIconRectangleA.rectangle", err, errlen) < 0)
+            return 1;
+        memset(&emu_struct_3, 0, sizeof(emu_struct_3));
+        emu68k_from_guest_sized(guest0, r->a[3], &emu_struct_3,
+                             emu_fields_Rectangle, EMU_NFIELDS(emu_fields_Rectangle), M68K_Rectangle_SIZEOF);
+        struct TagItem emu_tags_4[9];
+        if (emu68k_tags_to_native(guest0, r->a[4], &emu_tagdomain_import_icon_GetIconRectangleA_tags, emu_tags_4, 9, NULL, 0, err, errlen) < 0)
+            return 1;
+            r->d[0] = (ULONG)GetIconRectangleA((struct RastPort *)emu_object_0,
+              (struct DiskObject *)emu_object_1,
+              (STRPTR)EMU_GPTR(guest0, r->a[2]),
+              (struct Rectangle *)&emu_struct_3,
+              (struct TagItem *)(r->a[4] ? emu_tags_4 : NULL));
+        emu68k_to_guest_sized(guest0, r->a[3], &emu_struct_3,
+                           emu_fields_Rectangle, EMU_NFIELDS(emu_fields_Rectangle), M68K_Rectangle_SIZEOF);
+            return 0;
+    }
     case 29:  /* NewDiskObject(ULONG type) -> struct DiskObject *  [-174] */
     {
         APTR emu_result = (APTR)NewDiskObject((ULONG)r->d[0]);
@@ -140,6 +199,20 @@ int emu68k_gen_icon(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
                                              emu_fields_DiskObject, EMU_NFIELDS(emu_fields_DiskObject),
                                              &r->d[0], err, errlen) < 0)
             return 1;
+            return 0;
+    }
+    case 31:  /* PutIconTagList(CONST_STRPTR name, struct DiskObject * icon, struct TagItem * tags) -> BOOL  [-186] */
+    {
+        APTR emu_object_1;
+        if (emu68k_object_from_guest(guest0, r->a[1], EMU_OBJ_DiskObject, 1,
+                                        "DiskObject", &emu_object_1, err, errlen) < 0)
+            return 1;
+        struct TagItem emu_tags_2[11];
+        if (emu68k_tags_to_native(guest0, r->a[2], &emu_tagdomain_import_icon_PutIconTagList_tags, emu_tags_2, 11, NULL, 0, err, errlen) < 0)
+            return 1;
+            r->d[0] = (ULONG)PutIconTagList((CONST_STRPTR)EMU_GPTR(guest0, r->a[0]),
+              (struct DiskObject *)emu_object_1,
+              (struct TagItem *)(r->a[2] ? emu_tags_2 : NULL));
             return 0;
     }
     }

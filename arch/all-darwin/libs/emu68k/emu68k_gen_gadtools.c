@@ -232,6 +232,9 @@ int emu68k_gen_gadtools(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
             snprintf(err, errlen, "capability gap: gadtools.library.GT_ReplyIMsg refused: reply must consume the paired filtered-message facade and recover its original message");
         r->d[0] = 0;
         return 1;
+    case 14:  /* GT_RefreshWindow(struct Window * win, struct Requester * req) -> void  [-84] */
+        r->d[0] = 0;   /* source-proven no-op; arguments are untouched */
+        return 0;
     case 17:  /* GT_FilterIMsg: explicit reviewed refusal [-102] */
         if (err && errlen)
             snprintf(err, errlen, "capability gap: gadtools.library.GT_FilterIMsg refused: filter returns an embedded or allocated mutable message with context-owned lifetime");

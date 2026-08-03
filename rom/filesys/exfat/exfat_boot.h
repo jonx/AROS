@@ -158,6 +158,49 @@ static inline int exfat_verify_boot_checksum(const UBYTE *checksum_sector,
 }
 
 /*
+ * Spec U6 to U8: the volume must fit inside the partition it was mounted on.
+ *
+ * VolumeLength is a field in the volume being validated, so it is exactly as
+ * trustworthy as the volume. The Mountlist states what was actually
+ * allocated. Believing the former without checking it against the latter lets
+ * a corrupt VBR claim more space than it owns, and every read past the real
+ * end lands in whatever partition follows: a disclosure of another
+ * filesystem's contents, not merely a wrong answer.
+ *
+ * A volume smaller than its partition is legitimate and normal. The trailing
+ * blocks are simply not part of the filesystem, and must not become readable
+ * through it, which is why the caller takes its access boundary from
+ * geo.volume_length and not from the partition size.
+ */
+static inline enum exfat_boot_result exfat_check_partition_fit(
+    const struct exfat_geometry *g, UQUAD part_start, UQUAD part_blocks)
+{
+    if (!exfat_geometry_ok(part_start, part_blocks))
+        return EXFAT_BOOT_BAD_GEOMETRY;
+
+    if (g->volume_length > part_blocks)
+        return EXFAT_BOOT_BAD_GEOMETRY;
+
+    return EXFAT_BOOT_OK;
+}
+
+/*
+ * Spec U3: the exFAT logical sector size must equal the device block size in
+ * Phase 1. Carrying a ratio through every byte-offset computation is a second
+ * addressing mode reachable only on hardware we cannot test against, so it is
+ * refused explicitly rather than approximated.
+ */
+static inline enum exfat_boot_result exfat_check_sector_units(
+    const struct exfat_geometry *g, ULONG device_block_size)
+{
+    if (device_block_size == 0)
+        return EXFAT_BOOT_BAD_GEOMETRY;
+    if ((ULONG)g->sector_size != device_block_size)
+        return EXFAT_BOOT_BAD_GEOMETRY;
+    return EXFAT_BOOT_OK;
+}
+
+/*
  * Validate the Main Boot Sector and fill in the geometry.
  *
  * Fields are checked in the order required by spec G1, so that each bound is

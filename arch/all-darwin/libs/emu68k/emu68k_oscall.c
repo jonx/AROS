@@ -27,6 +27,8 @@
 #include LC_LIBDEFS_FILE
 
 #include <aros/debug.h>
+
+#include "emu68k_guest_offsets.h"
 #include <aros/asmcall.h>
 #include <string.h>
 
@@ -77,6 +79,13 @@
 static APTR gptr(APTR guest0, ULONG addr)
 {
     return addr ? (APTR)((UBYTE *)guest0 + addr) : NULL;
+}
+
+static void gw32(APTR guest0, ULONG addr, ULONG v)
+{
+    UBYTE *p = (UBYTE *)guest0 + addr;
+    p[0] = (UBYTE)(v >> 24); p[1] = (UBYTE)(v >> 16);
+    p[2] = (UBYTE)(v >> 8);  p[3] = (UBYTE)v;
 }
 
 static ULONG gr32(APTR guest0, ULONG addr)
@@ -202,8 +211,10 @@ struct Emu68kObject
  * Library bases deliberately stay shared below: an open library is a refcounted
  * OS resource, not guest state, and reopening it per run would be waste. */
 #define EMU68K_MAX_IMSG 64
-#define EXEC_LVO_GETMSG   62
 #define EXEC_LVO_REPLYMSG 63
+#define INT_LVO_MODIFYIDCMP 25
+#define EXEC_LVO_PUMP     9001   /* private: "drain the port bound to this one" */
+#define EMU68K_MAX_IDCMP  16
 
 struct Emu68kRunState
 {
@@ -221,6 +232,9 @@ struct Emu68kRunState
     /* Intuition's own messages, paired with the guest copies handed out, so a
      * reply reaches the message Intuition is waiting to get back. */
     struct { APTR native; ULONG guest; } imsg[EMU68K_MAX_IMSG];
+    /* Which guest port a window's IDCMP is delivered to. Recorded when the
+     * program says so, never guessed: several windows commonly share one. */
+    struct { APTR window; ULONG guest_port; } idcmp[EMU68K_MAX_IDCMP];
     ULONG next_object;
 };
 
@@ -1327,64 +1341,90 @@ int Emu68k_OSCall(const char *libname, int lvo, APTR regs, APTR guest0,
      * So take one from the native port and rebuild it where the guest can read
      * it. The reply has to find its way back to the message Intuition actually
      * handed out, so the pairing is remembered rather than reconstructed. */
-    if (strcmp(libname, "exec.library") == 0 && lvo == EXEC_LVO_GETMSG)
+    /* ---- IDCMP DELIVERY -----------------------------------------------------
+     *
+     * A window's UserPort is a NATIVE port holding NATIVE messages. The guest
+     * cannot read either, so a message is taken from the native port and
+     * rebuilt in guest memory on the guest port bound to it.
+     *
+     * The pump runs when the program WAITS, not when it calls GetMsg. The
+     * ordinary Amiga event loop is Wait -> GetMsg -> ReplyMsg, and a program
+     * that is blocked in Wait never reaches GetMsg: pumping there would deliver
+     * only to a program that polls. So the message is enqueued and the port's
+     * signal bit set BEFORE the wait is answered, which is exactly what a real
+     * PutMsg does.
+     *
+     * Only ports BOUND to a window are pumped. A worker process's own
+     * pr_MsgPort is an ordinary mailbox for the messages its dispatcher sends
+     * it, and native input must never be broadcast into one. */
+    if (strcmp(libname, "exec.library") == 0 && lvo == EXEC_LVO_PUMP)
     {
-        struct Emu68kObject *o = object_by_token(rs, r->a[0]);
+        ULONG guest_port = r->a[0];
         struct MsgPort *native_port = NULL;
-        struct IntuiMessage *im;
-        ULONG guest_msg;
+        ULONG delivered = 0;
         int i;
 
-        if (o && o->type == EMU_OBJ_MsgPort)
-            native_port = (struct MsgPort *)o->native;
-        else
-        {
-            /* The other, equally ordinary shape: the program made its OWN port
-             * and wrote it into the window before calling ModifyIDCMP. That
-             * write lands in the guest's readable COPY of the window and never
-             * reaches Intuition, so Intuition posts to the port IT made. Find
-             * the window by the port the guest is asking on - its own copy
-             * still says which window it meant - and drain that. */
-            for (i = 0; i < EMU68K_MAX_OBJECTS; i++)
+        r->d[0] = 0;
+        for (i = 0; i < EMU68K_MAX_IDCMP; i++)
+            if (rs->idcmp[i].guest_port == guest_port && rs->idcmp[i].window)
             {
-                struct Emu68kObject *w = &rs->objects[i];
-                if (!w->native || w->type != EMU_OBJ_Window) continue;
-                if (gr32(guest0, w->token + M68K_Window_UserPort) != r->a[0])
-                    continue;
-                native_port = ((struct Window *)w->native)->UserPort;
+                native_port = ((struct Window *)rs->idcmp[i].window)->UserPort;
                 break;
             }
+        if (!native_port)
+        {
+            struct Emu68kObject *o = object_by_token(rs, guest_port);
+            if (o && o->type == EMU_OBJ_MsgPort)
+                native_port = (struct MsgPort *)o->native;
         }
-        if (!native_port) return 1;      /* a port the guest owns outright    */
-        im = (struct IntuiMessage *)GetMsg(native_port);
-        if (!im) { r->d[0] = 0; return 0; }
+        if (!native_port) return 0;          /* an ordinary guest mailbox     */
 
-        for (i = 0; i < EMU68K_MAX_IMSG; i++)
-            if (!rs->imsg[i].native) break;
-        if (i == EMU68K_MAX_IMSG || !rs->guest_alloc)
+        for (;;)
         {
-            ReplyMsg((struct Message *)im);      /* never strand Intuition's  */
-            if (err && errlen)
-                snprintf(err, errlen, "capability gap: more IntuiMessages in "
-                         "flight than this bridge keeps");
-            return 1;
+            struct IntuiMessage *im;
+            ULONG guest_msg, list, tailpred, task;
+            int slot;
+
+            im = (struct IntuiMessage *)GetMsg(native_port);
+            if (!im) break;
+            for (slot = 0; slot < EMU68K_MAX_IMSG; slot++)
+                if (!rs->imsg[slot].native) break;
+            if (slot == EMU68K_MAX_IMSG || !rs->guest_alloc ||
+                !(guest_msg = rs->guest_alloc(rs->run, M68K_IntuiMessage_SIZEOF)))
+            {
+                ReplyMsg((struct Message *)im);  /* never strand Intuition's  */
+                break;
+            }
+            memset((UBYTE *)guest0 + guest_msg, 0, M68K_IntuiMessage_SIZEOF);
+            emu68k_to_guest(guest0, guest_msg, im, emu_fields_IntuiMessage,
+                            EMU_NFIELDS(emu_fields_IntuiMessage));
+            rs->imsg[slot].native = im;
+            rs->imsg[slot].guest  = guest_msg;
+
+            /* AddTail on the guest port's own list, byte for byte as exec
+             * leaves it, so the program's GetMsg is the ordinary path. */
+            list = guest_port + M68K_MsgPort_mp_MsgList_lh_Head;
+            tailpred = gr32(guest0, list + M68K_List_lh_TailPred);
+            gw32(guest0, guest_msg, list + M68K_List_lh_Tail);
+            gw32(guest0, guest_msg + 4, tailpred);
+            gw32(guest0, tailpred, guest_msg);
+            gw32(guest0, list + M68K_List_lh_TailPred, guest_msg);
+            delivered++;
+
+            task = gr32(guest0, guest_port + M68K_MsgPort_mp_SigTask);
+            {
+                ULONG bit = *((UBYTE *)guest0 + guest_port +
+                              M68K_MsgPort_mp_SigBit);
+                if (task && bit < 32)
+                    gw32(guest0, task + M68K_Task_tc_SigRecvd,
+                         gr32(guest0, task + M68K_Task_tc_SigRecvd) | (1u << bit));
+            }
         }
-        guest_msg = rs->guest_alloc(rs->run, M68K_IntuiMessage_SIZEOF);
-        if (!guest_msg)
-        {
-            ReplyMsg((struct Message *)im);
-            if (err && errlen)
-                snprintf(err, errlen, "guest memory exhausted for an IntuiMessage");
-            return 1;
-        }
-        memset((UBYTE *)guest0 + guest_msg, 0, M68K_IntuiMessage_SIZEOF);
-        emu68k_to_guest(guest0, guest_msg, im, emu_fields_IntuiMessage,
-                        EMU_NFIELDS(emu_fields_IntuiMessage));
-        rs->imsg[i].native = im;
-        rs->imsg[i].guest  = guest_msg;
-        r->d[0] = guest_msg;
+        r->d[0] = delivered;
         return 0;
     }
+    /* A reply has to reach the message Intuition is waiting to get back, so the
+     * pairing is remembered rather than reconstructed. */
     if (strcmp(libname, "exec.library") == 0 && lvo == EXEC_LVO_REPLYMSG)
     {
         int i;
@@ -1397,6 +1437,33 @@ int Emu68k_OSCall(const char *libname, int lvo, APTR regs, APTR guest0,
                 return 0;
             }
         return 1;                        /* the guest's own message: not ours */
+    }
+
+    /* The supported shared-IDCMP pattern: the program puts its own port in
+     * Window->UserPort and calls ModifyIDCMP. The native window keeps its
+     * NATIVE port - guest memory must never be handed to Intuition - and the
+     * two are bound here so the pump knows where that window's input goes.
+     * Several windows sharing one port is the normal case, not an edge one. */
+    if (strcmp(libname, "intuition.library") == 0 && lvo == INT_LVO_MODIFYIDCMP)
+    {
+        struct Emu68kObject *w = object_by_token(rs, r->a[0]);
+        if (w && w->type == EMU_OBJ_Window)
+        {
+            ULONG port = gr32(guest0, w->token + M68K_Window_UserPort);
+            int i, free_slot = -1;
+            for (i = 0; i < EMU68K_MAX_IDCMP; i++)
+            {
+                if (rs->idcmp[i].window == w->native)
+                { rs->idcmp[i].guest_port = port; free_slot = -2; break; }
+                if (!rs->idcmp[i].window && free_slot < 0) free_slot = i;
+            }
+            if (free_slot >= 0)
+            {
+                rs->idcmp[free_slot].window = w->native;
+                rs->idcmp[free_slot].guest_port = port;
+            }
+        }
+        /* deliberately no return: the crossing itself still has to run */
     }
 
     if (strcmp(libname, "dos.library") == 0)

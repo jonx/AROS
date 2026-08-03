@@ -302,6 +302,122 @@ struct EmuField
 #define M68K_Window_nextchild 148   /* native @256 - CONVERT */
 #define M68K_Window_parent 152   /* native @264 - CONVERT */
 
+/* struct Screen: 354 bytes on m68k (Screen), 656 native (Screen) */
+#define M68K_Screen_SIZEOF 354
+#define M68K_Screen_NextScreen 0
+#define M68K_Screen_FirstWindow 4   /* native @8 - CONVERT */
+#define M68K_Screen_LeftEdge 8   /* native @16 - CONVERT */
+#define M68K_Screen_TopEdge 10   /* native @18 - CONVERT */
+#define M68K_Screen_Width 12   /* native @20 - CONVERT */
+#define M68K_Screen_Height 14   /* native @22 - CONVERT */
+#define M68K_Screen_MouseY 16   /* native @24 - CONVERT */
+#define M68K_Screen_MouseX 18   /* native @26 - CONVERT */
+#define M68K_Screen_Flags 20   /* native @28 - CONVERT */
+#define M68K_Screen_Title 22   /* native @32 - CONVERT */
+#define M68K_Screen_DefaultTitle 26   /* native @40 - CONVERT */
+#define M68K_Screen_BarHeight 30   /* native @48 - CONVERT */
+#define M68K_Screen_BarVBorder 31   /* native @49 - CONVERT */
+#define M68K_Screen_BarHBorder 32   /* native @50 - CONVERT */
+#define M68K_Screen_MenuVBorder 33   /* native @51 - CONVERT */
+#define M68K_Screen_MenuHBorder 34   /* native @52 - CONVERT */
+#define M68K_Screen_WBorTop 35   /* native @53 - CONVERT */
+#define M68K_Screen_WBorLeft 36   /* native @54 - CONVERT */
+#define M68K_Screen_WBorRight 37   /* native @55 - CONVERT */
+#define M68K_Screen_WBorBottom 38   /* native @56 - CONVERT */
+#define M68K_Screen_Font 40   /* native @64 - CONVERT */
+#define M68K_Screen_ViewPort_Next 44   /* native @72 - CONVERT */
+#define M68K_Screen_ViewPort_ColorMap 48   /* native @80 - CONVERT */
+#define M68K_Screen_ViewPort_DspIns 52   /* native @88 - CONVERT */
+#define M68K_Screen_ViewPort_SprIns 56   /* native @96 - CONVERT */
+#define M68K_Screen_ViewPort_ClrIns 60   /* native @104 - CONVERT */
+#define M68K_Screen_ViewPort_UCopIns 64   /* native @112 - CONVERT */
+#define M68K_Screen_ViewPort_DWidth 68   /* native @120 - CONVERT */
+#define M68K_Screen_ViewPort_DHeight 70   /* native @122 - CONVERT */
+#define M68K_Screen_ViewPort_DxOffset 72   /* native @124 - CONVERT */
+#define M68K_Screen_ViewPort_DyOffset 74   /* native @126 - CONVERT */
+#define M68K_Screen_ViewPort_Modes 76   /* native @128 - CONVERT */
+#define M68K_Screen_ViewPort_SpritePriorities 78   /* native @130 - CONVERT */
+#define M68K_Screen_ViewPort_ExtendedModes 79   /* native @131 - CONVERT */
+#define M68K_Screen_ViewPort_RasInfo 80   /* native @136 - CONVERT */
+#define M68K_Screen_RastPort_Layer 84   /* native @144 - CONVERT */
+#define M68K_Screen_RastPort_BitMap 88   /* native @152 - CONVERT */
+#define M68K_Screen_RastPort_AreaPtrn 92   /* native @160 - CONVERT */
+#define M68K_Screen_RastPort_TmpRas 96   /* native @168 - CONVERT */
+#define M68K_Screen_RastPort_AreaInfo 100   /* native @176 - CONVERT */
+#define M68K_Screen_RastPort_GelsInfo 104   /* native @184 - CONVERT */
+#define M68K_Screen_RastPort_Mask 108   /* native @192 - CONVERT */
+#define M68K_Screen_RastPort_FgPen 109   /* native @193 - CONVERT */
+#define M68K_Screen_RastPort_BgPen 110   /* native @194 - CONVERT */
+#define M68K_Screen_RastPort_AOlPen 111   /* native @195 - CONVERT */
+#define M68K_Screen_RastPort_DrawMode 112   /* native @196 - CONVERT */
+#define M68K_Screen_RastPort_AreaPtSz 113   /* native @197 - CONVERT */
+#define M68K_Screen_RastPort_linpatcnt 114   /* native @198 - CONVERT */
+#define M68K_Screen_RastPort_dummy 115   /* native @199 - CONVERT */
+#define M68K_Screen_RastPort_Flags 116   /* native @200 - CONVERT */
+#define M68K_Screen_RastPort_LinePtrn 118   /* native @202 - CONVERT */
+#define M68K_Screen_RastPort_cp_x 120   /* native @204 - CONVERT */
+#define M68K_Screen_RastPort_cp_y 122   /* native @206 - CONVERT */
+#define M68K_Screen_RastPort_minterms 124   /* native @208 - CONVERT */
+#define M68K_Screen_RastPort_PenWidth 132   /* native @216 - CONVERT */
+#define M68K_Screen_RastPort_PenHeight 134   /* native @218 - CONVERT */
+#define M68K_Screen_RastPort_Font 136   /* native @224 - CONVERT */
+#define M68K_Screen_RastPort_AlgoStyle 140   /* native @232 - CONVERT */
+#define M68K_Screen_RastPort_TxFlags 141   /* native @233 - CONVERT */
+#define M68K_Screen_RastPort_TxHeight 142   /* native @234 - CONVERT */
+#define M68K_Screen_RastPort_TxWidth 144   /* native @236 - CONVERT */
+#define M68K_Screen_RastPort_TxBaseline 146   /* native @238 - CONVERT */
+#define M68K_Screen_RastPort_TxSpacing 148   /* native @240 - CONVERT */
+#define M68K_Screen_RastPort_RP_User 150   /* native @248 - CONVERT */
+#define M68K_Screen_RastPort_RP_Extra 154   /* native @256 - CONVERT */
+#define M68K_Screen_RastPort_longreserved 158   /* native @264 - CONVERT */
+#define M68K_Screen_RastPort_reserved 182   /* native @312 - CONVERT */
+#define M68K_Screen_BitMap_OBSOLETE_BytesPerRow 184   /* native @320 - CONVERT */
+#define M68K_Screen_BitMap_OBSOLETE_Rows 186   /* native @322 - CONVERT */
+#define M68K_Screen_BitMap_OBSOLETE_Flags 188   /* native @324 - CONVERT */
+#define M68K_Screen_BitMap_OBSOLETE_Depth 189   /* native @325 - CONVERT */
+#define M68K_Screen_BitMap_OBSOLETE_pad 190   /* native @326 - CONVERT */
+#define M68K_Screen_BitMap_OBSOLETE_Planes 192   /* native @328 - CONVERT */
+#define M68K_Screen_LayerInfo_top_layer 224   /* native @392 - CONVERT */
+#define M68K_Screen_LayerInfo_check_lp 228   /* native @400 - CONVERT */
+#define M68K_Screen_LayerInfo_obs 232   /* native @408 - CONVERT */
+#define M68K_Screen_LayerInfo_FreeClipRects 236   /* native @416 - CONVERT */
+#define M68K_Screen_LayerInfo_PrivateReserve1 240   /* native @424 - CONVERT */
+#define M68K_Screen_LayerInfo_PrivateReserve2 244   /* native @428 - CONVERT */
+#define M68K_Screen_LayerInfo_Lock_ss_Link_ln_Succ 248   /* native @432 - CONVERT */
+#define M68K_Screen_LayerInfo_Lock_ss_Link_ln_Pred 252   /* native @440 - CONVERT */
+#define M68K_Screen_LayerInfo_Lock_ss_Link_ln_Type 256   /* native @448 - CONVERT */
+#define M68K_Screen_LayerInfo_Lock_ss_Link_ln_Pri 257   /* native @449 - CONVERT */
+#define M68K_Screen_LayerInfo_Lock_ss_Link_ln_Name 258   /* native @456 - CONVERT */
+#define M68K_Screen_LayerInfo_Lock_ss_NestCount 262   /* native @464 - CONVERT */
+#define M68K_Screen_LayerInfo_Lock_ss_WaitQueue_mlh_Head 264   /* native @472 - CONVERT */
+#define M68K_Screen_LayerInfo_Lock_ss_WaitQueue_mlh_Tail 268   /* native @480 - CONVERT */
+#define M68K_Screen_LayerInfo_Lock_ss_WaitQueue_mlh_TailPred 272   /* native @488 - CONVERT */
+#define M68K_Screen_LayerInfo_Lock_ss_MultipleLink_sr_Link_mln_Succ 276   /* native @496 - CONVERT */
+#define M68K_Screen_LayerInfo_Lock_ss_MultipleLink_sr_Link_mln_Pred 280   /* native @504 - CONVERT */
+#define M68K_Screen_LayerInfo_Lock_ss_MultipleLink_sr_Waiter 284   /* native @512 - CONVERT */
+#define M68K_Screen_LayerInfo_Lock_ss_MultipleLink_sr_Pad_slock 288   /* native @520 - CONVERT */
+#define M68K_Screen_LayerInfo_Lock_ss_MultipleLink_sr_Pad_s_Owner 292   /* native @528 - CONVERT */
+#define M68K_Screen_LayerInfo_Lock_ss_Owner 296   /* native @536 - CONVERT */
+#define M68K_Screen_LayerInfo_Lock_ss_QueueCount 300   /* native @544 - CONVERT */
+#define M68K_Screen_LayerInfo_gs_Head_mlh_Head 302   /* native @552 - CONVERT */
+#define M68K_Screen_LayerInfo_gs_Head_mlh_Tail 306   /* native @560 - CONVERT */
+#define M68K_Screen_LayerInfo_gs_Head_mlh_TailPred 310   /* native @568 - CONVERT */
+#define M68K_Screen_LayerInfo_PrivateReserve3 314   /* native @576 - CONVERT */
+#define M68K_Screen_LayerInfo_PrivateReserve4 316   /* native @584 - CONVERT */
+#define M68K_Screen_LayerInfo_Flags 320   /* native @592 - CONVERT */
+#define M68K_Screen_LayerInfo_fatten_count 322   /* native @594 - CONVERT */
+#define M68K_Screen_LayerInfo_LockLayersCount 323   /* native @595 - CONVERT */
+#define M68K_Screen_LayerInfo_PrivateReserve5 324   /* native @596 - CONVERT */
+#define M68K_Screen_LayerInfo_BlankHook 326   /* native @600 - CONVERT */
+#define M68K_Screen_LayerInfo_LayerInfo_extra 330   /* native @608 - CONVERT */
+#define M68K_Screen_FirstGadget 334   /* native @616 - CONVERT */
+#define M68K_Screen_DetailPen 338   /* native @624 - CONVERT */
+#define M68K_Screen_BlockPen 339   /* native @625 - CONVERT */
+#define M68K_Screen_SaveColor0 340   /* native @626 - CONVERT */
+#define M68K_Screen_BarLayer 342   /* native @632 - CONVERT */
+#define M68K_Screen_ExtData 346   /* native @640 - CONVERT */
+#define M68K_Screen_UserData 350   /* native @648 - CONVERT */
+
 /* struct RastPort: 100 bytes on m68k (RastPort), 176 native (RastPort) */
 #define M68K_RastPort_SIZEOF 100
 #define M68K_RastPort_Layer 0
@@ -471,6 +587,22 @@ struct EmuField
 #define M68K_DimensionInfo_StdOScan_MaxY 64
 #define M68K_DimensionInfo_pad 66
 #define M68K_DimensionInfo_reserved 80
+
+/* struct DrawInfo: 50 bytes on m68k (DrawInfo), 96 native (DrawInfo) */
+#define M68K_DrawInfo_SIZEOF 50
+#define M68K_DrawInfo_dri_Version 0
+#define M68K_DrawInfo_dri_NumPens 2
+#define M68K_DrawInfo_dri_Pens 4   /* native @8 - CONVERT */
+#define M68K_DrawInfo_dri_Font 8   /* native @16 - CONVERT */
+#define M68K_DrawInfo_dri_Depth 12   /* native @24 - CONVERT */
+#define M68K_DrawInfo_dri_Resolution_X 14   /* native @26 - CONVERT */
+#define M68K_DrawInfo_dri_Resolution_Y 16   /* native @28 - CONVERT */
+#define M68K_DrawInfo_dri_Flags 18   /* native @32 - CONVERT */
+#define M68K_DrawInfo_dri_CheckMark 22   /* native @40 - CONVERT */
+#define M68K_DrawInfo_dri_AmigaKey 26   /* native @48 - CONVERT */
+#define M68K_DrawInfo_dri_Screen 30   /* native @56 - CONVERT */
+#define M68K_DrawInfo_dri_Prefs 34   /* native @64 - CONVERT */
+#define M68K_DrawInfo_dri_Reserved 38   /* native @72 - CONVERT */
 
 /* The conversion tables. Each row is one field: where it lives on
  * each side, how wide it is on each side, and what may be done to it.
@@ -757,6 +889,124 @@ static const struct EmuField emu_fields_Window[] = {
  *   parent (struct Window *)
  */
 
+static const struct EmuField emu_fields_Screen[] = {
+    {    8,   16,    1, 2, 2, EMU_F_SCALAR },   /* LeftEdge                 WORD */
+    {   10,   18,    1, 2, 2, EMU_F_SCALAR },   /* TopEdge                  WORD */
+    {   12,   20,    1, 2, 2, EMU_F_SCALAR },   /* Width                    WORD */
+    {   14,   22,    1, 2, 2, EMU_F_SCALAR },   /* Height                   WORD */
+    {   16,   24,    1, 2, 2, EMU_F_SCALAR },   /* MouseY                   WORD */
+    {   18,   26,    1, 2, 2, EMU_F_SCALAR },   /* MouseX                   WORD */
+    {   20,   28,    1, 2, 2, EMU_F_SCALAR },   /* Flags                    UWORD */
+    {   30,   48,    1, 1, 1, EMU_F_SCALAR },   /* BarHeight                BYTE */
+    {   31,   49,    1, 1, 1, EMU_F_SCALAR },   /* BarVBorder               BYTE */
+    {   32,   50,    1, 1, 1, EMU_F_SCALAR },   /* BarHBorder               BYTE */
+    {   33,   51,    1, 1, 1, EMU_F_SCALAR },   /* MenuVBorder              BYTE */
+    {   34,   52,    1, 1, 1, EMU_F_SCALAR },   /* MenuHBorder              BYTE */
+    {   35,   53,    1, 1, 1, EMU_F_SCALAR },   /* WBorTop                  BYTE */
+    {   36,   54,    1, 1, 1, EMU_F_SCALAR },   /* WBorLeft                 BYTE */
+    {   37,   55,    1, 1, 1, EMU_F_SCALAR },   /* WBorRight                BYTE */
+    {   38,   56,    1, 1, 1, EMU_F_SCALAR },   /* WBorBottom               BYTE */
+    {   68,  120,    1, 2, 2, EMU_F_SCALAR },   /* ViewPort_DWidth          WORD */
+    {   70,  122,    1, 2, 2, EMU_F_SCALAR },   /* ViewPort_DHeight         WORD */
+    {   72,  124,    1, 2, 2, EMU_F_SCALAR },   /* ViewPort_DxOffset        WORD */
+    {   74,  126,    1, 2, 2, EMU_F_SCALAR },   /* ViewPort_DyOffset        WORD */
+    {   76,  128,    1, 2, 2, EMU_F_SCALAR },   /* ViewPort_Modes           UWORD */
+    {   78,  130,    1, 1, 1, EMU_F_SCALAR },   /* ViewPort_SpritePriorities UBYTE */
+    {   79,  131,    1, 1, 1, EMU_F_SCALAR },   /* ViewPort_ExtendedModes   UBYTE */
+};
+/* NOT converted, and deliberately not guessed at:
+ *   NextScreen (struct Screen *)
+ *   FirstWindow (struct Window *)
+ *   Title (UBYTE *)
+ *   DefaultTitle (UBYTE *)
+ *   Font (struct TextAttr *)
+ *   ViewPort_Next (struct ViewPort *)
+ *   ViewPort_ColorMap (struct ColorMap *)
+ *   ViewPort_DspIns (struct CopList *)
+ *   ViewPort_SprIns (struct CopList *)
+ *   ViewPort_ClrIns (struct CopList *)
+ *   ViewPort_UCopIns (struct UCopList *)
+ *   ViewPort_RasInfo (struct RasInfo *)
+ *   RastPort_Layer (struct Layer *)
+ *   RastPort_BitMap (struct BitMap *)
+ *   RastPort_AreaPtrn (const UWORD *)
+ *   RastPort_TmpRas (struct TmpRas *)
+ *   RastPort_AreaInfo (struct AreaInfo *)
+ *   RastPort_GelsInfo (struct GelsInfo *)
+ *   RastPort_Mask (beyond 84-byte partial facade)
+ *   RastPort_FgPen (beyond 84-byte partial facade)
+ *   RastPort_BgPen (beyond 84-byte partial facade)
+ *   RastPort_AOlPen (beyond 84-byte partial facade)
+ *   RastPort_DrawMode (beyond 84-byte partial facade)
+ *   RastPort_AreaPtSz (beyond 84-byte partial facade)
+ *   RastPort_linpatcnt (beyond 84-byte partial facade)
+ *   RastPort_dummy (beyond 84-byte partial facade)
+ *   RastPort_Flags (beyond 84-byte partial facade)
+ *   RastPort_LinePtrn (beyond 84-byte partial facade)
+ *   RastPort_cp_x (beyond 84-byte partial facade)
+ *   RastPort_cp_y (beyond 84-byte partial facade)
+ *   RastPort_minterms (beyond 84-byte partial facade)
+ *   RastPort_PenWidth (beyond 84-byte partial facade)
+ *   RastPort_PenHeight (beyond 84-byte partial facade)
+ *   RastPort_Font (struct TextFont *)
+ *   RastPort_AlgoStyle (beyond 84-byte partial facade)
+ *   RastPort_TxFlags (beyond 84-byte partial facade)
+ *   RastPort_TxHeight (beyond 84-byte partial facade)
+ *   RastPort_TxWidth (beyond 84-byte partial facade)
+ *   RastPort_TxBaseline (beyond 84-byte partial facade)
+ *   RastPort_TxSpacing (beyond 84-byte partial facade)
+ *   RastPort_RP_User (APTR *)
+ *   RastPort_RP_Extra (APTR)
+ *   RastPort_longreserved (IPTR[6])
+ *   RastPort_reserved (beyond 84-byte partial facade)
+ *   BitMap_OBSOLETE_BytesPerRow (beyond 84-byte partial facade)
+ *   BitMap_OBSOLETE_Rows (beyond 84-byte partial facade)
+ *   BitMap_OBSOLETE_Flags (beyond 84-byte partial facade)
+ *   BitMap_OBSOLETE_Depth (beyond 84-byte partial facade)
+ *   BitMap_OBSOLETE_pad (beyond 84-byte partial facade)
+ *   BitMap_OBSOLETE_Planes (PLANEPTR[8])
+ *   LayerInfo_top_layer (struct Layer *)
+ *   LayerInfo_check_lp (struct Layer *)
+ *   LayerInfo_obs (struct ClipRect *)
+ *   LayerInfo_FreeClipRects (struct ClipRect *)
+ *   LayerInfo_PrivateReserve1 (beyond 84-byte partial facade)
+ *   LayerInfo_PrivateReserve2 (beyond 84-byte partial facade)
+ *   LayerInfo_Lock_ss_Link_ln_Succ (struct Node *)
+ *   LayerInfo_Lock_ss_Link_ln_Pred (struct Node *)
+ *   LayerInfo_Lock_ss_Link_ln_Type (beyond 84-byte partial facade)
+ *   LayerInfo_Lock_ss_Link_ln_Pri (beyond 84-byte partial facade)
+ *   LayerInfo_Lock_ss_Link_ln_Name (char *)
+ *   LayerInfo_Lock_ss_NestCount (beyond 84-byte partial facade)
+ *   LayerInfo_Lock_ss_WaitQueue_mlh_Head (struct MinNode *)
+ *   LayerInfo_Lock_ss_WaitQueue_mlh_Tail (struct MinNode *)
+ *   LayerInfo_Lock_ss_WaitQueue_mlh_TailPred (struct MinNode *)
+ *   LayerInfo_Lock_ss_MultipleLink_sr_Link_mln_Succ (struct MinNode *)
+ *   LayerInfo_Lock_ss_MultipleLink_sr_Link_mln_Pred (struct MinNode *)
+ *   LayerInfo_Lock_ss_MultipleLink_sr_Waiter (struct Task *)
+ *   LayerInfo_Lock_ss_MultipleLink_sr_Pad_slock (struct spinlock_t::(unnamed at /Users/jkn/aros-build/bin/darwin-aarch64/AROS/Developer/include/aros/types/spinlock_s.h:25:18))
+ *   LayerInfo_Lock_ss_MultipleLink_sr_Pad_s_Owner (void *)
+ *   LayerInfo_Lock_ss_Owner (struct Task *)
+ *   LayerInfo_Lock_ss_QueueCount (beyond 84-byte partial facade)
+ *   LayerInfo_gs_Head_mlh_Head (struct MinNode *)
+ *   LayerInfo_gs_Head_mlh_Tail (struct MinNode *)
+ *   LayerInfo_gs_Head_mlh_TailPred (struct MinNode *)
+ *   LayerInfo_PrivateReserve3 (beyond 84-byte partial facade)
+ *   LayerInfo_PrivateReserve4 (void *)
+ *   LayerInfo_Flags (beyond 84-byte partial facade)
+ *   LayerInfo_fatten_count (beyond 84-byte partial facade)
+ *   LayerInfo_LockLayersCount (beyond 84-byte partial facade)
+ *   LayerInfo_PrivateReserve5 (beyond 84-byte partial facade)
+ *   LayerInfo_BlankHook (void *)
+ *   LayerInfo_LayerInfo_extra (void *)
+ *   FirstGadget (struct Gadget *)
+ *   DetailPen (beyond 84-byte partial facade)
+ *   BlockPen (beyond 84-byte partial facade)
+ *   SaveColor0 (beyond 84-byte partial facade)
+ *   BarLayer (struct Layer *)
+ *   ExtData (UBYTE *)
+ *   UserData (UBYTE *)
+ */
+
 static const struct EmuField emu_fields_RastPort[] = {
     {   24,   48,    1, 1, 1, EMU_F_SCALAR },   /* Mask                     UBYTE */
     {   25,   49,    1, 1, 1, EMU_F_SCALAR },   /* FgPen                    BYTE */
@@ -931,6 +1181,24 @@ static const struct EmuField emu_fields_DimensionInfo[] = {
 };
 /* NOT converted, and deliberately not guessed at:
  *   reserved (IPTR[2])
+ */
+
+static const struct EmuField emu_fields_DrawInfo[] = {
+    {    0,    0,    1, 2, 2, EMU_F_SCALAR },   /* dri_Version              UWORD */
+    {    2,    2,    1, 2, 2, EMU_F_SCALAR },   /* dri_NumPens              UWORD */
+    {   12,   24,    1, 2, 2, EMU_F_SCALAR },   /* dri_Depth                UWORD */
+    {   14,   26,    1, 2, 2, EMU_F_SCALAR },   /* dri_Resolution_X         UWORD */
+    {   16,   28,    1, 2, 2, EMU_F_SCALAR },   /* dri_Resolution_Y         UWORD */
+    {   18,   32,    1, 4, 4, EMU_F_SCALAR },   /* dri_Flags                ULONG */
+};
+/* NOT converted, and deliberately not guessed at:
+ *   dri_Pens (UWORD *)
+ *   dri_Font (struct TextFont *)
+ *   dri_CheckMark (struct Image *)
+ *   dri_AmigaKey (struct Image *)
+ *   dri_Screen (struct Screen *)
+ *   dri_Prefs (APTR)
+ *   dri_Reserved (IPTR[3])
  */
 
 #endif /* EMU68K_LAYOUTS_H */

@@ -295,9 +295,63 @@ int emu68k_gen_graphics(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
     case 133:  /* ModeNotAvailable(ULONG modeID) -> ULONG  [-798] */
         r->d[0] = (ULONG)ModeNotAvailable((ULONG)r->d[0]);
         return 0;
+    case 147:  /* LoadRGB32(struct ViewPort * vp, const ULONG * table) -> void  [-882] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_ViewPort, 0,
+                                        "ViewPort", &emu_object_0, err, errlen) < 0)
+            return 1;
+        ULONG emu_array_size_1 = sizeof(ULONG) * 1024;
+        APTR emu_array_scratch_1 = NULL;
+        if (r->a[1])
+        {
+            emu_array_scratch_1 = emu68k_scratch_alloc(
+                emu_array_size_1, err, errlen);
+            if (!emu_array_scratch_1)
+            {
+                return 1;
+            }
+            if (emu68k_rgb32_to_native(guest0, r->a[1],
+                    (ULONG *)emu_array_scratch_1, 1024,
+                    "LoadRGB32.table", err, errlen) < 0)
+            {
+                emu68k_scratch_free(emu_array_scratch_1, emu_array_size_1);
+                return 1;
+            }
+        }
+            LoadRGB32((struct ViewPort *)emu_object_0,
+              (const ULONG *)emu_array_scratch_1);
+        if (emu_array_scratch_1)
+            emu68k_scratch_free(emu_array_scratch_1, emu_array_size_1);
+            return 0;
+    }
     case 148:  /* SetChipRev(ULONG ChipRev) -> ULONG  [-888] */
         r->d[0] = (ULONG)SetChipRev((ULONG)r->d[0]);
         return 0;
+    case 158:  /* ReleasePen(struct ColorMap * cm, ULONG n) -> void  [-948] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_ColorMap, 0,
+                                        "ColorMap", &emu_object_0, err, errlen) < 0)
+            return 1;
+            ReleasePen((struct ColorMap *)emu_object_0,
+              (ULONG)r->d[0]);
+            return 0;
+    }
+    case 159:  /* ObtainPen(struct ColorMap * cm, ULONG n, ULONG r, ULONG g, ULONG b, ULONG flags) -> LONG  [-954] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_ColorMap, 0,
+                                        "ColorMap", &emu_object_0, err, errlen) < 0)
+            return 1;
+            r->d[0] = (ULONG)ObtainPen((struct ColorMap *)emu_object_0,
+              (ULONG)r->d[0],
+              (ULONG)r->d[1],
+              (ULONG)r->d[2],
+              (ULONG)r->d[3],
+              (ULONG)r->d[4]);
+            return 0;
+    }
     case 175:  /* BestModeIDA(struct TagItem * TagItems) -> ULONG  [-1050] */
     {
         struct TagItem emu_tags_0[33];

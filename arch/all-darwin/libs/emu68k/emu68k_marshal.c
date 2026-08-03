@@ -95,6 +95,45 @@ static const struct EmuTagDesc *tag_desc(const struct EmuTagDomain *domain,
     return NULL;
 }
 
+/* A LoadRGB32 stream is a sequence of count/first headers followed by three
+ * ULONGs per colour, terminated by a zero header. The guest ULONGs are
+ * big-endian, so even though both ABIs call them ULONG the stream cannot be
+ * passed through. This helper is shared by direct pointer arguments and RGB32
+ * values nested inside a policy-compiled taglist. */
+LONG emu68k_rgb32_to_native(APTR guest0, ULONG guest_table,
+                            ULONG *native_table, ULONG capacity,
+                            const char *what, char *err, ULONG errlen)
+{
+    ULONG count, remaining = 0;
+
+    if (!guest_table || !native_table || !capacity)
+        return guest_table ? -1 : 0;
+    for (count = 0; count < capacity; count++)
+    {
+        ULONG value;
+        if (emu68k_require_guest_range(guest_table + count * 4, 4,
+                                       what, err, errlen) < 0)
+            return -1;
+        value = guest_be32(guest0, guest_table + count * 4);
+        native_table[count] = value;
+        if (remaining)
+            remaining--;
+        else if (!value)
+            return 0;
+        else
+        {
+            ULONG colors = value >> 16;
+            if (!colors || colors > (capacity - count - 1) / 3)
+                break;
+            remaining = colors * 3;
+        }
+    }
+    if (err && errlen)
+        snprintf(err, errlen, "%s RGB32 stream is malformed or unterminated",
+                 what ? what : "guest");
+    return -1;
+}
+
 /* Convert a guest's packed, big-endian 8-byte TagItems into native 16-byte
  * TagItems. TAG_MORE is flattened; IGNORE/SKIP are interpreted while walking.
  * The semantic policy determines ti_Data's type. Unknown/refused tags fail the
@@ -256,10 +295,8 @@ LONG emu68k_tags_to_native(APTR guest0, ULONG guest_tags,
         }
         else if (desc->kind == EMU_TAG_RGB32)
         {
-            ULONG count, remaining = 0;
             ULONG need = ((ULONG)desc->guest_size * sizeof(ULONG) + 7u) & ~7u;
             ULONG *slot;
-            BOOL ended = FALSE;
 
             if (!data)
             {
@@ -276,36 +313,9 @@ LONG emu68k_tags_to_native(APTR guest0, ULONG guest_tags,
             }
             slot = (ULONG *)((UBYTE *)scratch + used);
             used += need;
-            for (count = 0; count < desc->guest_size; count++)
-            {
-                ULONG value;
-                if (emu68k_require_guest_range(data + count * 4, 4,
-                                               desc->name, err, errlen) < 0)
-                    return -1;
-                value = guest_be32(guest0, data + count * 4);
-                slot[count] = value;
-                if (remaining)
-                    remaining--;
-                else if (!value)
-                {
-                    ended = TRUE;
-                    break;
-                }
-                else
-                {
-                    ULONG colors = value >> 16;
-                    if (!colors || colors > (desc->guest_size - count - 1) / 3)
-                        break;
-                    remaining = colors * 3;
-                }
-            }
-            if (!ended)
-            {
-                if (err && errlen)
-                    snprintf(err, errlen, "tag %s RGB32 stream is malformed or unterminated",
-                             desc->name);
+            if (emu68k_rgb32_to_native(guest0, data, slot, desc->guest_size,
+                                       desc->name, err, errlen) < 0)
                 return -1;
-            }
             native_tags[out].ti_Data = (IPTR)slot;
         }
         else if (desc->kind == EMU_TAG_CSTR)

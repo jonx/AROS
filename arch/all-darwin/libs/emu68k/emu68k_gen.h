@@ -97,6 +97,9 @@ LONG emu68k_object_to_guest_facade(APTR guest0, APTR native, UWORD type,
                                    const char *type_name, ULONG facade_size,
                                    const struct EmuField *fields, int field_count,
                                    ULONG *token, char *err, ULONG errlen);
+LONG emu68k_object_alias_to_guest(APTR guest0, ULONG token, APTR native,
+                                  UWORD type, const char *type_name,
+                                  char *err, ULONG errlen);
 void emu68k_object_release(APTR guest0, ULONG token, UWORD type);
 void emu68k_object_consume(APTR guest0, ULONG token, UWORD type);
 LONG emu68k_hook_prepare(APTR guest0, ULONG guest_hook,
@@ -145,6 +148,9 @@ LONG emu68k_tags_to_native(APTR guest0, ULONG guest_tags,
                            struct TagItem *native_tags, ULONG capacity,
                            APTR scratch, ULONG scratch_size,
                            char *err, ULONG errlen);
+LONG emu68k_rgb32_to_native(APTR guest0, ULONG guest_table,
+                            ULONG *native_table, ULONG capacity,
+                            const char *what, char *err, ULONG errlen);
 
 LONG emu68k_require_guest_range(ULONG guest_addr, ULONG length,
                                 const char *what, char *err, ULONG errlen);
@@ -175,6 +181,9 @@ enum
     EMU_OBJ_AslRequest = 10,
     EMU_OBJ_TextFont = 11,
     EMU_OBJ_DisplayInfoHandle = 12,
+    EMU_OBJ_DrawInfo = 13,
+    EMU_OBJ_ColorMap = 14,
+    EMU_OBJ_ViewPort = 15,
 };
 int emu68k_gen_exec(int lvo, struct Emu68kRegs *r,
                   APTR guest0, APTR base,

@@ -638,6 +638,65 @@ LONG emu68k_object_to_guest_facade(APTR guest0, APTR native, UWORD type,
     return 0;
 }
 
+/* Register a native object at an address that already exists inside another
+ * guest facade. Screen.ViewPort is the first case: classic code takes
+ * &screen->ViewPort and passes that inline address to graphics.library, while
+ * native code must receive &native_screen->ViewPort. No memory is allocated
+ * and no pointer is written; the supplied guest address is the typed token. */
+LONG emu68k_object_alias_to_guest(APTR guest0, ULONG token, APTR native,
+                                  UWORD type, const char *type_name,
+                                  char *err, ULONG errlen)
+{
+    struct Emu68kRunState *rs = run_state(guest0);
+    int i, free_slot = -1;
+
+    if (!rs || !token || !native)
+    {
+        if (err && errlen)
+            snprintf(err, errlen, "invalid embedded %s object alias",
+                     type_name ? type_name : "native");
+        return -1;
+    }
+    if (emu68k_require_guest_range(token, 1, type_name, err, errlen) < 0)
+        return -1;
+    for (i = 0; i < EMU68K_MAX_OBJECTS; i++)
+    {
+        struct Emu68kObject *o = &rs->objects[i];
+        if (o->token == token && o->native)
+        {
+            if (o->native == native && o->type == type)
+            {
+                o->refs++;
+                return 0;
+            }
+            if (err && errlen)
+                snprintf(err, errlen, "embedded %s alias %08lx is already in use",
+                         type_name ? type_name : "native", (unsigned long)token);
+            return -1;
+        }
+        if (o->native == native && o->type == type)
+        {
+            if (err && errlen)
+                snprintf(err, errlen, "embedded %s object already has alias %08lx",
+                         type_name ? type_name : "native", (unsigned long)o->token);
+            return -1;
+        }
+        if (!o->native && free_slot < 0) free_slot = i;
+    }
+    if (free_slot < 0)
+    {
+        if (err && errlen)
+            snprintf(err, errlen, "more live %s objects than this bridge keeps",
+                     type_name ? type_name : "native");
+        return -1;
+    }
+    rs->objects[free_slot].native = native;
+    rs->objects[free_slot].token = token;
+    rs->objects[free_slot].refs = 1;
+    rs->objects[free_slot].type = type;
+    return 0;
+}
+
 void emu68k_object_release(APTR guest0, ULONG token, UWORD type)
 {
     struct Emu68kObject *o = object_by_token(run_state(guest0), token);

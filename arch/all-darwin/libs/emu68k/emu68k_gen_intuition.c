@@ -88,6 +88,12 @@ int emu68k_gen_intuition(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
                                         "Screen", &emu_object_0, err, errlen) < 0)
             return 1;
             r->d[0] = (ULONG)CloseScreen((struct Screen *)emu_object_0);
+        emu68k_object_release(guest0,
+            r->a[0] + M68K_Screen_ViewPort_Next,
+            EMU_OBJ_ViewPort);
+        emu68k_object_release(guest0,
+            (ULONG)emu68k_scalar_from_guest(guest0, r->a[0] + M68K_Screen_ViewPort_ColorMap, 4),
+            EMU_OBJ_ColorMap);
         emu68k_object_consume(guest0, r->a[0], EMU_OBJ_Screen);
             return 0;
     }
@@ -179,10 +185,30 @@ int emu68k_gen_intuition(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
     case 85:  /* LockPubScreen(CONST_STRPTR name) -> struct Screen *  [-510] */
     {
         APTR emu_result = (APTR)LockPubScreen((CONST_STRPTR)EMU_GPTR(guest0, r->a[0]));
-        if (emu68k_object_to_guest(guest0, emu_result, EMU_OBJ_Screen,
-                                      base, NULL,
-                                      "Screen", &r->d[0], err, errlen) < 0)
+        if (emu68k_object_to_guest_facade(guest0, emu_result, EMU_OBJ_Screen,
+                                             base, NULL,
+                                             "Screen", 84,
+                                             emu_fields_Screen, EMU_NFIELDS(emu_fields_Screen),
+                                             &r->d[0], err, errlen) < 0)
             return 1;
+        if (emu_result && r->d[0])
+        {
+            struct Screen *emu_facade_native = (struct Screen *)emu_result;
+            ULONG emu_nested_token_0 =
+                r->d[0] + M68K_Screen_ViewPort_Next;
+            if (emu68k_object_alias_to_guest(guest0,
+                    emu_nested_token_0, &emu_facade_native->ViewPort,
+                    EMU_OBJ_ViewPort, "ViewPort", err, errlen) < 0)
+                return 1;
+            ULONG emu_nested_token_1 = 0;
+            if (emu68k_object_to_guest(guest0,
+                    emu_facade_native->ViewPort.ColorMap, EMU_OBJ_ColorMap,
+                    NULL, NULL, "ColorMap",
+                    &emu_nested_token_1, err, errlen) < 0)
+                return 1;
+            emu68k_scalar_to_guest(guest0,
+                r->d[0] + M68K_Screen_ViewPort_ColorMap, 4, emu_nested_token_1);
+        }
             return 0;
     }
     case 86:  /* UnlockPubScreen(UBYTE * name, struct Screen * screen) -> void  [-516] */
@@ -193,6 +219,12 @@ int emu68k_gen_intuition(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
             return 1;
             UnlockPubScreen((UBYTE *)EMU_GPTR(guest0, r->a[0]),
               (struct Screen *)emu_object_1);
+        emu68k_object_release(guest0,
+            r->a[1] + M68K_Screen_ViewPort_Next,
+            EMU_OBJ_ViewPort);
+        emu68k_object_release(guest0,
+            (ULONG)emu68k_scalar_from_guest(guest0, r->a[1] + M68K_Screen_ViewPort_ColorMap, 4),
+            EMU_OBJ_ColorMap);
         emu68k_object_release(guest0, r->a[1], EMU_OBJ_Screen);
             return 0;
     }
@@ -272,10 +304,30 @@ int emu68k_gen_intuition(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
               (struct TagItem *)(r->a[1] ? emu_tags_1 : NULL));
         }
         emu68k_scratch_free(emu_tagscratch_1, emu_tagscratch_size_1);
-        if (emu68k_object_to_guest(guest0, emu_result, EMU_OBJ_Screen,
-                                      base, emu_object_cleanup_Screen,
-                                      "Screen", &r->d[0], err, errlen) < 0)
+        if (emu68k_object_to_guest_facade(guest0, emu_result, EMU_OBJ_Screen,
+                                             base, emu_object_cleanup_Screen,
+                                             "Screen", 84,
+                                             emu_fields_Screen, EMU_NFIELDS(emu_fields_Screen),
+                                             &r->d[0], err, errlen) < 0)
             return 1;
+        if (emu_result && r->d[0])
+        {
+            struct Screen *emu_facade_native = (struct Screen *)emu_result;
+            ULONG emu_nested_token_0 =
+                r->d[0] + M68K_Screen_ViewPort_Next;
+            if (emu68k_object_alias_to_guest(guest0,
+                    emu_nested_token_0, &emu_facade_native->ViewPort,
+                    EMU_OBJ_ViewPort, "ViewPort", err, errlen) < 0)
+                return 1;
+            ULONG emu_nested_token_1 = 0;
+            if (emu68k_object_to_guest(guest0,
+                    emu_facade_native->ViewPort.ColorMap, EMU_OBJ_ColorMap,
+                    NULL, NULL, "ColorMap",
+                    &emu_nested_token_1, err, errlen) < 0)
+                return 1;
+            emu68k_scalar_to_guest(guest0,
+                r->d[0] + M68K_Screen_ViewPort_ColorMap, 4, emu_nested_token_1);
+        }
             return 0;
     }
     case 106:  /* NewObjectA(struct IClass * classPtr, UBYTE * classID, struct TagItem * tagList) -> APTR  [-636] */
@@ -340,6 +392,70 @@ int emu68k_gen_intuition(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
                                         "Class", &emu_object_0, err, errlen) < 0)
             return 1;
             AddClass((struct IClass *)emu_object_0);
+            return 0;
+    }
+    case 115:  /* GetScreenDrawInfo(struct Screen * screen) -> struct DrawInfo *  [-690] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_Screen, 0,
+                                        "Screen", &emu_object_0, err, errlen) < 0)
+            return 1;
+        APTR emu_result = (APTR)GetScreenDrawInfo((struct Screen *)emu_object_0);
+        if (emu68k_object_to_guest_facade(guest0, emu_result, EMU_OBJ_DrawInfo,
+                                             base, NULL,
+                                             "DrawInfo", M68K_DrawInfo_SIZEOF + sizeof(UWORD) * 256,
+                                             emu_fields_DrawInfo, EMU_NFIELDS(emu_fields_DrawInfo),
+                                             &r->d[0], err, errlen) < 0)
+            return 1;
+        if (emu_result && r->d[0])
+        {
+            struct DrawInfo *emu_facade_native = (struct DrawInfo *)emu_result;
+            ULONG emu_nested_count_0 = emu_facade_native->dri_NumPens;
+            if (emu_nested_count_0 > 256 ||
+                (emu_nested_count_0 && !emu_facade_native->dri_Pens))
+            {
+                if (err && errlen)
+                    snprintf(err, errlen, "DrawInfo.dri_Pens has invalid count/pointer");
+                return 1;
+            }
+            ULONG emu_nested_guest_0 = r->d[0] + M68K_DrawInfo_SIZEOF + sizeof(UWORD) * 256;
+            for (ULONG emu_nested_i_0 = 0;
+                 emu_nested_i_0 < emu_nested_count_0;
+                 emu_nested_i_0++)
+                emu68k_scalar_to_guest(guest0,
+                    emu_nested_guest_0 + emu_nested_i_0 * 2, 2,
+                    emu_facade_native->dri_Pens[emu_nested_i_0]);
+            emu68k_scalar_to_guest(guest0,
+                r->d[0] + M68K_DrawInfo_dri_Pens, 4,
+                emu_nested_count_0 ? emu_nested_guest_0 : 0);
+            ULONG emu_nested_token_1 = 0;
+            if (emu68k_object_to_guest_facade(guest0,
+                    emu_facade_native->dri_Font, EMU_OBJ_TextFont,
+                    NULL, NULL, "TextFont", M68K_TextFont_SIZEOF,
+                    emu_fields_TextFont, EMU_NFIELDS(emu_fields_TextFont),
+                    &emu_nested_token_1, err, errlen) < 0)
+                return 1;
+            emu68k_scalar_to_guest(guest0,
+                r->d[0] + M68K_DrawInfo_dri_Font, 4, emu_nested_token_1);
+        }
+            return 0;
+    }
+    case 116:  /* FreeScreenDrawInfo(struct Screen * screen, struct DrawInfo * drawInfo) -> void  [-696] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_Screen, 0,
+                                        "Screen", &emu_object_0, err, errlen) < 0)
+            return 1;
+        APTR emu_object_1;
+        if (emu68k_object_from_guest(guest0, r->a[1], EMU_OBJ_DrawInfo, 0,
+                                        "DrawInfo", &emu_object_1, err, errlen) < 0)
+            return 1;
+            FreeScreenDrawInfo((struct Screen *)emu_object_0,
+              (struct DrawInfo *)emu_object_1);
+        emu68k_object_release(guest0,
+            (ULONG)emu68k_scalar_from_guest(guest0, r->a[1] + M68K_DrawInfo_dri_Font, 4),
+            EMU_OBJ_TextFont);
+        emu68k_object_release(guest0, r->a[1], EMU_OBJ_DrawInfo);
             return 0;
     }
     case 118:  /* RemoveClass(struct IClass * classPtr) -> void  [-708] */

@@ -23,12 +23,11 @@
 #include <string.h>
 #include <stdio.h>
 
-#include "fat_fs.h"
-#include "fat_protos.h"
-#include "exfat_bounds.h"
+#include "exfat_fs.h"
+#include "exfat_protos.h"
 
 #define DEBUG DEBUG_MISC
-#include "debug.h"
+#include "exfat_debug.h"
 
 /* TD64 commands */
 #ifndef TD_READ64

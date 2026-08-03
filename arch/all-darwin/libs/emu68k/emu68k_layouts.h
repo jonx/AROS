@@ -604,6 +604,15 @@ struct EmuField
 #define M68K_DrawInfo_dri_Prefs 34   /* native @64 - CONVERT */
 #define M68K_DrawInfo_dri_Reserved 38   /* native @72 - CONVERT */
 
+/* struct NewMenu: 20 bytes on m68k (NewMenu), 40 native (NewMenu) */
+#define M68K_NewMenu_SIZEOF 20
+#define M68K_NewMenu_nm_Type 0
+#define M68K_NewMenu_nm_Label 2   /* native @8 - CONVERT */
+#define M68K_NewMenu_nm_CommKey 6   /* native @16 - CONVERT */
+#define M68K_NewMenu_nm_Flags 10   /* native @24 - CONVERT */
+#define M68K_NewMenu_nm_MutualExclude 12   /* native @28 - CONVERT */
+#define M68K_NewMenu_nm_UserData 16   /* native @32 - CONVERT */
+
 /* The conversion tables. Each row is one field: where it lives on
  * each side, how wide it is on each side, and what may be done to it.
  * A generic walker (emu68k_marshal.c) is all that is needed to convert
@@ -1199,6 +1208,17 @@ static const struct EmuField emu_fields_DrawInfo[] = {
  *   dri_Screen (struct Screen *)
  *   dri_Prefs (APTR)
  *   dri_Reserved (IPTR[3])
+ */
+
+static const struct EmuField emu_fields_NewMenu[] = {
+    {    0,    0,    1, 1, 1, EMU_F_SCALAR },   /* nm_Type                  UBYTE */
+    {   10,   24,    1, 2, 2, EMU_F_SCALAR },   /* nm_Flags                 UWORD */
+    {   12,   28,    1, 4, 4, EMU_F_SCALAR },   /* nm_MutualExclude         LONG */
+};
+/* NOT converted, and deliberately not guessed at:
+ *   nm_Label (CONST_STRPTR)
+ *   nm_CommKey (CONST_STRPTR)
+ *   nm_UserData (APTR)
  */
 
 #endif /* EMU68K_LAYOUTS_H */

@@ -10,9 +10,22 @@
 #include <proto/gadtools.h>
 #include <string.h>
 #include <stdio.h>
+#include <libraries/gadtools.h>
 
 #include "emu68k_gen.h"
 #include "emu68k_layouts.h"
+
+static const struct EmuTagDesc emu_tagdesc_gadtools_create_menus[] =
+{
+    { GTMN_FullMenu, EMU_TAG_U32, "GTMN_FullMenu", NULL, 0, 0, 0, 0, 0 },
+    { GTMN_NewLookMenus, EMU_TAG_U32, "GTMN_NewLookMenus", NULL, 0, 0, 0, 0, 0 },
+    { GTMN_FrontPen, EMU_TAG_U32, "GTMN_FrontPen", NULL, 0, 0, 0, 0, 0 },
+    { GTMN_SecondaryError, EMU_TAG_REFUSE, "GTMN_SecondaryError", NULL, 0, 0, 0, 0, 0 },
+};
+static const struct EmuTagDomain emu_tagdomain_gadtools_create_menus =
+{
+    emu_tagdesc_gadtools_create_menus, 4, "gadtools.create_menus"
+};
 
 static const struct EmuTagDesc emu_tagdesc_gadtools_visual_info[] =
 {
@@ -22,6 +35,12 @@ static const struct EmuTagDomain emu_tagdomain_gadtools_visual_info =
 {
     emu_tagdesc_gadtools_visual_info, 0, "gadtools.visual_info"
 };
+
+static void emu_object_cleanup_Menu(APTR emu_base, APTR emu_object)
+{
+    struct Library *GadToolsBase = emu_base;
+    FreeMenus((struct Menu *)emu_object);
+}
 
 static void emu_object_cleanup_VisualInfo(APTR emu_base, APTR emu_object)
 {
@@ -37,6 +56,137 @@ int emu68k_gen_gadtools(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
 
     switch (lvo)
     {
+    case 8:  /* CreateMenusA(struct NewMenu * newmenu, struct TagItem * tagList) -> struct Menu *  [-48] */
+    {
+        ULONG emu_record_count_0 = 0;
+        ULONG emu_record_size_0 = 0;
+        struct NewMenu *emu_record_array_0 = NULL;
+        struct TagItem emu_tags_1[17];
+        if (emu68k_tags_to_native(guest0, r->a[1], &emu_tagdomain_gadtools_create_menus,
+                                     emu_tags_1, 17, NULL, 0, err, errlen) < 0)
+            return 1;
+        if (!r->a[0])
+        {
+            if (err && errlen)
+                snprintf(err, errlen, "CreateMenusA.newmenu requires a non-NULL record array");
+            if (emu_record_array_0)
+                emu68k_scratch_free(emu_record_array_0, emu_record_size_0);
+            return 1;
+        }
+        BOOL emu_record_found_0 = FALSE;
+        for (emu_record_count_0 = 0; emu_record_count_0 < 1024;
+             emu_record_count_0++)
+        {
+            ULONG emu_record_guest_0 = r->a[0] +
+                emu_record_count_0 * M68K_NewMenu_SIZEOF;
+            if (emu68k_require_guest_range(emu_record_guest_0,
+                    M68K_NewMenu_SIZEOF, "CreateMenusA.newmenu", err, errlen) < 0)
+            {
+                if (emu_record_array_0)
+                    emu68k_scratch_free(emu_record_array_0, emu_record_size_0);
+                return 1;
+            }
+            ULONG emu_record_reject_0 = (ULONG)
+                emu68k_scalar_from_guest(guest0, emu_record_guest_0 +
+                    M68K_NewMenu_nm_Type, 1);
+            if (emu_record_reject_0 & 0x80UL)
+            {
+                if (err && errlen)
+                    snprintf(err, errlen, "CreateMenusA.newmenu[%lu].nm_Type uses an unsupported variant",
+                             (unsigned long)emu_record_count_0);
+                if (emu_record_array_0)
+                    emu68k_scratch_free(emu_record_array_0, emu_record_size_0);
+                return 1;
+            }
+            ULONG emu_record_sentinel_0 = (ULONG)
+                emu68k_scalar_from_guest(guest0, emu_record_guest_0 +
+                    M68K_NewMenu_nm_Type, 1);
+            if (emu_record_sentinel_0 == (ULONG)NM_END)
+            {
+                emu_record_count_0++;
+                emu_record_found_0 = TRUE;
+                break;
+            }
+        }
+        if (!emu_record_found_0)
+        {
+            if (err && errlen)
+                snprintf(err, errlen, "CreateMenusA.newmenu has no NM_END within 1024 records");
+            if (emu_record_array_0)
+                emu68k_scratch_free(emu_record_array_0, emu_record_size_0);
+            return 1;
+        }
+        emu_record_size_0 = emu_record_count_0 * sizeof(struct NewMenu);
+        emu_record_array_0 = emu68k_scratch_alloc(
+            emu_record_size_0, err, errlen);
+        if (!emu_record_array_0)
+        {
+            if (emu_record_array_0)
+                emu68k_scratch_free(emu_record_array_0, emu_record_size_0);
+            return 1;
+        }
+        memset(emu_record_array_0, 0, emu_record_size_0);
+        for (ULONG emu_record_i_0 = 0;
+             emu_record_i_0 < emu_record_count_0; emu_record_i_0++)
+        {
+            ULONG emu_record_guest_0 = r->a[0] +
+                emu_record_i_0 * M68K_NewMenu_SIZEOF;
+            emu68k_from_guest_sized(guest0, emu_record_guest_0,
+                &emu_record_array_0[emu_record_i_0],
+                emu_fields_NewMenu, EMU_NFIELDS(emu_fields_NewMenu),
+                M68K_NewMenu_SIZEOF);
+            ULONG emu_record_value_0_0 = (ULONG)
+                emu68k_scalar_from_guest(guest0, emu_record_guest_0 +
+                    M68K_NewMenu_nm_Label, 4);
+            if (emu_record_value_0_0 && emu_record_value_0_0 != (ULONG)(IPTR)NM_BARLABEL &&
+                emu68k_require_guest_range(emu_record_value_0_0, 1,
+                    "CreateMenusA.newmenu.nm_Label", err, errlen) < 0)
+            {
+                if (emu_record_array_0)
+                    emu68k_scratch_free(emu_record_array_0, emu_record_size_0);
+                return 1;
+            }
+            if (emu_record_value_0_0 == (ULONG)(IPTR)NM_BARLABEL)
+                emu_record_array_0[emu_record_i_0].nm_Label = (__typeof__(emu_record_array_0[emu_record_i_0].nm_Label))NM_BARLABEL;
+            else
+                emu_record_array_0[emu_record_i_0].nm_Label = (__typeof__(emu_record_array_0[emu_record_i_0].nm_Label))EMU_GPTR(guest0, emu_record_value_0_0);
+            ULONG emu_record_value_0_1 = (ULONG)
+                emu68k_scalar_from_guest(guest0, emu_record_guest_0 +
+                    M68K_NewMenu_nm_CommKey, 4);
+            if (emu_record_value_0_1 &&
+                emu68k_require_guest_range(emu_record_value_0_1, 1,
+                    "CreateMenusA.newmenu.nm_CommKey", err, errlen) < 0)
+            {
+                if (emu_record_array_0)
+                    emu68k_scratch_free(emu_record_array_0, emu_record_size_0);
+                return 1;
+            }
+            emu_record_array_0[emu_record_i_0].nm_CommKey = (__typeof__(emu_record_array_0[emu_record_i_0].nm_CommKey))EMU_GPTR(guest0, emu_record_value_0_1);
+            ULONG emu_record_value_0_2 = (ULONG)
+                emu68k_scalar_from_guest(guest0, emu_record_guest_0 +
+                    M68K_NewMenu_nm_UserData, 4);
+            emu_record_array_0[emu_record_i_0].nm_UserData = (__typeof__(emu_record_array_0[emu_record_i_0].nm_UserData))(IPTR)emu_record_value_0_2;
+        }
+        APTR emu_result = (APTR)CreateMenusA((struct NewMenu *)emu_record_array_0,
+              (struct TagItem *)(r->a[1] ? emu_tags_1 : NULL));
+        if (emu_record_array_0)
+            emu68k_scratch_free(emu_record_array_0, emu_record_size_0);
+        if (emu68k_object_to_guest(guest0, emu_result, EMU_OBJ_Menu,
+                                      base, emu_object_cleanup_Menu,
+                                      "Menu", &r->d[0], err, errlen) < 0)
+            return 1;
+            return 0;
+    }
+    case 9:  /* FreeMenus(struct Menu * menu) -> void  [-54] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_Menu, 1,
+                                        "Menu", &emu_object_0, err, errlen) < 0)
+            return 1;
+            FreeMenus((struct Menu *)emu_object_0);
+        emu68k_object_consume(guest0, r->a[0], EMU_OBJ_Menu);
+            return 0;
+    }
     case 21:  /* GetVisualInfoA(struct Screen * screen, struct TagItem * tagList) -> APTR  [-126] */
     {
         APTR emu_object_0;

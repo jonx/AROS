@@ -8,7 +8,9 @@
 */
 
 #include <aros/libcall.h>
+#include <aros/asmcall.h>
 #include <exec/types.h>
+#include <exec/tasks.h>
 #include <dos/dos.h>
 #include <dos/dosextens.h>
 
@@ -28,6 +30,56 @@ int Emu68k_OSCall(const char *libname, int lvo, APTR regs, APTR guest0,
 /* dispatcher roundtrips per quantum: small enough that CTRL-C and other tasks
  * stay responsive, large enough that the lock traffic is noise */
 #define EMU68K_QUANTUM 4096
+
+/* The stack a run gets.
+ *
+ * A bridge call is not a shallow one: the chain is this process's stack, plus
+ * the engine's frames, plus the entire native implementation of whatever vector
+ * the 68k program called - and for a drawing vector that is intuition into
+ * graphics into layers into the display driver into the host. A shell's default
+ * stack is around 40K and does not cover it, and nothing says so, because AROS
+ * stacks have no guard page: the overflow quietly writes through whatever lies
+ * below and the machine stops being able to do anything some time later. The
+ * caller cannot be expected to know how deep a guest's library calls will go,
+ * so this library brings the stack itself. */
+#define EMU68K_STACK_SIZE (512 * 1024)
+
+/* Run the guest to completion. Called through NewStackSwap, so every frame
+ * below this one - the engine, the bridge, and the native library it calls -
+ * is on the stack allocated for the run. StackSwap() is the older spelling and
+ * is documented as unreliable on hosted builds with stack checking, which this
+ * is: it swapped the bookkeeping without moving the machine anywhere useful. */
+static AROS_UFH4(int, emu68k_run_to_completion,
+                 AROS_UFHA(struct Emu68kBase *, Emu68kBase, A0),
+                 AROS_UFHA(emu68k_run_h, run, A1),
+                 AROS_UFHA(unsigned int *, d0p, A2),
+                 AROS_UFHA(char *, err, A3))
+{
+    AROS_USERFUNC_INIT
+    int rc;
+
+    for (;;)
+    {
+        /* one runner at a time; quanta interleave through the lock */
+        ObtainSemaphore(&Emu68kBase->runlock);
+        rc = Emu68kBase->host.run_quantum(run, EMU68K_QUANTUM, d0p,
+                                          err, 256);
+        ReleaseSemaphore(&Emu68kBase->runlock);
+
+        if (rc == EMU68K_RC_YIELD)
+        {
+            if (SetSignal(0, 0) & SIGBREAKF_CTRL_C)
+            {
+                SetSignal(0, SIGBREAKF_CTRL_C);
+                Emu68kBase->host.run_kill(run);
+            }
+            continue;
+        }
+        return rc;
+    }
+
+    AROS_USERFUNC_EXIT
+}
 
 struct emu68k_sinkctx
 {
@@ -164,24 +216,37 @@ AROS_LH2(LONG, Emu68k_RunSeg,
           ctx->elc_Name ? (const char *)ctx->elc_Name : "",
           (unsigned long)ctx->elc_Origin, (unsigned long)argslen));
 
-    for (;;)
     {
-        /* one runner at a time; quanta interleave through the lock */
-        ObtainSemaphore(&Emu68kBase->runlock);
-        rc = Emu68kBase->host.run_quantum(run, EMU68K_QUANTUM, &d0,
-                                          err, sizeof err);
-        ReleaseSemaphore(&Emu68kBase->runlock);
+        struct StackSwapStruct sss;
+        struct StackSwapArgs ssa;
+        APTR stackmem = AllocMem(EMU68K_STACK_SIZE, MEMF_ANY);
 
-        if (rc == EMU68K_RC_YIELD)
+        ssa.Args[0] = (IPTR)Emu68kBase;
+        ssa.Args[1] = (IPTR)run;
+        ssa.Args[2] = (IPTR)&d0;
+        ssa.Args[3] = (IPTR)err;
+
+        if (stackmem)
         {
-            if (SetSignal(0, 0) & SIGBREAKF_CTRL_C)
-            {
-                SetSignal(0, SIGBREAKF_CTRL_C);
-                Emu68kBase->host.run_kill(run);
-            }
-            continue;
+            sss.stk_Lower   = stackmem;
+            sss.stk_Upper   = (IPTR)stackmem + EMU68K_STACK_SIZE;
+            sss.stk_Pointer = (APTR)sss.stk_Upper;
+            rc = (int)NewStackSwap(&sss, emu68k_run_to_completion, &ssa);
+            FreeMem(stackmem, EMU68K_STACK_SIZE);
         }
-        break;
+        else
+        {
+            /* No memory for a stack of our own is not a reason not to run;
+             * it is a reason to say so, because what follows may be the
+             * silent overflow this exists to prevent. */
+            bug("[emu68k.library] no memory for a %luK run stack; running on "
+                "the caller's\n", (unsigned long)(EMU68K_STACK_SIZE / 1024));
+            rc = AROS_UFC4(int, emu68k_run_to_completion,
+                           AROS_UFCA(struct Emu68kBase *, Emu68kBase, A0),
+                           AROS_UFCA(emu68k_run_h, run, A1),
+                           AROS_UFCA(unsigned int *, &d0, A2),
+                           AROS_UFCA(char *, err, A3));
+        }
     }
 
     switch (rc)

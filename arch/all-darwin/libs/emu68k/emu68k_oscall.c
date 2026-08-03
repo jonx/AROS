@@ -602,7 +602,13 @@ LONG emu68k_object_to_guest_facade(APTR guest0, APTR native, UWORD type,
         if (o->native == native && o->type == type)
         {
             o->refs++;
-            memset((UBYTE *)guest0 + o->token, 0, facade_size);
+            /* Preserve generated nested tokens already installed in this
+             * facade. A facade reached through another object (Window.WScreen
+             * is the first case) refreshes scalar fields here but does not
+             * recursively rebuild the child's nested object graph. Clearing
+             * the whole record would silently erase valid ViewPort/RastPort
+             * aliases. Newly allocated facades are still zero-initialized
+             * below before their first conversion. */
             emu68k_to_guest(guest0, o->token, native, fields, field_count);
             if (token) *token = o->token;
             return 0;

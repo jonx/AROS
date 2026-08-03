@@ -246,6 +246,29 @@ int emu68k_gen_gadtools(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
     case 14:  /* GT_RefreshWindow(struct Window * win, struct Requester * req) -> void  [-84] */
         r->d[0] = 0;   /* source-proven no-op; arguments are untouched */
         return 0;
+    case 15:  /* GT_BeginRefresh(struct Window * win) -> void  [-90] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_Window, 0,
+                                        "Window", &emu_object_0, err, errlen) < 0)
+            return 1;
+            GT_BeginRefresh((struct Window *)emu_object_0);
+        emu68k_to_guest_sized(guest0, r->a[0], emu_object_0,
+            emu_fields_Window, EMU_NFIELDS(emu_fields_Window), M68K_Window_SIZEOF);
+            return 0;
+    }
+    case 16:  /* GT_EndRefresh(struct Window * win, BOOL complete) -> void  [-96] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_Window, 0,
+                                        "Window", &emu_object_0, err, errlen) < 0)
+            return 1;
+            GT_EndRefresh((struct Window *)emu_object_0,
+              (BOOL)r->d[0]);
+        emu68k_to_guest_sized(guest0, r->a[0], emu_object_0,
+            emu_fields_Window, EMU_NFIELDS(emu_fields_Window), M68K_Window_SIZEOF);
+            return 0;
+    }
     case 17:  /* GT_FilterIMsg: explicit reviewed refusal [-102] */
         if (err && errlen)
             snprintf(err, errlen, "capability gap: gadtools.library.GT_FilterIMsg refused: filter returns an embedded or allocated mutable message with context-owned lifetime");

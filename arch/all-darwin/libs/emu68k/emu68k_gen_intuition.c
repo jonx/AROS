@@ -10,6 +10,7 @@
 #include <proto/intuition.h>
 #include <string.h>
 #include <stdio.h>
+#include <intuition/intuition.h>
 #include <intuition/screens.h>
 #include <intuition/classes.h>
 #include <intuition/imageclass.h>
@@ -17,6 +18,45 @@
 
 #include "emu68k_gen.h"
 #include "emu68k_layouts.h"
+
+static const struct EmuTagDesc emu_tagdesc_intuition_open_window[] =
+{
+    { WA_Left, EMU_TAG_U32, "WA_Left", NULL, 0, 0, 0, 0, 0 },
+    { WA_Top, EMU_TAG_U32, "WA_Top", NULL, 0, 0, 0, 0, 0 },
+    { WA_Width, EMU_TAG_U32, "WA_Width", NULL, 0, 0, 0, 0, 0 },
+    { WA_Height, EMU_TAG_U32, "WA_Height", NULL, 0, 0, 0, 0, 0 },
+    { WA_DetailPen, EMU_TAG_U32, "WA_DetailPen", NULL, 0, 0, 0, 0, 0 },
+    { WA_BlockPen, EMU_TAG_U32, "WA_BlockPen", NULL, 0, 0, 0, 0, 0 },
+    { WA_IDCMP, EMU_TAG_U32, "WA_IDCMP", NULL, 0, 0, 0, 0, 0 },
+    { WA_Flags, EMU_TAG_U32, "WA_Flags", NULL, 0, 0, 0, 0, 0 },
+    { WA_Title, EMU_TAG_CSTR, "WA_Title", NULL, 0, 0, 0, 0, 0 },
+    { WA_CustomScreen, EMU_TAG_OBJECT, "WA_CustomScreen", NULL, 0, 0, 0, EMU_OBJ_Screen, 0 },
+    { WA_MinWidth, EMU_TAG_U32, "WA_MinWidth", NULL, 0, 0, 0, 0, 0 },
+    { WA_MinHeight, EMU_TAG_U32, "WA_MinHeight", NULL, 0, 0, 0, 0, 0 },
+    { WA_MaxWidth, EMU_TAG_U32, "WA_MaxWidth", NULL, 0, 0, 0, 0, 0 },
+    { WA_MaxHeight, EMU_TAG_U32, "WA_MaxHeight", NULL, 0, 0, 0, 0, 0 },
+    { WA_DragBar, EMU_TAG_U32, "WA_DragBar", NULL, 0, 0, 0, 0, 0 },
+    { WA_DepthGadget, EMU_TAG_U32, "WA_DepthGadget", NULL, 0, 0, 0, 0, 0 },
+    { WA_CloseGadget, EMU_TAG_U32, "WA_CloseGadget", NULL, 0, 0, 0, 0, 0 },
+    { WA_SizeGadget, EMU_TAG_U32, "WA_SizeGadget", NULL, 0, 0, 0, 0, 0 },
+    { WA_Activate, EMU_TAG_U32, "WA_Activate", NULL, 0, 0, 0, 0, 0 },
+    { WA_RMBTrap, EMU_TAG_U32, "WA_RMBTrap", NULL, 0, 0, 0, 0, 0 },
+    { WA_ReportMouse, EMU_TAG_U32, "WA_ReportMouse", NULL, 0, 0, 0, 0, 0 },
+    { WA_SimpleRefresh, EMU_TAG_U32, "WA_SimpleRefresh", NULL, 0, 0, 0, 0, 0 },
+    { WA_SmartRefresh, EMU_TAG_U32, "WA_SmartRefresh", NULL, 0, 0, 0, 0, 0 },
+    { WA_SizeBRight, EMU_TAG_U32, "WA_SizeBRight", NULL, 0, 0, 0, 0, 0 },
+    { WA_SizeBBottom, EMU_TAG_U32, "WA_SizeBBottom", NULL, 0, 0, 0, 0, 0 },
+    { WA_AutoAdjust, EMU_TAG_U32, "WA_AutoAdjust", NULL, 0, 0, 0, 0, 0 },
+    { WA_GimmeZeroZero, EMU_TAG_U32, "WA_GimmeZeroZero", NULL, 0, 0, 0, 0, 0 },
+    { WA_Gadgets, EMU_TAG_REFUSE, "WA_Gadgets", NULL, 0, 0, 0, 0, 0 },
+    { WA_BackFill, EMU_TAG_REFUSE, "WA_BackFill", NULL, 0, 0, 0, 0, 0 },
+    { WA_ShapeHook, EMU_TAG_REFUSE, "WA_ShapeHook", NULL, 0, 0, 0, 0, 0 },
+    { WA_ShapeRegion, EMU_TAG_REFUSE, "WA_ShapeRegion", NULL, 0, 0, 0, 0, 0 },
+};
+static const struct EmuTagDomain emu_tagdomain_intuition_open_window =
+{
+    emu_tagdesc_intuition_open_window, 31, "intuition.open_window"
+};
 
 static const struct EmuTagDesc emu_tagdesc_intuition_open_screen[] =
 {
@@ -65,6 +105,12 @@ static void emu_object_cleanup_Screen(APTR emu_base, APTR emu_object)
     CloseScreen((struct Screen *)emu_object);
 }
 
+static void emu_object_cleanup_Window(APTR emu_base, APTR emu_object)
+{
+    struct IntuitionBase *IntuitionBase = emu_base;
+    CloseWindow((struct Window *)emu_object);
+}
+
 static void emu_object_cleanup_Class(APTR emu_base, APTR emu_object)
 {
     struct IntuitionBase *IntuitionBase = emu_base;
@@ -102,6 +148,37 @@ int emu68k_gen_intuition(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
             r->a[0] + M68K_Screen_RastPort_Layer,
             EMU_OBJ_RastPort);
         emu68k_object_consume(guest0, r->a[0], EMU_OBJ_Screen);
+            return 0;
+    }
+    case 12:  /* CloseWindow(struct Window * window) -> void  [-72] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_Window, 0,
+                                        "Window", &emu_object_0, err, errlen) < 0)
+            return 1;
+            CloseWindow((struct Window *)emu_object_0);
+        emu68k_object_release(guest0,
+            (ULONG)emu68k_scalar_from_guest(guest0, r->a[0] + M68K_Window_MenuStrip, 4),
+            EMU_OBJ_Menu);
+        emu68k_object_release(guest0,
+            (ULONG)emu68k_scalar_from_guest(guest0, r->a[0] + M68K_Window_WScreen, 4),
+            EMU_OBJ_Screen);
+        emu68k_object_release(guest0,
+            (ULONG)emu68k_scalar_from_guest(guest0, r->a[0] + M68K_Window_RPort, 4),
+            EMU_OBJ_RastPort);
+        emu68k_object_release(guest0,
+            (ULONG)emu68k_scalar_from_guest(guest0, r->a[0] + M68K_Window_BorderRPort, 4),
+            EMU_OBJ_RastPort);
+        emu68k_object_release(guest0,
+            (ULONG)emu68k_scalar_from_guest(guest0, r->a[0] + M68K_Window_UserPort, 4),
+            EMU_OBJ_MsgPort);
+        emu68k_object_release(guest0,
+            (ULONG)emu68k_scalar_from_guest(guest0, r->a[0] + M68K_Window_WindowPort, 4),
+            EMU_OBJ_MsgPort);
+        emu68k_object_release(guest0,
+            (ULONG)emu68k_scalar_from_guest(guest0, r->a[0] + M68K_Window_IFont, 4),
+            EMU_OBJ_TextFont);
+        emu68k_object_consume(guest0, r->a[0], EMU_OBJ_Window);
             return 0;
     }
     case 13:  /* CloseWorkBench(void) -> LONG  [-78] */
@@ -265,6 +342,94 @@ int emu68k_gen_intuition(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
             return 1;
             r->d[0] = (ULONG)PubScreenStatus((struct Screen *)emu_object_0,
               (UWORD)r->d[0]);
+            return 0;
+    }
+    case 101:  /* OpenWindowTagList(struct NewWindow * newWindow, struct TagItem * tagList) -> struct Window *  [-606] */
+    {
+        if (r->a[0])
+        {
+            if (err && errlen)
+                snprintf(err, errlen, "OpenWindowTagList.newWindow currently requires NULL");
+            return 1;
+        }
+        struct TagItem emu_tags_1[33];
+        if (emu68k_tags_to_native(guest0, r->a[1], &emu_tagdomain_intuition_open_window,
+                                     emu_tags_1, 33, NULL, 0, err, errlen) < 0)
+            return 1;
+        APTR emu_result = (APTR)OpenWindowTagList((struct NewWindow *)NULL,
+              (struct TagItem *)(r->a[1] ? emu_tags_1 : NULL));
+        if (emu68k_object_to_guest_facade(guest0, emu_result, EMU_OBJ_Window,
+                                             base, emu_object_cleanup_Window,
+                                             "Window", 156,
+                                             emu_fields_Window, EMU_NFIELDS(emu_fields_Window),
+                                             &r->d[0], err, errlen) < 0)
+            return 1;
+        if (emu_result && r->d[0])
+        {
+            struct Window *emu_facade_native = (struct Window *)emu_result;
+            ULONG emu_nested_token_0 = 0;
+            if (emu68k_object_to_guest(guest0,
+                    emu_facade_native->MenuStrip, EMU_OBJ_Menu,
+                    NULL, NULL, "Menu",
+                    &emu_nested_token_0, err, errlen) < 0)
+                return 1;
+            emu68k_scalar_to_guest(guest0,
+                r->d[0] + M68K_Window_MenuStrip, 4, emu_nested_token_0);
+            ULONG emu_nested_token_1 = 0;
+            if (emu68k_object_to_guest_facade(guest0,
+                    emu_facade_native->WScreen, EMU_OBJ_Screen,
+                    NULL, NULL, "Screen", M68K_Screen_SIZEOF,
+                    emu_fields_Screen, EMU_NFIELDS(emu_fields_Screen),
+                    &emu_nested_token_1, err, errlen) < 0)
+                return 1;
+            emu68k_scalar_to_guest(guest0,
+                r->d[0] + M68K_Window_WScreen, 4, emu_nested_token_1);
+            ULONG emu_nested_token_2 = 0;
+            if (emu68k_object_to_guest_facade(guest0,
+                    emu_facade_native->RPort, EMU_OBJ_RastPort,
+                    NULL, NULL, "RastPort", M68K_RastPort_SIZEOF,
+                    emu_fields_RastPort, EMU_NFIELDS(emu_fields_RastPort),
+                    &emu_nested_token_2, err, errlen) < 0)
+                return 1;
+            emu68k_scalar_to_guest(guest0,
+                r->d[0] + M68K_Window_RPort, 4, emu_nested_token_2);
+            ULONG emu_nested_token_3 = 0;
+            if (emu68k_object_to_guest_facade(guest0,
+                    emu_facade_native->BorderRPort, EMU_OBJ_RastPort,
+                    NULL, NULL, "RastPort", M68K_RastPort_SIZEOF,
+                    emu_fields_RastPort, EMU_NFIELDS(emu_fields_RastPort),
+                    &emu_nested_token_3, err, errlen) < 0)
+                return 1;
+            emu68k_scalar_to_guest(guest0,
+                r->d[0] + M68K_Window_BorderRPort, 4, emu_nested_token_3);
+            ULONG emu_nested_token_4 = 0;
+            if (emu68k_object_to_guest_facade(guest0,
+                    emu_facade_native->UserPort, EMU_OBJ_MsgPort,
+                    NULL, NULL, "MsgPort", M68K_MsgPort_SIZEOF,
+                    emu_fields_MsgPort, EMU_NFIELDS(emu_fields_MsgPort),
+                    &emu_nested_token_4, err, errlen) < 0)
+                return 1;
+            emu68k_scalar_to_guest(guest0,
+                r->d[0] + M68K_Window_UserPort, 4, emu_nested_token_4);
+            ULONG emu_nested_token_5 = 0;
+            if (emu68k_object_to_guest_facade(guest0,
+                    emu_facade_native->WindowPort, EMU_OBJ_MsgPort,
+                    NULL, NULL, "MsgPort", M68K_MsgPort_SIZEOF,
+                    emu_fields_MsgPort, EMU_NFIELDS(emu_fields_MsgPort),
+                    &emu_nested_token_5, err, errlen) < 0)
+                return 1;
+            emu68k_scalar_to_guest(guest0,
+                r->d[0] + M68K_Window_WindowPort, 4, emu_nested_token_5);
+            ULONG emu_nested_token_6 = 0;
+            if (emu68k_object_to_guest_facade(guest0,
+                    emu_facade_native->IFont, EMU_OBJ_TextFont,
+                    NULL, NULL, "TextFont", M68K_TextFont_SIZEOF,
+                    emu_fields_TextFont, EMU_NFIELDS(emu_fields_TextFont),
+                    &emu_nested_token_6, err, errlen) < 0)
+                return 1;
+            emu68k_scalar_to_guest(guest0,
+                r->d[0] + M68K_Window_IFont, 4, emu_nested_token_6);
+        }
             return 0;
     }
     case 102:  /* OpenScreenTagList(struct NewScreen * newScreen, struct TagItem * tagList) -> struct Screen *  [-612] */

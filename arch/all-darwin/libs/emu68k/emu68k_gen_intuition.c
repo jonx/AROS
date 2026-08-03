@@ -11,6 +11,7 @@
 #include <string.h>
 #include <stdio.h>
 #include <intuition/intuition.h>
+#include <intuition/extensions.h>
 #include <intuition/screens.h>
 #include <intuition/classes.h>
 #include <intuition/imageclass.h>
@@ -30,32 +31,61 @@ static const struct EmuTagDesc emu_tagdesc_intuition_open_window[] =
     { WA_IDCMP, EMU_TAG_U32, "WA_IDCMP", NULL, 0, 0, 0, 0, 0 },
     { WA_Flags, EMU_TAG_U32, "WA_Flags", NULL, 0, 0, 0, 0, 0 },
     { WA_Title, EMU_TAG_CSTR, "WA_Title", NULL, 0, 0, 0, 0, 0 },
+    { WA_ScreenTitle, EMU_TAG_CSTR, "WA_ScreenTitle", NULL, 0, 0, 0, 0, 0 },
     { WA_CustomScreen, EMU_TAG_OBJECT, "WA_CustomScreen", NULL, 0, 0, 0, EMU_OBJ_Screen, 0 },
     { WA_MinWidth, EMU_TAG_U32, "WA_MinWidth", NULL, 0, 0, 0, 0, 0 },
     { WA_MinHeight, EMU_TAG_U32, "WA_MinHeight", NULL, 0, 0, 0, 0, 0 },
     { WA_MaxWidth, EMU_TAG_U32, "WA_MaxWidth", NULL, 0, 0, 0, 0, 0 },
     { WA_MaxHeight, EMU_TAG_U32, "WA_MaxHeight", NULL, 0, 0, 0, 0, 0 },
+    { WA_InnerWidth, EMU_TAG_U32, "WA_InnerWidth", NULL, 0, 0, 0, 0, 0 },
+    { WA_InnerHeight, EMU_TAG_U32, "WA_InnerHeight", NULL, 0, 0, 0, 0, 0 },
+    { WA_PubScreenName, EMU_TAG_CSTR, "WA_PubScreenName", NULL, 0, 0, 0, 0, 0 },
+    { WA_PubScreen, EMU_TAG_OBJECT, "WA_PubScreen", NULL, 0, 0, 0, EMU_OBJ_Screen, 1 },
+    { WA_MouseQueue, EMU_TAG_U32, "WA_MouseQueue", NULL, 0, 0, 0, 0, 0 },
+    { WA_RptQueue, EMU_TAG_U32, "WA_RptQueue", NULL, 0, 0, 0, 0, 0 },
     { WA_DragBar, EMU_TAG_U32, "WA_DragBar", NULL, 0, 0, 0, 0, 0 },
     { WA_DepthGadget, EMU_TAG_U32, "WA_DepthGadget", NULL, 0, 0, 0, 0, 0 },
     { WA_CloseGadget, EMU_TAG_U32, "WA_CloseGadget", NULL, 0, 0, 0, 0, 0 },
+    { WA_Backdrop, EMU_TAG_U32, "WA_Backdrop", NULL, 0, 0, 0, 0, 0 },
+    { WA_NoCareRefresh, EMU_TAG_U32, "WA_NoCareRefresh", NULL, 0, 0, 0, 0, 0 },
+    { WA_Borderless, EMU_TAG_U32, "WA_Borderless", NULL, 0, 0, 0, 0, 0 },
     { WA_SizeGadget, EMU_TAG_U32, "WA_SizeGadget", NULL, 0, 0, 0, 0, 0 },
     { WA_Activate, EMU_TAG_U32, "WA_Activate", NULL, 0, 0, 0, 0, 0 },
     { WA_RMBTrap, EMU_TAG_U32, "WA_RMBTrap", NULL, 0, 0, 0, 0, 0 },
     { WA_ReportMouse, EMU_TAG_U32, "WA_ReportMouse", NULL, 0, 0, 0, 0, 0 },
+    { WA_WBenchWindow, EMU_TAG_U32, "WA_WBenchWindow", NULL, 0, 0, 0, 0, 0 },
     { WA_SimpleRefresh, EMU_TAG_U32, "WA_SimpleRefresh", NULL, 0, 0, 0, 0, 0 },
     { WA_SmartRefresh, EMU_TAG_U32, "WA_SmartRefresh", NULL, 0, 0, 0, 0, 0 },
     { WA_SizeBRight, EMU_TAG_U32, "WA_SizeBRight", NULL, 0, 0, 0, 0, 0 },
     { WA_SizeBBottom, EMU_TAG_U32, "WA_SizeBBottom", NULL, 0, 0, 0, 0, 0 },
     { WA_AutoAdjust, EMU_TAG_U32, "WA_AutoAdjust", NULL, 0, 0, 0, 0, 0 },
     { WA_GimmeZeroZero, EMU_TAG_U32, "WA_GimmeZeroZero", NULL, 0, 0, 0, 0, 0 },
-    { WA_Gadgets, EMU_TAG_REFUSE, "WA_Gadgets", NULL, 0, 0, 0, 0, 0 },
+    { WA_MenuHelp, EMU_TAG_U32, "WA_MenuHelp", NULL, 0, 0, 0, 0, 0 },
+    { WA_NewLookMenus, EMU_TAG_U32, "WA_NewLookMenus", NULL, 0, 0, 0, 0, 0 },
+    { WA_NotifyDepth, EMU_TAG_U32, "WA_NotifyDepth", NULL, 0, 0, 0, 0, 0 },
+    { WA_PointerDelay, EMU_TAG_U32, "WA_PointerDelay", NULL, 0, 0, 0, 0, 0 },
+    { WA_TabletMessages, EMU_TAG_U32, "WA_TabletMessages", NULL, 0, 0, 0, 0, 0 },
+    { WA_HelpGroup, EMU_TAG_U32, "WA_HelpGroup", NULL, 0, 0, 0, 0, 0 },
+    { WA_HelpGroupWindow, EMU_TAG_OBJECT, "WA_HelpGroupWindow", NULL, 0, 0, 0, EMU_OBJ_Window, 1 },
+    { WA_Hidden, EMU_TAG_U32, "WA_Hidden", NULL, 0, 0, 0, 0, 0 },
+    { WA_ToolBox, EMU_TAG_U32, "WA_ToolBox", NULL, 0, 0, 0, 0, 0 },
+    { WA_Parent, EMU_TAG_OBJECT, "WA_Parent", NULL, 0, 0, 0, EMU_OBJ_Window, 0 },
+    { WA_ExtraTitlebarGadgets, EMU_TAG_U32, "WA_ExtraTitlebarGadgets", NULL, 0, 0, 0, 0, 0 },
+    { WA_ExtraGadgetsStartID, EMU_TAG_U32, "WA_ExtraGadgetsStartID", NULL, 0, 0, 0, 0, 0 },
+    { WA_ExtraGadget_Iconify, EMU_TAG_U32, "WA_ExtraGadget_Iconify", NULL, 0, 0, 0, 0, 0 },
+    { WA_ExtraGadget_Lock, EMU_TAG_U32, "WA_ExtraGadget_Lock", NULL, 0, 0, 0, 0, 0 },
+    { WA_ExtraGadget_MUI, EMU_TAG_U32, "WA_ExtraGadget_MUI", NULL, 0, 0, 0, 0, 0 },
+    { WA_ExtraGadget_PopUp, EMU_TAG_U32, "WA_ExtraGadget_PopUp", NULL, 0, 0, 0, 0, 0 },
+    { WA_ExtraGadget_Snapshot, EMU_TAG_U32, "WA_ExtraGadget_Snapshot", NULL, 0, 0, 0, 0, 0 },
+    { WA_ExtraGadget_Jump, EMU_TAG_U32, "WA_ExtraGadget_Jump", NULL, 0, 0, 0, 0, 0 },
+    { WA_Gadgets, EMU_TAG_OBJECT, "WA_Gadgets", NULL, 0, 0, 0, EMU_OBJ_Gadget, 1 },
     { WA_BackFill, EMU_TAG_REFUSE, "WA_BackFill", NULL, 0, 0, 0, 0, 0 },
     { WA_ShapeHook, EMU_TAG_REFUSE, "WA_ShapeHook", NULL, 0, 0, 0, 0, 0 },
     { WA_ShapeRegion, EMU_TAG_REFUSE, "WA_ShapeRegion", NULL, 0, 0, 0, 0, 0 },
 };
 static const struct EmuTagDomain emu_tagdomain_intuition_open_window =
 {
-    emu_tagdesc_intuition_open_window, 31, "intuition.open_window"
+    emu_tagdesc_intuition_open_window, 60, "intuition.open_window"
 };
 
 static const struct EmuTagDesc emu_tagdesc_intuition_open_screen[] =
@@ -352,9 +382,9 @@ int emu68k_gen_intuition(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
                 snprintf(err, errlen, "OpenWindowTagList.newWindow currently requires NULL");
             return 1;
         }
-        struct TagItem emu_tags_1[33];
+        struct TagItem emu_tags_1[65];
         if (emu68k_tags_to_native(guest0, r->a[1], &emu_tagdomain_intuition_open_window,
-                                     emu_tags_1, 33, NULL, 0, err, errlen) < 0)
+                                     emu_tags_1, 65, NULL, 0, err, errlen) < 0)
             return 1;
         APTR emu_result = (APTR)OpenWindowTagList((struct NewWindow *)NULL,
               (struct TagItem *)(r->a[1] ? emu_tags_1 : NULL));

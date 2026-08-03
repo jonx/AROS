@@ -76,14 +76,59 @@ struct DosPacket64
     LONG  dp_Res0;              /* Set to DP64_INIT by the originator */
     ULONG dp_Res2;              /* Secondary result (IoErr() value) */
     QUAD  dp_Res1;              /* 64-bit primary result */
-    QUAD  dp_Arg1;              /* 64-bit arguments ... */
+    LONG  dp_Arg1;
     QUAD  dp_Arg2;
-    ULONG dp_Arg3;
-    ULONG dp_Arg4;
-    ULONG dp_Arg5;
+    LONG  dp_Arg3;
+    LONG  dp_Arg4;
+    QUAD  dp_Arg5;
 };
 
 #define DP64_INIT               (-3)
+
+/*
+ * The field widths are load bearing, not just the offsets. dp_Arg1 and
+ * dp_Arg5 each sit next to alignment padding, so getting either width wrong
+ * leaves every offset and the total size unchanged while still putting the
+ * value in the wrong half of the slot on a big-endian target, and leaving
+ * the dp_Arg5 sentinel's upper word uninitialised.
+ */
+#if defined(__STDC_VERSION__) && (__STDC_VERSION__ >= 201112L)
+#   define DOS64_ASSERT(cond, msg)  _Static_assert(cond, msg)
+#else
+#   define DOS64_ASSERT(cond, msg)  \
+        extern char dos64_layout_assert[(cond) ? 1 : -1]
+#endif
+
+#define DOS64_OFF(f)    __builtin_offsetof(struct DosPacket64, f)
+#define DOS64_SZ(f)     sizeof(((struct DosPacket64 *)0)->f)
+
+DOS64_ASSERT(DOS64_OFF(dp_Link) ==  0, "DosPacket64.dp_Link offset");
+DOS64_ASSERT(DOS64_OFF(dp_Port) ==  4, "DosPacket64.dp_Port offset");
+DOS64_ASSERT(DOS64_OFF(dp_Type) ==  8, "DosPacket64.dp_Type offset");
+DOS64_ASSERT(DOS64_OFF(dp_Res0) == 12, "DosPacket64.dp_Res0 offset");
+DOS64_ASSERT(DOS64_OFF(dp_Res2) == 16, "DosPacket64.dp_Res2 offset");
+DOS64_ASSERT(DOS64_OFF(dp_Res1) == 24, "DosPacket64.dp_Res1 offset");
+DOS64_ASSERT(DOS64_OFF(dp_Arg1) == 32, "DosPacket64.dp_Arg1 offset");
+DOS64_ASSERT(DOS64_OFF(dp_Arg2) == 40, "DosPacket64.dp_Arg2 offset");
+DOS64_ASSERT(DOS64_OFF(dp_Arg3) == 48, "DosPacket64.dp_Arg3 offset");
+DOS64_ASSERT(DOS64_OFF(dp_Arg4) == 52, "DosPacket64.dp_Arg4 offset");
+DOS64_ASSERT(DOS64_OFF(dp_Arg5) == 56, "DosPacket64.dp_Arg5 offset");
+
+DOS64_ASSERT(DOS64_SZ(dp_Res1) == 8, "DosPacket64.dp_Res1 width");
+DOS64_ASSERT(DOS64_SZ(dp_Arg1) == 4, "DosPacket64.dp_Arg1 width");
+DOS64_ASSERT(DOS64_SZ(dp_Arg2) == 8, "DosPacket64.dp_Arg2 width");
+DOS64_ASSERT(DOS64_SZ(dp_Arg3) == 4, "DosPacket64.dp_Arg3 width");
+DOS64_ASSERT(DOS64_SZ(dp_Arg4) == 4, "DosPacket64.dp_Arg4 width");
+DOS64_ASSERT(DOS64_SZ(dp_Arg5) == 8, "DosPacket64.dp_Arg5 width");
+
+DOS64_ASSERT(sizeof(struct DosPacket64) == 64, "DosPacket64 total size");
+
+/* dp_Res0 must alias the standard packet's dp_Res1 for DP64_INIT to work. */
+DOS64_ASSERT(DOS64_OFF(dp_Res0) == __builtin_offsetof(struct DosPacket, dp_Res1),
+             "DosPacket64.dp_Res0 must alias DosPacket.dp_Res1");
+
+#undef DOS64_OFF
+#undef DOS64_SZ
 #endif
 
 /**********************************************************************

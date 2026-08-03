@@ -219,24 +219,18 @@ LONG AccessDisk(BOOL do_write, UQUAD num, ULONG nblocks, ULONG block_size,
         }
     }
 
-    if (exfat_byte_range(num, nblocks, block_size, &off, &io_len)
-        != EXFAT_RANGE_OK)
+    switch (exfat_prepare_transfer(num, nblocks, block_size, glob->dev_64bit,
+        &off, &io_len))
     {
-        D(bug("[exfat] byte range for sector %s x %lu overflows\n",
-            FmtSector(num, s1), nblocks));
-        return IOERR_BADADDRESS;
-    }
-
-    /*
-     * Without TD64 or NSD the device sees only the low 32 bits: the high word
-     * goes into io_Actual and a 32-bit command ignores it, so the transfer
-     * lands elsewhere rather than failing. Refuse instead of reading the
-     * wrong place.
-     */
-    if (!glob->dev_64bit && !exfat_offset_fits_32(off, io_len))
-    {
+    case EXFAT_RANGE_OK:
+        break;
+    case EXFAT_RANGE_TOOBIG:
         D(bug("[exfat] sector %s needs 64-bit addressing,"
             " device has none\n", FmtSector(num, s1)));
+        return EXFAT_IOERR_TOOBIG;
+    default:
+        D(bug("[exfat] byte range for sector %s x %lu overflows\n",
+            FmtSector(num, s1), nblocks));
         return IOERR_BADADDRESS;
     }
 

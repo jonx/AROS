@@ -53,6 +53,13 @@ BOOL Cache_Flush(APTR cache);
 LONG AccessDisk(BOOL do_write, UQUAD num, ULONG nblocks, ULONG block_size,
     UBYTE *data, APTR priv);
 
+/*
+ * Internal marker for "this device cannot address that range". Distinct from
+ * IOERR_BADADDRESS so the mount path can report ERROR_SEEK_ERROR rather than
+ * claiming the medium is not a DOS disk.
+ */
+#define EXFAT_IOERR_TOOBIG  (-1000)
+
 /* Sector numbers are UQUAD, so they must never reach a %lu vararg slot.
    Format through this and pass the result with %s. */
 #define SECTORSTR_LEN 24

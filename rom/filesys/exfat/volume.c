@@ -55,9 +55,18 @@ static LONG ReadDeviceBlocks(struct Globals *glob, UQUAD block, ULONG count,
 {
     UQUAD off;
     ULONG len;
+    enum exfat_range r;
 
-    if (exfat_byte_range(block, count, block_size, &off, &len)
-        != EXFAT_RANGE_OK)
+    /*
+     * This path deliberately bypasses the cache, so it must not also bypass
+     * the addressing guard. A 32-bit-only device with a partition above 4 GB
+     * would otherwise read a truncated offset and report success.
+     */
+    r = exfat_prepare_transfer(block, count, block_size, glob->dev_64bit,
+        &off, &len);
+    if (r == EXFAT_RANGE_TOOBIG)
+        return EXFAT_IOERR_TOOBIG;
+    if (r != EXFAT_RANGE_OK)
         return IOERR_BADADDRESS;
 
     glob->diskioreq->iotd_Req.io_Offset = off & 0xFFFFFFFF;
@@ -100,7 +109,8 @@ static LONG MountVolume(struct Globals *glob, UQUAD part_start,
     if (err != 0)
     {
         FreeVec(buf);
-        return ERROR_NOT_A_DOS_DISK;
+        return err == EXFAT_IOERR_TOOBIG
+            ? ERROR_SEEK_ERROR : ERROR_NOT_A_DOS_DISK;
     }
 
     /* U2: validate the boot sector, which establishes the logical size. */
@@ -143,7 +153,8 @@ static LONG MountVolume(struct Globals *glob, UQUAD part_start,
         if (err != 0)
         {
             FreeVec(buf);
-            return ERROR_NOT_A_DOS_DISK;
+            return err == EXFAT_IOERR_TOOBIG
+                ? ERROR_SEEK_ERROR : ERROR_NOT_A_DOS_DISK;
         }
         checksum = exfat_boot_checksum(checksum, buf, geo.sector_size, i);
     }
@@ -153,7 +164,8 @@ static LONG MountVolume(struct Globals *glob, UQUAD part_start,
     if (err != 0)
     {
         FreeVec(buf);
-        return ERROR_NOT_A_DOS_DISK;
+        return err == EXFAT_IOERR_TOOBIG
+            ? ERROR_SEEK_ERROR : ERROR_NOT_A_DOS_DISK;
     }
 
     if (!exfat_verify_boot_checksum(buf, geo.sector_size, checksum))
@@ -225,10 +237,14 @@ void DoDiskInsert(struct Globals *glob)
     ULONG block_size;
     LONG err;
 
-    glob->mount_error = ERROR_NOT_A_DOS_DISK;
-
+    /*
+     * Checked before the status is touched: a redundant insert must not
+     * overwrite the result of the mount that already succeeded.
+     */
     if (glob->sb != NULL || fssm == NULL)
         return;
+
+    glob->mount_error = ERROR_NOT_A_DOS_DISK;
 
     de = (struct DosEnvec *)BADDR(fssm->fssm_Environ);
 
@@ -248,7 +264,11 @@ void DoDiskInsert(struct Globals *glob)
 
     sb = AllocVec(sizeof(struct FSSuper), MEMF_PUBLIC | MEMF_CLEAR);
     if (sb == NULL)
+    {
+        glob->mount_error = ERROR_NO_FREE_STORE;
+        bug("[exfat] mount REFUSED, out of memory\n");
         return;
+    }
 
     err = MountVolume(glob, part_start, part_blocks, block_size, sb);
     glob->mount_error = err;

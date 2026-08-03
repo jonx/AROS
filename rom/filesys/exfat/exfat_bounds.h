@@ -203,4 +203,28 @@ static inline int exfat_offset_fits_32(UQUAD off, ULONG len)
     return (UQUAD)(len - 1) <= 0xFFFFFFFFull - off;
 }
 
+/*
+ * Everything a transfer needs decided in one place: the byte range, and
+ * whether this device can actually address it.
+ *
+ * Both callers go through here rather than each performing its own checks.
+ * The boot-region read bypasses the cache, and therefore bypassed the guard
+ * that lived in AccessDisk(), which meant a 32-bit-only device with a
+ * partition above 4 GB read a truncated address and appeared to succeed. A
+ * guard that is not on every path reads as covering more than it does.
+ */
+static inline enum exfat_range exfat_prepare_transfer(UQUAD block,
+    ULONG count, ULONG block_size, int dev_64bit, UQUAD *off, ULONG *len)
+{
+    enum exfat_range r = exfat_byte_range(block, count, block_size, off, len);
+
+    if (r != EXFAT_RANGE_OK)
+        return r;
+
+    if (!dev_64bit && !exfat_offset_fits_32(*off, *len))
+        return EXFAT_RANGE_TOOBIG;
+
+    return EXFAT_RANGE_OK;
+}
+
 #endif /* EXFAT_BOUNDS_H */

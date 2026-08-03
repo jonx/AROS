@@ -42,6 +42,17 @@ static const struct EmuTagDomain emu_tagdomain_gadtools_layout_menus =
     emu_tagdesc_gadtools_layout_menus, 5, "gadtools.layout_menus"
 };
 
+static const struct EmuTagDesc emu_tagdesc_gadtools_draw_bevel[] =
+{
+    { GT_VisualInfo, EMU_TAG_OBJECT, "GT_VisualInfo", NULL, 0, 0, 0, EMU_OBJ_VisualInfo, 0 },
+    { GTBB_Recessed, EMU_TAG_U32, "GTBB_Recessed", NULL, 0, 0, 0, 0, 0 },
+    { GTBB_FrameType, EMU_TAG_U32, "GTBB_FrameType", NULL, 0, 0, 0, 0, 0 },
+};
+static const struct EmuTagDomain emu_tagdomain_gadtools_draw_bevel =
+{
+    emu_tagdesc_gadtools_draw_bevel, 3, "gadtools.draw_bevel"
+};
+
 static const struct EmuTagDesc emu_tagdesc_gadtools_visual_info[] =
 {
     { 0, EMU_TAG_REFUSE, NULL, NULL, 0, 0, 0, 0, 0 },
@@ -245,6 +256,26 @@ int emu68k_gen_gadtools(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
             snprintf(err, errlen, "capability gap: gadtools.library.GT_PostFilterIMsg refused: post-filter copies guest-visible mutations and releases embedded or allocated wrapper state");
         r->d[0] = 0;
         return 1;
+    case 20:  /* DrawBevelBoxA(struct RastPort * rport, WORD left, WORD top, WORD width, WORD height, struct TagItem * taglist) -> void  [-120] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_RastPort, 0,
+                                        "RastPort", &emu_object_0, err, errlen) < 0)
+            return 1;
+        struct TagItem emu_tags_5[9];
+        if (emu68k_tags_to_native(guest0, r->a[1], &emu_tagdomain_gadtools_draw_bevel,
+                                     emu_tags_5, 9, NULL, 0, err, errlen) < 0)
+            return 1;
+            DrawBevelBoxA((struct RastPort *)emu_object_0,
+              (WORD)r->d[0],
+              (WORD)r->d[1],
+              (WORD)r->d[2],
+              (WORD)r->d[3],
+              (struct TagItem *)(r->a[1] ? emu_tags_5 : NULL));
+        emu68k_to_guest_sized(guest0, r->a[0], emu_object_0,
+            emu_fields_RastPort, EMU_NFIELDS(emu_fields_RastPort), M68K_RastPort_SIZEOF);
+            return 0;
+    }
     case 21:  /* GetVisualInfoA(struct Screen * screen, struct TagItem * tagList) -> APTR  [-126] */
     {
         APTR emu_object_0;

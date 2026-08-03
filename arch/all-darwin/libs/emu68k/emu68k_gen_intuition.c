@@ -98,6 +98,9 @@ int emu68k_gen_intuition(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
         emu68k_object_release(guest0,
             (ULONG)emu68k_scalar_from_guest(guest0, r->a[0] + M68K_Screen_ViewPort_ColorMap, 4),
             EMU_OBJ_ColorMap);
+        emu68k_object_release(guest0,
+            r->a[0] + M68K_Screen_RastPort_Layer,
+            EMU_OBJ_RastPort);
         emu68k_object_consume(guest0, r->a[0], EMU_OBJ_Screen);
             return 0;
     }
@@ -191,7 +194,7 @@ int emu68k_gen_intuition(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
         APTR emu_result = (APTR)LockPubScreen((CONST_STRPTR)EMU_GPTR(guest0, r->a[0]));
         if (emu68k_object_to_guest_facade(guest0, emu_result, EMU_OBJ_Screen,
                                              base, NULL,
-                                             "Screen", 84,
+                                             "Screen", 184,
                                              emu_fields_Screen, EMU_NFIELDS(emu_fields_Screen),
                                              &r->d[0], err, errlen) < 0)
             return 1;
@@ -212,6 +215,16 @@ int emu68k_gen_intuition(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
                 return 1;
             emu68k_scalar_to_guest(guest0,
                 r->d[0] + M68K_Screen_ViewPort_ColorMap, 4, emu_nested_token_1);
+            ULONG emu_nested_token_2 =
+                r->d[0] + M68K_Screen_RastPort_Layer;
+            emu68k_to_guest_sized(guest0, emu_nested_token_2,
+                &emu_facade_native->RastPort,
+                emu_fields_RastPort, EMU_NFIELDS(emu_fields_RastPort),
+                M68K_RastPort_SIZEOF);
+            if (emu68k_object_alias_to_guest(guest0,
+                    emu_nested_token_2, &emu_facade_native->RastPort,
+                    EMU_OBJ_RastPort, "RastPort", err, errlen) < 0)
+                return 1;
         }
             return 0;
     }
@@ -229,6 +242,9 @@ int emu68k_gen_intuition(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
         emu68k_object_release(guest0,
             (ULONG)emu68k_scalar_from_guest(guest0, r->a[1] + M68K_Screen_ViewPort_ColorMap, 4),
             EMU_OBJ_ColorMap);
+        emu68k_object_release(guest0,
+            r->a[1] + M68K_Screen_RastPort_Layer,
+            EMU_OBJ_RastPort);
         emu68k_object_release(guest0, r->a[1], EMU_OBJ_Screen);
             return 0;
     }
@@ -310,7 +326,7 @@ int emu68k_gen_intuition(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
         emu68k_scratch_free(emu_tagscratch_1, emu_tagscratch_size_1);
         if (emu68k_object_to_guest_facade(guest0, emu_result, EMU_OBJ_Screen,
                                              base, emu_object_cleanup_Screen,
-                                             "Screen", 84,
+                                             "Screen", 184,
                                              emu_fields_Screen, EMU_NFIELDS(emu_fields_Screen),
                                              &r->d[0], err, errlen) < 0)
             return 1;
@@ -331,6 +347,16 @@ int emu68k_gen_intuition(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
                 return 1;
             emu68k_scalar_to_guest(guest0,
                 r->d[0] + M68K_Screen_ViewPort_ColorMap, 4, emu_nested_token_1);
+            ULONG emu_nested_token_2 =
+                r->d[0] + M68K_Screen_RastPort_Layer;
+            emu68k_to_guest_sized(guest0, emu_nested_token_2,
+                &emu_facade_native->RastPort,
+                emu_fields_RastPort, EMU_NFIELDS(emu_fields_RastPort),
+                M68K_RastPort_SIZEOF);
+            if (emu68k_object_alias_to_guest(guest0,
+                    emu_nested_token_2, &emu_facade_native->RastPort,
+                    EMU_OBJ_RastPort, "RastPort", err, errlen) < 0)
+                return 1;
         }
             return 0;
     }

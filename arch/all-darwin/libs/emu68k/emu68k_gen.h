@@ -189,6 +189,7 @@ enum
     EMU_OBJ_ViewPort = 15,
     EMU_OBJ_VisualInfo = 16,
     EMU_OBJ_Menu = 17,
+    EMU_OBJ_RastPort = 18,
 };
 int emu68k_gen_exec(int lvo, struct Emu68kRegs *r,
                   APTR guest0, APTR base,

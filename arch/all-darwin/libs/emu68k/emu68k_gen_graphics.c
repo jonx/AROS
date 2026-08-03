@@ -263,6 +263,17 @@ int emu68k_gen_graphics(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
               (WORD)r->d[1]);
             return 0;
     }
+    case 41:  /* Draw(struct RastPort * rp, WORD x, WORD y) -> void  [-246] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[1], EMU_OBJ_RastPort, 1,
+                                        "RastPort", &emu_object_0, err, errlen) < 0)
+            return 1;
+            Draw((struct RastPort *)emu_object_0,
+              (WORD)r->d[0],
+              (WORD)r->d[1]);
+            return 0;
+    }
     case 42:  /* AreaMove(struct RastPort * rp, WORD x, WORD y) -> ULONG  [-252] */
     {
         APTR emu_object_0;
@@ -535,6 +546,15 @@ int emu68k_gen_graphics(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
         emu68k_object_consume(guest0, r->a[0], EMU_OBJ_Region);
             return 0;
     }
+    case 90:  /* FreeVPortCopLists(struct ViewPort * vp) -> void  [-540] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_ViewPort, 1,
+                                        "ViewPort", &emu_object_0, err, errlen) < 0)
+            return 1;
+            FreeVPortCopLists((struct ViewPort *)emu_object_0);
+            return 0;
+    }
     case 93:  /* XorRectRegion(struct Region * Reg, struct Rectangle * Rect) -> BOOL  [-558] */
     {
         APTR emu_object_0;
@@ -772,6 +792,15 @@ int emu68k_gen_graphics(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
               (WORD)r->d[3],
               (UBYTE *)EMU_GPTR(guest0, r->a[2]),
               (struct RastPort *)emu_object_6);
+            return 0;
+    }
+    case 132:  /* GetVPModeID(struct ViewPort * vp) -> ULONG  [-792] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_ViewPort, 1,
+                                        "ViewPort", &emu_object_0, err, errlen) < 0)
+            return 1;
+            r->d[0] = (ULONG)GetVPModeID((struct ViewPort *)emu_object_0);
             return 0;
     }
     case 133:  /* ModeNotAvailable(ULONG modeID) -> ULONG  [-798] */

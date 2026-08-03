@@ -176,6 +176,15 @@ int emu68k_gen_intuition(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
               (ULONG)r->d[0]);
             return 0;
     }
+    case 8:  /* ClearDMRequest(struct Window * window) -> BOOL  [-48] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_Window, 1,
+                                        "Window", &emu_object_0, err, errlen) < 0)
+            return 1;
+            r->d[0] = (ULONG)ClearDMRequest((struct Window *)emu_object_0);
+            return 0;
+    }
     case 9:  /* ClearMenuStrip(struct Window * window) -> void  [-54] */
     {
         APTR emu_object_0;
@@ -385,6 +394,20 @@ int emu68k_gen_intuition(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
     case 35:  /* OpenWorkBench(void) -> IPTR  [-210] */
         r->d[0] = (ULONG)OpenWorkBench();   /* narrowed: an integer, never an address */
         return 0;
+    case 38:  /* RemoveGadget(struct Window * window, struct Gadget * gadget) -> UWORD  [-228] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_Window, 1,
+                                        "Window", &emu_object_0, err, errlen) < 0)
+            return 1;
+        APTR emu_object_1;
+        if (emu68k_object_from_guest(guest0, r->a[1], EMU_OBJ_Gadget, 1,
+                                        "Gadget", &emu_object_1, err, errlen) < 0)
+            return 1;
+            r->d[0] = (ULONG)RemoveGadget((struct Window *)emu_object_0,
+              (struct Gadget *)emu_object_1);
+            return 0;
+    }
     case 39:  /* ReportMouse(LONG flag, struct Window * window) -> void  [-234] */
     {
         APTR emu_object_1;
@@ -393,6 +416,24 @@ int emu68k_gen_intuition(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
             return 1;
             ReportMouse((LONG)r->d[0],
               (struct Window *)emu_object_1);
+            return 0;
+    }
+    case 41:  /* ScreenToBack(struct Screen * screen) -> void  [-246] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_Screen, 1,
+                                        "Screen", &emu_object_0, err, errlen) < 0)
+            return 1;
+            ScreenToBack((struct Screen *)emu_object_0);
+            return 0;
+    }
+    case 42:  /* ScreenToFront(struct Screen * screen) -> void  [-252] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_Screen, 1,
+                                        "Screen", &emu_object_0, err, errlen) < 0)
+            return 1;
+            ScreenToFront((struct Screen *)emu_object_0);
             return 0;
     }
     case 44:  /* SetMenuStrip(struct Window * window, struct Menu * menu) -> BOOL  [-264] */
@@ -428,6 +469,17 @@ int emu68k_gen_intuition(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
             return 1;
             ShowTitle((struct Screen *)emu_object_0,
               (BOOL)r->d[0]);
+            return 0;
+    }
+    case 48:  /* SizeWindow(struct Window * window, LONG dx, LONG dy) -> void  [-288] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_Window, 1,
+                                        "Window", &emu_object_0, err, errlen) < 0)
+            return 1;
+            SizeWindow((struct Window *)emu_object_0,
+              (LONG)r->d[0],
+              (LONG)r->d[1]);
             return 0;
     }
     case 51:  /* WindowToBack(struct Window * window) -> void  [-306] */
@@ -486,6 +538,15 @@ int emu68k_gen_intuition(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
               (BOOL)r->d[0]);
             return 0;
     }
+    case 62:  /* FreeSysRequest(struct Window * window) -> void  [-372] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_Window, 1,
+                                        "Window", &emu_object_0, err, errlen) < 0)
+            return 1;
+            FreeSysRequest((struct Window *)emu_object_0);
+            return 0;
+    }
     case 63:  /* MakeScreen(struct Screen * screen) -> LONG  [-378] */
     {
         APTR emu_object_0;
@@ -529,6 +590,15 @@ int emu68k_gen_intuition(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
                                         "Window", &emu_object_0, err, errlen) < 0)
             return 1;
             ActivateWindow((struct Window *)emu_object_0);
+            return 0;
+    }
+    case 76:  /* RefreshWindowFrame(struct Window * window) -> void  [-456] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_Window, 1,
+                                        "Window", &emu_object_0, err, errlen) < 0)
+            return 1;
+            RefreshWindowFrame((struct Window *)emu_object_0);
             return 0;
     }
     case 80:  /* MoveWindowInFrontOf(struct Window * window, struct Window * behindwindow) -> void  [-480] */

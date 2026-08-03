@@ -22,10 +22,16 @@ int emu68k_gen_workbench(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
     switch (lvo)
     {
     case 5:  /* UpdateWorkbench(CONST_STRPTR name, BPTR lock, LONG action) -> BOOL  [-30] */
+    {
+        BPTR emu_bptr_1;
+        if (emu68k_handle_require(guest0, r->a[1],
+                                 "UpdateWorkbench.lock", &emu_bptr_1, err, errlen) < 0)
+            return 1;
         r->d[0] = (ULONG)UpdateWorkbench((CONST_STRPTR)EMU_GPTR(guest0, r->a[0]),
-              EMU_HANDLE(guest0, r->a[1]),
+              emu_bptr_1,
               (LONG)r->d[0]);
         return 0;
+    }
     case 6:  /* QuoteWorkbench(ULONG stringNum) -> BOOL  [-36] */
         r->d[0] = (ULONG)QuoteWorkbench((ULONG)r->d[0]);
         return 0;

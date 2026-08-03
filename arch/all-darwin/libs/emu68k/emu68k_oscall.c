@@ -447,6 +447,30 @@ static BPTR handle_bptr(struct Emu68kRunState *rs, ULONG token)
     return (i < 0 || !rs) ? BNULL : rs->handles[i].bptr;
 }
 
+/* A BPTR argument, resolved or REFUSED.
+ *
+ * handle_bptr answers BNULL for a token this run never issued, and BNULL is a
+ * legitimate argument - "no lock" means the current directory - so the native
+ * call went ahead and dereferenced nothing. A token the program made up, or one
+ * it has already unlocked, has to be named instead: it is the same mistake the
+ * typed object table refuses by name, on the one table that was still silent. */
+LONG emu68k_handle_require(APTR guest0, ULONG token, const char *what,
+                           BPTR *out, char *err, ULONG errlen)
+{
+    struct Emu68kRunState *rs = run_state(guest0);
+    if (out) *out = BNULL;
+    if (!token) return 0;                       /* the program said "none"     */
+    if (handle_index(token) < 0 || !rs || !handle_bptr(rs, token))
+    {
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: stale or unknown %s handle "
+                     "%08lx", what ? what : "BPTR", (unsigned long)token);
+        return -1;
+    }
+    if (out) *out = handle_bptr(rs, token);
+    return 0;
+}
+
 /* The generated crossings need the handle table too (a BPTR argument or
  * result); this file owns it, so it exports the two ends. */
 BPTR emu68k_handle_bptr(APTR guest0, ULONG token)

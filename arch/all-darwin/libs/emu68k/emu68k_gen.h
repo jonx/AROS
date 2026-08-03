@@ -119,6 +119,10 @@ struct EmuMirror
  * passed through (big-endian, 32-bit pointers), so the run mirrors it natively
  * under its guest address and converts in and back out around the call. A
  * linked family is adopted whole, since the library walks the native chain. */
+/* A BPTR argument, resolved or refused by name. A token this run never issued
+ * is not "no lock": it is a mistake, and it used to become BNULL. */
+LONG emu68k_handle_require(APTR guest0, ULONG token, const char *what,
+                           BPTR *out, char *err, ULONG errlen);
 LONG emu68k_object_adopt_guest(APTR guest0, ULONG addr, UWORD type,
                                const char *type_name,
                                const struct EmuMirror *m, APTR *native,

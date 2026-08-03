@@ -12,6 +12,7 @@
 #include <stdio.h>
 #include <intuition/screens.h>
 #include <intuition/classes.h>
+#include <intuition/imageclass.h>
 #include <intuition/pointerclass.h>
 
 #include "emu68k_gen.h"
@@ -19,21 +20,21 @@
 
 static const struct EmuTagDesc emu_tagdesc_intuition_open_screen[] =
 {
-    { SA_AutoScroll, EMU_TAG_U32, "SA_AutoScroll", NULL, 0, 0, 0 },
-    { SA_Pens, EMU_TAG_U16_FFFF, "SA_Pens", NULL, 0, 32, 0 },
-    { SA_Width, EMU_TAG_U32, "SA_Width", NULL, 0, 0, 0 },
-    { SA_Height, EMU_TAG_U32, "SA_Height", NULL, 0, 0, 0 },
-    { SA_Depth, EMU_TAG_U32, "SA_Depth", NULL, 0, 0, 0 },
-    { SA_Overscan, EMU_TAG_U32, "SA_Overscan", NULL, 0, 0, 0 },
-    { SA_DisplayID, EMU_TAG_U32, "SA_DisplayID", NULL, 0, 0, 0 },
-    { SA_Interleaved, EMU_TAG_U32, "SA_Interleaved", NULL, 0, 0, 0 },
-    { SA_Title, EMU_TAG_CSTR, "SA_Title", NULL, 0, 0, 0 },
-    { SA_ShowTitle, EMU_TAG_U32, "SA_ShowTitle", NULL, 0, 0, 0 },
-    { SA_Colors32, EMU_TAG_RGB32, "SA_Colors32", NULL, 0, 1024, 0 },
-    { SA_SharePens, EMU_TAG_U32, "SA_SharePens", NULL, 0, 0, 0 },
-    { SA_PubName, EMU_TAG_CSTR, "SA_PubName", NULL, 0, 0, 0 },
+    { SA_AutoScroll, EMU_TAG_U32, "SA_AutoScroll", NULL, 0, 0, 0, 0, 0 },
+    { SA_Pens, EMU_TAG_U16_FFFF, "SA_Pens", NULL, 0, 32, 0, 0, 0 },
+    { SA_Width, EMU_TAG_U32, "SA_Width", NULL, 0, 0, 0, 0, 0 },
+    { SA_Height, EMU_TAG_U32, "SA_Height", NULL, 0, 0, 0, 0, 0 },
+    { SA_Depth, EMU_TAG_U32, "SA_Depth", NULL, 0, 0, 0, 0, 0 },
+    { SA_Overscan, EMU_TAG_U32, "SA_Overscan", NULL, 0, 0, 0, 0, 0 },
+    { SA_DisplayID, EMU_TAG_U32, "SA_DisplayID", NULL, 0, 0, 0, 0, 0 },
+    { SA_Interleaved, EMU_TAG_U32, "SA_Interleaved", NULL, 0, 0, 0, 0, 0 },
+    { SA_Title, EMU_TAG_CSTR, "SA_Title", NULL, 0, 0, 0, 0, 0 },
+    { SA_ShowTitle, EMU_TAG_U32, "SA_ShowTitle", NULL, 0, 0, 0, 0, 0 },
+    { SA_Colors32, EMU_TAG_RGB32, "SA_Colors32", NULL, 0, 1024, 0, 0, 0 },
+    { SA_SharePens, EMU_TAG_U32, "SA_SharePens", NULL, 0, 0, 0, 0, 0 },
+    { SA_PubName, EMU_TAG_CSTR, "SA_PubName", NULL, 0, 0, 0, 0, 0 },
     { SA_Font, EMU_TAG_STRUCT, "SA_Font", emu_fields_TextAttr, EMU_NFIELDS(emu_fields_TextAttr),
-      M68K_TextAttr_SIZEOF, sizeof(struct TextAttr) },
+      M68K_TextAttr_SIZEOF, sizeof(struct TextAttr), 0, 0 },
 };
 static const struct EmuTagDomain emu_tagdomain_intuition_open_screen =
 {
@@ -42,17 +43,20 @@ static const struct EmuTagDomain emu_tagdomain_intuition_open_screen =
 
 static const struct EmuTagDesc emu_tagdesc_intuition_new_object[] =
 {
+    { SYSIA_DrawInfo, EMU_TAG_OBJECT, "SYSIA_DrawInfo", NULL, 0, 0, 0, EMU_OBJ_DrawInfo, 0 },
+    { SYSIA_Size, EMU_TAG_U32, "SYSIA_Size", NULL, 0, 0, 0, 0, 0 },
+    { SYSIA_Which, EMU_TAG_U32, "SYSIA_Which", NULL, 0, 0, 0, 0, 0 },
     { POINTERA_BitMap, EMU_TAG_STRUCT, "POINTERA_BitMap", emu_fields_BitMap, EMU_NFIELDS(emu_fields_BitMap),
-      M68K_BitMap_SIZEOF, sizeof(struct BitMap) },
-    { POINTERA_XOffset, EMU_TAG_U32, "POINTERA_XOffset", NULL, 0, 0, 0 },
-    { POINTERA_YOffset, EMU_TAG_U32, "POINTERA_YOffset", NULL, 0, 0, 0 },
-    { POINTERA_WordWidth, EMU_TAG_U32, "POINTERA_WordWidth", NULL, 0, 0, 0 },
-    { POINTERA_XResolution, EMU_TAG_U32, "POINTERA_XResolution", NULL, 0, 0, 0 },
-    { POINTERA_YResolution, EMU_TAG_U32, "POINTERA_YResolution", NULL, 0, 0, 0 },
+      M68K_BitMap_SIZEOF, sizeof(struct BitMap), 0, 0 },
+    { POINTERA_XOffset, EMU_TAG_U32, "POINTERA_XOffset", NULL, 0, 0, 0, 0, 0 },
+    { POINTERA_YOffset, EMU_TAG_U32, "POINTERA_YOffset", NULL, 0, 0, 0, 0, 0 },
+    { POINTERA_WordWidth, EMU_TAG_U32, "POINTERA_WordWidth", NULL, 0, 0, 0, 0, 0 },
+    { POINTERA_XResolution, EMU_TAG_U32, "POINTERA_XResolution", NULL, 0, 0, 0, 0, 0 },
+    { POINTERA_YResolution, EMU_TAG_U32, "POINTERA_YResolution", NULL, 0, 0, 0, 0, 0 },
 };
 static const struct EmuTagDomain emu_tagdomain_intuition_new_object =
 {
-    emu_tagdesc_intuition_new_object, 6, "intuition.new_object"
+    emu_tagdesc_intuition_new_object, 9, "intuition.new_object"
 };
 
 static void emu_object_cleanup_Screen(APTR emu_base, APTR emu_object)

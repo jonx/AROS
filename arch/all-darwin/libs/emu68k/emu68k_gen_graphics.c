@@ -18,19 +18,19 @@
 
 static const struct EmuTagDesc emu_tagdesc_graphics_best_mode[] =
 {
-    { BIDTAG_DIPFMustHave, EMU_TAG_U32, "BIDTAG_DIPFMustHave", NULL, 0, 0, 0 },
-    { BIDTAG_DIPFMustNotHave, EMU_TAG_U32, "BIDTAG_DIPFMustNotHave", NULL, 0, 0, 0 },
-    { BIDTAG_ViewPort, EMU_TAG_REFUSE, "BIDTAG_ViewPort", NULL, 0, 0, 0 },
-    { BIDTAG_NominalWidth, EMU_TAG_U32, "BIDTAG_NominalWidth", NULL, 0, 0, 0 },
-    { BIDTAG_NominalHeight, EMU_TAG_U32, "BIDTAG_NominalHeight", NULL, 0, 0, 0 },
-    { BIDTAG_DesiredWidth, EMU_TAG_U32, "BIDTAG_DesiredWidth", NULL, 0, 0, 0 },
-    { BIDTAG_DesiredHeight, EMU_TAG_U32, "BIDTAG_DesiredHeight", NULL, 0, 0, 0 },
-    { BIDTAG_Depth, EMU_TAG_U32, "BIDTAG_Depth", NULL, 0, 0, 0 },
-    { BIDTAG_MonitorID, EMU_TAG_U32, "BIDTAG_MonitorID", NULL, 0, 0, 0 },
-    { BIDTAG_SourceID, EMU_TAG_U32, "BIDTAG_SourceID", NULL, 0, 0, 0 },
-    { BIDTAG_RedBits, EMU_TAG_U32, "BIDTAG_RedBits", NULL, 0, 0, 0 },
-    { BIDTAG_BlueBits, EMU_TAG_U32, "BIDTAG_BlueBits", NULL, 0, 0, 0 },
-    { BIDTAG_GreenBits, EMU_TAG_U32, "BIDTAG_GreenBits", NULL, 0, 0, 0 },
+    { BIDTAG_DIPFMustHave, EMU_TAG_U32, "BIDTAG_DIPFMustHave", NULL, 0, 0, 0, 0, 0 },
+    { BIDTAG_DIPFMustNotHave, EMU_TAG_U32, "BIDTAG_DIPFMustNotHave", NULL, 0, 0, 0, 0, 0 },
+    { BIDTAG_ViewPort, EMU_TAG_REFUSE, "BIDTAG_ViewPort", NULL, 0, 0, 0, 0, 0 },
+    { BIDTAG_NominalWidth, EMU_TAG_U32, "BIDTAG_NominalWidth", NULL, 0, 0, 0, 0, 0 },
+    { BIDTAG_NominalHeight, EMU_TAG_U32, "BIDTAG_NominalHeight", NULL, 0, 0, 0, 0, 0 },
+    { BIDTAG_DesiredWidth, EMU_TAG_U32, "BIDTAG_DesiredWidth", NULL, 0, 0, 0, 0, 0 },
+    { BIDTAG_DesiredHeight, EMU_TAG_U32, "BIDTAG_DesiredHeight", NULL, 0, 0, 0, 0, 0 },
+    { BIDTAG_Depth, EMU_TAG_U32, "BIDTAG_Depth", NULL, 0, 0, 0, 0, 0 },
+    { BIDTAG_MonitorID, EMU_TAG_U32, "BIDTAG_MonitorID", NULL, 0, 0, 0, 0, 0 },
+    { BIDTAG_SourceID, EMU_TAG_U32, "BIDTAG_SourceID", NULL, 0, 0, 0, 0, 0 },
+    { BIDTAG_RedBits, EMU_TAG_U32, "BIDTAG_RedBits", NULL, 0, 0, 0, 0, 0 },
+    { BIDTAG_BlueBits, EMU_TAG_U32, "BIDTAG_BlueBits", NULL, 0, 0, 0, 0, 0 },
+    { BIDTAG_GreenBits, EMU_TAG_U32, "BIDTAG_GreenBits", NULL, 0, 0, 0, 0, 0 },
 };
 static const struct EmuTagDomain emu_tagdomain_graphics_best_mode =
 {

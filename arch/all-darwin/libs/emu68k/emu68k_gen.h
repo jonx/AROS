@@ -123,6 +123,7 @@ LONG emu68k_boopsi_finish(struct Emu68kBoopsiBridge *bridge,
 #define EMU_TAG_NULL    4   /* pointer-valued tag accepted only when NULL       */
 #define EMU_TAG_U16_FFFF 5  /* guest UWORD array terminated by 0xffff           */
 #define EMU_TAG_RGB32    6  /* LoadRGB32 block stream terminated by zero         */
+#define EMU_TAG_OBJECT   7  /* typed native object represented by a guest token  */
 struct EmuTagDesc
 {
     ULONG tag;
@@ -136,6 +137,8 @@ struct EmuTagDesc
     UWORD nfields;
     UWORD guest_size;
     UWORD native_size;
+    UWORD object_type;
+    UBYTE object_nullable;
 };
 struct EmuTagDomain
 {

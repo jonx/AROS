@@ -225,7 +225,16 @@ LONG emu68k_tags_to_native(APTR guest0, ULONG guest_tags,
         }
 
         native_tags[out].ti_Tag = desc->tag;
-        if (desc->kind == EMU_TAG_STRUCT)
+        if (desc->kind == EMU_TAG_OBJECT)
+        {
+            APTR object;
+            if (emu68k_object_from_guest(guest0, data, desc->object_type,
+                                         desc->object_nullable, desc->name,
+                                         &object, err, errlen) < 0)
+                return -1;
+            native_tags[out].ti_Data = (IPTR)object;
+        }
+        else if (desc->kind == EMU_TAG_STRUCT)
         {
             /* The value is a guest pointer to a structure, so the callee is
              * given a native one built from it, living in the caller's scratch

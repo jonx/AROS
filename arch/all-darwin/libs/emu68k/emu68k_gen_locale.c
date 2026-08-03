@@ -14,10 +14,10 @@
 
 static const struct EmuTagDesc emu_tagdesc_locale_open_catalog[] =
 {
-    { OC_BuiltInLanguage, EMU_TAG_CSTR, "OC_BuiltInLanguage", NULL, 0, 0, 0 },
-    { OC_BuiltInCodeSet, EMU_TAG_U32, "OC_BuiltInCodeSet", NULL, 0, 0, 0 },
-    { OC_Version, EMU_TAG_U32, "OC_Version", NULL, 0, 0, 0 },
-    { OC_Language, EMU_TAG_CSTR, "OC_Language", NULL, 0, 0, 0 },
+    { OC_BuiltInLanguage, EMU_TAG_CSTR, "OC_BuiltInLanguage", NULL, 0, 0, 0, 0, 0 },
+    { OC_BuiltInCodeSet, EMU_TAG_U32, "OC_BuiltInCodeSet", NULL, 0, 0, 0, 0, 0 },
+    { OC_Version, EMU_TAG_U32, "OC_Version", NULL, 0, 0, 0, 0, 0 },
+    { OC_Language, EMU_TAG_CSTR, "OC_Language", NULL, 0, 0, 0, 0, 0 },
 };
 static const struct EmuTagDomain emu_tagdomain_locale_open_catalog =
 {

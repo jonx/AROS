@@ -14,11 +14,11 @@
 
 static const struct EmuTagDesc emu_tagdesc_cybergraphics_best_mode[] =
 {
-    { CYBRBIDTG_Depth, EMU_TAG_U32, "CYBRBIDTG_Depth", NULL, 0, 0, 0 },
-    { CYBRBIDTG_NominalWidth, EMU_TAG_U32, "CYBRBIDTG_NominalWidth", NULL, 0, 0, 0 },
-    { CYBRBIDTG_NominalHeight, EMU_TAG_U32, "CYBRBIDTG_NominalHeight", NULL, 0, 0, 0 },
-    { CYBRBIDTG_MonitorID, EMU_TAG_U32, "CYBRBIDTG_MonitorID", NULL, 0, 0, 0 },
-    { CYBRBIDTG_BoardName, EMU_TAG_CSTR, "CYBRBIDTG_BoardName", NULL, 0, 0, 0 },
+    { CYBRBIDTG_Depth, EMU_TAG_U32, "CYBRBIDTG_Depth", NULL, 0, 0, 0, 0, 0 },
+    { CYBRBIDTG_NominalWidth, EMU_TAG_U32, "CYBRBIDTG_NominalWidth", NULL, 0, 0, 0, 0, 0 },
+    { CYBRBIDTG_NominalHeight, EMU_TAG_U32, "CYBRBIDTG_NominalHeight", NULL, 0, 0, 0, 0, 0 },
+    { CYBRBIDTG_MonitorID, EMU_TAG_U32, "CYBRBIDTG_MonitorID", NULL, 0, 0, 0, 0, 0 },
+    { CYBRBIDTG_BoardName, EMU_TAG_CSTR, "CYBRBIDTG_BoardName", NULL, 0, 0, 0, 0, 0 },
 };
 static const struct EmuTagDomain emu_tagdomain_cybergraphics_best_mode =
 {

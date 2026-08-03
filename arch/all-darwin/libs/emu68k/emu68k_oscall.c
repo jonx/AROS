@@ -212,6 +212,10 @@ struct Emu68kObject
  * OS resource, not guest state, and reopening it per run would be waste. */
 #define EMU68K_MAX_IMSG 64
 #define EXEC_LVO_REPLYMSG 63
+#define EXEC_LVO_OPENDEVICE  74
+#define EXEC_LVO_CLOSEDEVICE 75
+#define EMU68K_MAX_DEV 8
+
 #define INT_LVO_MODIFYIDCMP 25
 #define EXEC_LVO_PUMP     9001   /* private: "drain the port bound to this one" */
 #define EMU68K_MAX_IDCMP  16
@@ -235,6 +239,10 @@ struct Emu68kRunState
     /* Which guest port a window's IDCMP is delivered to. Recorded when the
      * program says so, never guessed: several windows commonly share one. */
     struct { APTR window; ULONG guest_port; } idcmp[EMU68K_MAX_IDCMP];
+    /* Devices opened for the guest. The native IORequest is OURS: the guest's
+     * is big-endian and 32-bit and can never be handed to a device. */
+    struct { struct IORequest *req; ULONG guest_req; char name[32]; } dev[EMU68K_MAX_DEV];
+    ULONG (*device_base)(emu68k_run_h r, const char *name);
     ULONG next_object;
 };
 
@@ -1270,6 +1278,19 @@ void Emu68k_OSCallEndRun(APTR guest0)
     {
         if (g_runs[i].guest0 != guest0) continue;
         rs = &g_runs[i];
+        /* Devices the program opened and never closed. The native MsgPort
+         * behind each one owns a signal, so leaving them is a leak the OS
+         * reports at process exit - and a program that faults never closes
+         * anything. */
+        for (int j = 0; j < EMU68K_MAX_DEV; j++)
+            if (rs->dev[j].req)
+            {
+                struct MsgPort *mp = rs->dev[j].req->io_Message.mn_ReplyPort;
+                CloseDevice(rs->dev[j].req);
+                DeleteIORequest(rs->dev[j].req);
+                if (mp) DeleteMsgPort(mp);
+                rs->dev[j].req = NULL;
+            }
         for (int j = 0; j < EMU68K_MAX_SCANS; j++)
             if (rs->scans[j].nap)
             {
@@ -1328,6 +1349,7 @@ int Emu68k_OSCall(const char *libname, int lvo, APTR regs, APTR guest0,
     }
     rs->run = ctx ? ctx->run : NULL;
     rs->guest_alloc = ctx ? ctx->guest_alloc : NULL;
+    rs->device_base = ctx ? ctx->device_base : NULL;
     rs->call_hook = ctx ? ctx->call_hook : NULL;
 
     /* ---- IDCMP DELIVERY -----------------------------------------------------
@@ -1464,6 +1486,80 @@ int Emu68k_OSCall(const char *libname, int lvo, APTR regs, APTR guest0,
             }
         }
         /* deliberately no return: the crossing itself still has to run */
+    }
+
+    /* ---- DEVICES ------------------------------------------------------------
+     *
+     * Open the REAL device. A device this system does not have has to fail the
+     * way a missing device fails; succeeding and behaving oddly afterwards is
+     * the worst of both. What the guest gets is a base in io_Device - the same
+     * facade a bridged library gets - so the device's vectors reach the bridge.
+     *
+     * The IORequest the device gets is ours, allocated natively. The guest's is
+     * big-endian with 32-bit pointers and could never be queued on a native
+     * device; the two are paired so a close finds the right one. */
+    if (strcmp(libname, "exec.library") == 0 && lvo == EXEC_LVO_OPENDEVICE)
+    {
+        const char *name = guest_cstr(guest0, r->a[0], 64);
+        struct MsgPort *port;
+        struct IORequest *req;
+        ULONG base;
+        int i, slot = -1;
+
+        if (!name) return 1;
+        for (i = 0; i < EMU68K_MAX_DEV; i++)
+            if (!rs->dev[i].req) { slot = i; break; }
+        if (slot < 0) return 1;
+
+        port = CreateMsgPort();
+        if (!port) return 1;
+        req = (struct IORequest *)CreateIORequest(port, sizeof(struct IOStdReq));
+        if (!req) { DeleteMsgPort(port); return 1; }
+        if (OpenDevice((CONST_STRPTR)name, (ULONG)r->d[0], req,
+                       (ULONG)r->d[1]) != 0)
+        {
+            DeleteIORequest(req);
+            DeleteMsgPort(port);
+            return 1;                    /* let the host name the gap          */
+        }
+        rs->dev[slot].req = req;
+        rs->dev[slot].guest_req = r->a[1];
+        snprintf(rs->dev[slot].name, sizeof rs->dev[slot].name, "%s", name);
+
+        /* A base the guest can call through, reusing one per device name so a
+         * second open of the same device is the same base, as it is natively. */
+        base = ctx && ctx->device_base ? ctx->device_base(rs->run, name) : 0;
+        if (!base)
+        {
+            CloseDevice(req);
+            DeleteIORequest(req);
+            DeleteMsgPort(port);
+            rs->dev[slot].req = NULL;
+            return 1;
+        }
+        if (r->a[1])
+        {
+            gw32(guest0, r->a[1] + M68K_IORequest_io_Device, base);
+            gw32(guest0, r->a[1] + M68K_IORequest_io_Unit, 0);
+        }
+        r->d[0] = 0;
+        return 0;
+    }
+    if (strcmp(libname, "exec.library") == 0 && lvo == EXEC_LVO_CLOSEDEVICE)
+    {
+        int i;
+        for (i = 0; i < EMU68K_MAX_DEV; i++)
+            if (rs->dev[i].req && rs->dev[i].guest_req == r->a[0])
+            {
+                struct MsgPort *port = rs->dev[i].req->io_Message.mn_ReplyPort;
+                CloseDevice(rs->dev[i].req);
+                DeleteIORequest(rs->dev[i].req);
+                DeleteMsgPort(port);
+                rs->dev[i].req = NULL;
+                rs->dev[i].guest_req = 0;
+                return 0;
+            }
+        return 0;
     }
 
     if (strcmp(libname, "dos.library") == 0)

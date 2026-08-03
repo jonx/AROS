@@ -1,0 +1,16 @@
+
+include $(SRCDIR)/config/aros.cfg
+
+USER_CPPFLAGS := -D__NOLIBBASE__
+
+USER_LDFLAGS := -static
+
+FILES := cache disk support volume main
+
+#MM- kernel-fs-exfat : includes linklibs
+
+%build_module mmake=kernel-fs-exfat \
+    modname=exfat modtype=handler \
+    files="$(FILES)"
+
+%common

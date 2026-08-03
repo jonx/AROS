@@ -187,6 +187,7 @@ enum
     EMU_OBJ_DrawInfo = 13,
     EMU_OBJ_ColorMap = 14,
     EMU_OBJ_ViewPort = 15,
+    EMU_OBJ_VisualInfo = 16,
 };
 int emu68k_gen_exec(int lvo, struct Emu68kRegs *r,
                   APTR guest0, APTR base,

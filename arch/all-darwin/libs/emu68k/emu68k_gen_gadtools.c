@@ -8,8 +8,26 @@
 
 #include <exec/types.h>
 #include <proto/gadtools.h>
+#include <string.h>
+#include <stdio.h>
 
 #include "emu68k_gen.h"
+#include "emu68k_layouts.h"
+
+static const struct EmuTagDesc emu_tagdesc_gadtools_visual_info[] =
+{
+    { 0, EMU_TAG_REFUSE, NULL, NULL, 0, 0, 0, 0, 0 },
+};
+static const struct EmuTagDomain emu_tagdomain_gadtools_visual_info =
+{
+    emu_tagdesc_gadtools_visual_info, 0, "gadtools.visual_info"
+};
+
+static void emu_object_cleanup_VisualInfo(APTR emu_base, APTR emu_object)
+{
+    struct Library *GadToolsBase = emu_base;
+    FreeVisualInfo((APTR)emu_object);
+}
 
 int emu68k_gen_gadtools(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
                   char *err, ULONG errlen)
@@ -19,6 +37,34 @@ int emu68k_gen_gadtools(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
 
     switch (lvo)
     {
+    case 21:  /* GetVisualInfoA(struct Screen * screen, struct TagItem * tagList) -> APTR  [-126] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_Screen, 0,
+                                        "Screen", &emu_object_0, err, errlen) < 0)
+            return 1;
+        struct TagItem emu_tags_1[9];
+        if (emu68k_tags_to_native(guest0, r->a[1], &emu_tagdomain_gadtools_visual_info,
+                                     emu_tags_1, 9, NULL, 0, err, errlen) < 0)
+            return 1;
+        APTR emu_result = (APTR)GetVisualInfoA((struct Screen *)emu_object_0,
+              (struct TagItem *)(r->a[1] ? emu_tags_1 : NULL));
+        if (emu68k_object_to_guest(guest0, emu_result, EMU_OBJ_VisualInfo,
+                                      base, emu_object_cleanup_VisualInfo,
+                                      "VisualInfo", &r->d[0], err, errlen) < 0)
+            return 1;
+            return 0;
+    }
+    case 22:  /* FreeVisualInfo(APTR vi) -> void  [-132] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_VisualInfo, 1,
+                                        "VisualInfo", &emu_object_0, err, errlen) < 0)
+            return 1;
+            FreeVisualInfo((APTR)emu_object_0);
+        emu68k_object_consume(guest0, r->a[0], EMU_OBJ_VisualInfo);
+            return 0;
+    }
     }
     return 1;   /* no safe generated crossing for this vector */
 }

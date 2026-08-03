@@ -129,16 +129,16 @@ static const struct EmuTagDomain emu_tagdomain_intuition_new_object =
     emu_tagdesc_intuition_new_object, 9, "intuition.new_object"
 };
 
-static void emu_object_cleanup_Screen(APTR emu_base, APTR emu_object)
-{
-    struct IntuitionBase *IntuitionBase = emu_base;
-    CloseScreen((struct Screen *)emu_object);
-}
-
 static void emu_object_cleanup_Window(APTR emu_base, APTR emu_object)
 {
     struct IntuitionBase *IntuitionBase = emu_base;
     CloseWindow((struct Window *)emu_object);
+}
+
+static void emu_object_cleanup_Screen(APTR emu_base, APTR emu_object)
+{
+    struct IntuitionBase *IntuitionBase = emu_base;
+    CloseScreen((struct Screen *)emu_object);
 }
 
 static void emu_object_cleanup_Class(APTR emu_base, APTR emu_object)
@@ -161,6 +161,39 @@ int emu68k_gen_intuition(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
 
     switch (lvo)
     {
+    case 7:  /* AddGadget(struct Window * window, struct Gadget * gadget, ULONG position) -> UWORD  [-42] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_Window, 1,
+                                        "Window", &emu_object_0, err, errlen) < 0)
+            return 1;
+        APTR emu_object_1;
+        if (emu68k_object_from_guest(guest0, r->a[1], EMU_OBJ_Gadget, 1,
+                                        "Gadget", &emu_object_1, err, errlen) < 0)
+            return 1;
+            r->d[0] = (ULONG)AddGadget((struct Window *)emu_object_0,
+              (struct Gadget *)emu_object_1,
+              (ULONG)r->d[0]);
+            return 0;
+    }
+    case 9:  /* ClearMenuStrip(struct Window * window) -> void  [-54] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_Window, 1,
+                                        "Window", &emu_object_0, err, errlen) < 0)
+            return 1;
+            ClearMenuStrip((struct Window *)emu_object_0);
+            return 0;
+    }
+    case 10:  /* ClearPointer(struct Window * window) -> void  [-60] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_Window, 1,
+                                        "Window", &emu_object_0, err, errlen) < 0)
+            return 1;
+            ClearPointer((struct Window *)emu_object_0);
+            return 0;
+    }
     case 11:  /* CloseScreen(struct Screen * screen) -> BOOL  [-66] */
     {
         APTR emu_object_0;
@@ -235,6 +268,15 @@ int emu68k_gen_intuition(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
               (UBYTE *)EMU_GPTR(guest0, r->a[0]),
               (UWORD)r->d[1]);
         return 0;
+    case 16:  /* DisplayBeep(struct Screen * screen) -> void  [-96] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_Screen, 1,
+                                        "Screen", &emu_object_0, err, errlen) < 0)
+            return 1;
+            DisplayBeep((struct Screen *)emu_object_0);
+            return 0;
+    }
     case 17:  /* DoubleClick(ULONG sSeconds, ULONG sMicros, ULONG cSeconds, ULONG cMicros) -> BOOL  [-102] */
         r->d[0] = (ULONG)DoubleClick((ULONG)r->d[0],
               (ULONG)r->d[1],
@@ -275,15 +317,184 @@ int emu68k_gen_intuition(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
         r->d[0] = emu_result ? r->a[0] : 0;
             return 0;
     }
+    case 23:  /* InitRequester(struct Requester * requester) -> void  [-138] */
+    {
+        struct Requester emu_struct_0;
+        if (emu68k_require_guest_range(r->a[0], M68K_Requester_SIZEOF,
+                                         "InitRequester.requester", err, errlen) < 0)
+            return 1;
+        memset(&emu_struct_0, 0, sizeof(emu_struct_0));
+            InitRequester((struct Requester *)&emu_struct_0);
+        memset(EMU_GPTR(guest0, r->a[0]), 0, M68K_Requester_SIZEOF);
+        emu68k_to_guest_sized(guest0, r->a[0], &emu_struct_0,
+                           emu_fields_Requester, EMU_NFIELDS(emu_fields_Requester), M68K_Requester_SIZEOF);
+            return 0;
+    }
+    case 25:  /* ModifyIDCMP(struct Window * window, ULONG flags) -> BOOL  [-150] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_Window, 0,
+                                        "Window", &emu_object_0, err, errlen) < 0)
+            return 1;
+            r->d[0] = (ULONG)ModifyIDCMP((struct Window *)emu_object_0,
+              (ULONG)r->d[0]);
+            return 0;
+    }
+    case 27:  /* MoveScreen(struct Screen * screen, LONG dx, LONG dy) -> void  [-162] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_Screen, 1,
+                                        "Screen", &emu_object_0, err, errlen) < 0)
+            return 1;
+            MoveScreen((struct Screen *)emu_object_0,
+              (LONG)r->d[0],
+              (LONG)r->d[1]);
+            return 0;
+    }
+    case 28:  /* MoveWindow(struct Window * window, LONG dx, LONG dy) -> void  [-168] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_Window, 1,
+                                        "Window", &emu_object_0, err, errlen) < 0)
+            return 1;
+            MoveWindow((struct Window *)emu_object_0,
+              (LONG)r->d[0],
+              (LONG)r->d[1]);
+            return 0;
+    }
+    case 30:  /* OffMenu(struct Window * window, UWORD menunumber) -> void  [-180] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_Window, 1,
+                                        "Window", &emu_object_0, err, errlen) < 0)
+            return 1;
+            OffMenu((struct Window *)emu_object_0,
+              (UWORD)r->d[0]);
+            return 0;
+    }
+    case 32:  /* OnMenu(struct Window * window, UWORD menunumber) -> void  [-192] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_Window, 1,
+                                        "Window", &emu_object_0, err, errlen) < 0)
+            return 1;
+            OnMenu((struct Window *)emu_object_0,
+              (UWORD)r->d[0]);
+            return 0;
+    }
     case 35:  /* OpenWorkBench(void) -> IPTR  [-210] */
         r->d[0] = (ULONG)OpenWorkBench();   /* narrowed: an integer, never an address */
         return 0;
+    case 39:  /* ReportMouse(LONG flag, struct Window * window) -> void  [-234] */
+    {
+        APTR emu_object_1;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_Window, 1,
+                                        "Window", &emu_object_1, err, errlen) < 0)
+            return 1;
+            ReportMouse((LONG)r->d[0],
+              (struct Window *)emu_object_1);
+            return 0;
+    }
+    case 44:  /* SetMenuStrip(struct Window * window, struct Menu * menu) -> BOOL  [-264] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_Window, 1,
+                                        "Window", &emu_object_0, err, errlen) < 0)
+            return 1;
+        APTR emu_object_1;
+        if (emu68k_object_from_guest(guest0, r->a[1], EMU_OBJ_Menu, 1,
+                                        "Menu", &emu_object_1, err, errlen) < 0)
+            return 1;
+            r->d[0] = (ULONG)SetMenuStrip((struct Window *)emu_object_0,
+              (struct Menu *)emu_object_1);
+            return 0;
+    }
+    case 46:  /* SetWindowTitles(struct Window * window, CONST_STRPTR windowTitle, CONST_STRPTR screenTitle) -> void  [-276] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_Window, 1,
+                                        "Window", &emu_object_0, err, errlen) < 0)
+            return 1;
+            SetWindowTitles((struct Window *)emu_object_0,
+              (CONST_STRPTR)EMU_GPTR(guest0, r->a[1]),
+              (CONST_STRPTR)EMU_GPTR(guest0, r->a[2]));
+            return 0;
+    }
+    case 47:  /* ShowTitle(struct Screen * screen, BOOL ShowIt) -> void  [-282] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_Screen, 1,
+                                        "Screen", &emu_object_0, err, errlen) < 0)
+            return 1;
+            ShowTitle((struct Screen *)emu_object_0,
+              (BOOL)r->d[0]);
+            return 0;
+    }
+    case 51:  /* WindowToBack(struct Window * window) -> void  [-306] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_Window, 1,
+                                        "Window", &emu_object_0, err, errlen) < 0)
+            return 1;
+            WindowToBack((struct Window *)emu_object_0);
+            return 0;
+    }
+    case 52:  /* WindowToFront(struct Window * window) -> void  [-312] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_Window, 1,
+                                        "Window", &emu_object_0, err, errlen) < 0)
+            return 1;
+            WindowToFront((struct Window *)emu_object_0);
+            return 0;
+    }
+    case 53:  /* WindowLimits(struct Window * window, WORD MinWidth, WORD MinHeight, UWORD MaxWidth, UWORD MaxHeight) -> BOOL  [-318] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_Window, 1,
+                                        "Window", &emu_object_0, err, errlen) < 0)
+            return 1;
+            r->d[0] = (ULONG)WindowLimits((struct Window *)emu_object_0,
+              (WORD)r->d[0],
+              (WORD)r->d[1],
+              (UWORD)r->d[2],
+              (UWORD)r->d[3]);
+            return 0;
+    }
     case 56:  /* WBenchToBack(void) -> BOOL  [-336] */
         r->d[0] = (ULONG)WBenchToBack();
         return 0;
     case 57:  /* WBenchToFront(void) -> BOOL  [-342] */
         r->d[0] = (ULONG)WBenchToFront();
         return 0;
+    case 59:  /* BeginRefresh(struct Window * window) -> void  [-354] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_Window, 1,
+                                        "Window", &emu_object_0, err, errlen) < 0)
+            return 1;
+            BeginRefresh((struct Window *)emu_object_0);
+            return 0;
+    }
+    case 61:  /* EndRefresh(struct Window * window, BOOL complete) -> void  [-366] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_Window, 1,
+                                        "Window", &emu_object_0, err, errlen) < 0)
+            return 1;
+            EndRefresh((struct Window *)emu_object_0,
+              (BOOL)r->d[0]);
+            return 0;
+    }
+    case 63:  /* MakeScreen(struct Screen * screen) -> LONG  [-378] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_Screen, 1,
+                                        "Screen", &emu_object_0, err, errlen) < 0)
+            return 1;
+            r->d[0] = (ULONG)MakeScreen((struct Screen *)emu_object_0);
+            return 0;
+    }
     case 64:  /* RemakeDisplay(void) -> LONG  [-384] */
         r->d[0] = (ULONG)RemakeDisplay();
         return 0;
@@ -296,6 +507,76 @@ int emu68k_gen_intuition(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
     case 70:  /* UnlockIBase(ULONG ibLock) -> void  [-420] */
         UnlockIBase((ULONG)r->a[0]);
         return 0;
+    case 74:  /* RemoveGList(struct Window * remPtr, struct Gadget * gadget, LONG numGad) -> UWORD  [-444] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_Window, 1,
+                                        "Window", &emu_object_0, err, errlen) < 0)
+            return 1;
+        APTR emu_object_1;
+        if (emu68k_object_from_guest(guest0, r->a[1], EMU_OBJ_Gadget, 1,
+                                        "Gadget", &emu_object_1, err, errlen) < 0)
+            return 1;
+            r->d[0] = (ULONG)RemoveGList((struct Window *)emu_object_0,
+              (struct Gadget *)emu_object_1,
+              (LONG)r->d[0]);
+            return 0;
+    }
+    case 75:  /* ActivateWindow(struct Window * window) -> void  [-450] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_Window, 1,
+                                        "Window", &emu_object_0, err, errlen) < 0)
+            return 1;
+            ActivateWindow((struct Window *)emu_object_0);
+            return 0;
+    }
+    case 80:  /* MoveWindowInFrontOf(struct Window * window, struct Window * behindwindow) -> void  [-480] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_Window, 1,
+                                        "Window", &emu_object_0, err, errlen) < 0)
+            return 1;
+        APTR emu_object_1;
+        if (emu68k_object_from_guest(guest0, r->a[1], EMU_OBJ_Window, 1,
+                                        "Window", &emu_object_1, err, errlen) < 0)
+            return 1;
+            MoveWindowInFrontOf((struct Window *)emu_object_0,
+              (struct Window *)emu_object_1);
+            return 0;
+    }
+    case 81:  /* ChangeWindowBox(struct Window * window, LONG left, LONG top, LONG width, LONG height) -> void  [-486] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_Window, 1,
+                                        "Window", &emu_object_0, err, errlen) < 0)
+            return 1;
+            ChangeWindowBox((struct Window *)emu_object_0,
+              (LONG)r->d[0],
+              (LONG)r->d[1],
+              (LONG)r->d[2],
+              (LONG)r->d[3]);
+            return 0;
+    }
+    case 83:  /* SetMouseQueue(struct Window * window, UWORD queuelength) -> LONG  [-498] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_Window, 1,
+                                        "Window", &emu_object_0, err, errlen) < 0)
+            return 1;
+            r->d[0] = (ULONG)SetMouseQueue((struct Window *)emu_object_0,
+              (UWORD)r->d[0]);
+            return 0;
+    }
+    case 84:  /* ZipWindow(struct Window * window) -> void  [-504] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_Window, 1,
+                                        "Window", &emu_object_0, err, errlen) < 0)
+            return 1;
+            ZipWindow((struct Window *)emu_object_0);
+            return 0;
+    }
     case 85:  /* LockPubScreen(CONST_STRPTR name) -> struct Screen *  [-510] */
     {
         APTR emu_result = (APTR)LockPubScreen((CONST_STRPTR)EMU_GPTR(guest0, r->a[0]));
@@ -372,6 +653,15 @@ int emu68k_gen_intuition(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
             return 1;
             r->d[0] = (ULONG)PubScreenStatus((struct Screen *)emu_object_0,
               (UWORD)r->d[0]);
+            return 0;
+    }
+    case 94:  /* ReleaseGIRPort(struct RastPort * rp) -> void  [-564] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_RastPort, 1,
+                                        "RastPort", &emu_object_0, err, errlen) < 0)
+            return 1;
+            ReleaseGIRPort((struct RastPort *)emu_object_0);
             return 0;
     }
     case 101:  /* OpenWindowTagList(struct NewWindow * newWindow, struct TagItem * tagList) -> struct Window *  [-606] */
@@ -681,6 +971,20 @@ int emu68k_gen_intuition(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
         emu68k_object_release(guest0, r->a[1], EMU_OBJ_DrawInfo);
             return 0;
     }
+    case 117:  /* ResetMenuStrip(struct Window * window, struct Menu * menu) -> BOOL  [-702] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_Window, 1,
+                                        "Window", &emu_object_0, err, errlen) < 0)
+            return 1;
+        APTR emu_object_1;
+        if (emu68k_object_from_guest(guest0, r->a[1], EMU_OBJ_Menu, 1,
+                                        "Menu", &emu_object_1, err, errlen) < 0)
+            return 1;
+            r->d[0] = (ULONG)ResetMenuStrip((struct Window *)emu_object_0,
+              (struct Menu *)emu_object_1);
+            return 0;
+    }
     case 118:  /* RemoveClass(struct IClass * classPtr) -> void  [-708] */
     {
         APTR emu_object_0;
@@ -700,12 +1004,98 @@ int emu68k_gen_intuition(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
         emu68k_object_consume(guest0, r->a[0], EMU_OBJ_Class);
             return 0;
     }
+    case 132:  /* ScreenPosition(struct Screen * screen, ULONG flags, LONG x1, LONG y1, LONG x2, LONG y2) -> void  [-792] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_Screen, 1,
+                                        "Screen", &emu_object_0, err, errlen) < 0)
+            return 1;
+            ScreenPosition((struct Screen *)emu_object_0,
+              (ULONG)r->d[0],
+              (LONG)r->d[1],
+              (LONG)r->d[2],
+              (LONG)r->d[3],
+              (LONG)r->d[4]);
+            return 0;
+    }
+    case 133:  /* ScrollWindowRaster(struct Window * win, WORD dx, WORD dy, WORD xmin, WORD ymin, WORD xmax, WORD ymax) -> void  [-798] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[1], EMU_OBJ_Window, 1,
+                                        "Window", &emu_object_0, err, errlen) < 0)
+            return 1;
+            ScrollWindowRaster((struct Window *)emu_object_0,
+              (WORD)r->d[0],
+              (WORD)r->d[1],
+              (WORD)r->d[2],
+              (WORD)r->d[3],
+              (WORD)r->d[4],
+              (WORD)r->d[5]);
+            return 0;
+    }
     case 137:  /* TimedDisplayAlert(ULONG alertnumber, UBYTE * string, UWORD height, ULONG time) -> BOOL  [-822] */
         r->d[0] = (ULONG)TimedDisplayAlert((ULONG)r->d[0],
               (UBYTE *)EMU_GPTR(guest0, r->a[0]),
               (UWORD)r->d[1],
               (ULONG)r->a[1]);
         return 0;
+    case 138:  /* HelpControl(struct Window * window, ULONG flags) -> void  [-828] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_Window, 1,
+                                        "Window", &emu_object_0, err, errlen) < 0)
+            return 1;
+            HelpControl((struct Window *)emu_object_0,
+              (ULONG)r->d[0]);
+            return 0;
+    }
+    case 139:  /* IsWindowVisible(struct Window * window) -> LONG  [-834] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_Window, 1,
+                                        "Window", &emu_object_0, err, errlen) < 0)
+            return 1;
+            r->d[0] = (ULONG)IsWindowVisible((struct Window *)emu_object_0);
+            return 0;
+    }
+    case 140:  /* ShowWindow(struct Window * window, struct Window * other) -> BOOL  [-840] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_Window, 1,
+                                        "Window", &emu_object_0, err, errlen) < 0)
+            return 1;
+        APTR emu_object_1;
+        if (emu68k_object_from_guest(guest0, r->a[1], EMU_OBJ_Window, 1,
+                                        "Window", &emu_object_1, err, errlen) < 0)
+            return 1;
+            r->d[0] = (ULONG)ShowWindow((struct Window *)emu_object_0,
+              (struct Window *)emu_object_1);
+            return 0;
+    }
+    case 141:  /* HideWindow(struct Window * window) -> BOOL  [-846] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_Window, 1,
+                                        "Window", &emu_object_0, err, errlen) < 0)
+            return 1;
+            r->d[0] = (ULONG)HideWindow((struct Window *)emu_object_0);
+            return 0;
+    }
+    case 159:  /* ScrollWindowRasterNoFill(struct Window * win, WORD dx, WORD dy, WORD xmin, WORD ymin, WORD xmax, WORD ymax) -> void  [-954] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[1], EMU_OBJ_Window, 1,
+                                        "Window", &emu_object_0, err, errlen) < 0)
+            return 1;
+            ScrollWindowRasterNoFill((struct Window *)emu_object_0,
+              (WORD)r->d[0],
+              (WORD)r->d[1],
+              (WORD)r->d[2],
+              (WORD)r->d[3],
+              (WORD)r->d[4],
+              (WORD)r->d[5]);
+            return 0;
+    }
     }
     return 1;   /* no safe generated crossing for this vector */
 }

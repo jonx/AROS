@@ -656,6 +656,27 @@ struct EmuField
 #define M68K_MenuItem_SubItem 28   /* native @48 - CONVERT */
 #define M68K_MenuItem_NextSelect 32   /* native @56 - CONVERT */
 
+/* struct Requester: 112 bytes on m68k (Requester), 152 native (Requester) */
+#define M68K_Requester_SIZEOF 112
+#define M68K_Requester_OlderRequest 0
+#define M68K_Requester_LeftEdge 4   /* native @8 - CONVERT */
+#define M68K_Requester_TopEdge 6   /* native @10 - CONVERT */
+#define M68K_Requester_Width 8   /* native @12 - CONVERT */
+#define M68K_Requester_Height 10   /* native @14 - CONVERT */
+#define M68K_Requester_RelLeft 12   /* native @16 - CONVERT */
+#define M68K_Requester_RelTop 14   /* native @18 - CONVERT */
+#define M68K_Requester_ReqGadget 16   /* native @24 - CONVERT */
+#define M68K_Requester_ReqBorder 20   /* native @32 - CONVERT */
+#define M68K_Requester_ReqText 24   /* native @40 - CONVERT */
+#define M68K_Requester_Flags 28   /* native @48 - CONVERT */
+#define M68K_Requester_BackFill 30   /* native @50 - CONVERT */
+#define M68K_Requester_ReqLayer 32   /* native @56 - CONVERT */
+#define M68K_Requester_ReqPad1 36   /* native @64 - CONVERT */
+#define M68K_Requester_ImageBMap 68   /* native @96 - CONVERT */
+#define M68K_Requester_RWindow 72   /* native @104 - CONVERT */
+#define M68K_Requester_ReqImage 76   /* native @112 - CONVERT */
+#define M68K_Requester_ReqPad2 80   /* native @120 - CONVERT */
+
 /* The conversion tables. Each row is one field: where it lives on
  * each side, how wide it is on each side, and what may be done to it.
  * A generic walker (emu68k_marshal.c) is all that is needed to convert
@@ -1311,6 +1332,29 @@ static const struct EmuField emu_fields_MenuItem[] = {
  *   ItemFill (APTR)
  *   SelectFill (APTR)
  *   SubItem (struct MenuItem *)
+ */
+
+static const struct EmuField emu_fields_Requester[] = {
+    {    4,    8,    1, 2, 2, EMU_F_SCALAR },   /* LeftEdge                 WORD */
+    {    6,   10,    1, 2, 2, EMU_F_SCALAR },   /* TopEdge                  WORD */
+    {    8,   12,    1, 2, 2, EMU_F_SCALAR },   /* Width                    WORD */
+    {   10,   14,    1, 2, 2, EMU_F_SCALAR },   /* Height                   WORD */
+    {   12,   16,    1, 2, 2, EMU_F_SCALAR },   /* RelLeft                  WORD */
+    {   14,   18,    1, 2, 2, EMU_F_SCALAR },   /* RelTop                   WORD */
+    {   28,   48,    1, 2, 2, EMU_F_SCALAR },   /* Flags                    UWORD */
+    {   30,   50,    1, 1, 1, EMU_F_SCALAR },   /* BackFill                 UBYTE */
+    {   36,   64,   32, 1, 1, EMU_F_BYTES },   /* ReqPad1                  UBYTE[32] */
+    {   80,  120,   32, 1, 1, EMU_F_BYTES },   /* ReqPad2                  UBYTE[32] */
+};
+/* NOT converted, and deliberately not guessed at:
+ *   OlderRequest (struct Requester *)
+ *   ReqGadget (struct Gadget *)
+ *   ReqBorder (struct Border *)
+ *   ReqText (struct IntuiText *)
+ *   ReqLayer (struct Layer *)
+ *   ImageBMap (struct BitMap *)
+ *   RWindow (struct Window *)
+ *   ReqImage (struct Image *)
  */
 
 #endif /* EMU68K_LAYOUTS_H */

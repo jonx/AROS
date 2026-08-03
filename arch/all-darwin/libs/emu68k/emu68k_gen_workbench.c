@@ -8,8 +8,10 @@
 
 #include <exec/types.h>
 #include <proto/workbench.h>
+#include <string.h>
 
 #include "emu68k_gen.h"
+#include "emu68k_layouts.h"
 
 int emu68k_gen_workbench(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
                   char *err, ULONG errlen)
@@ -31,6 +33,15 @@ int emu68k_gen_workbench(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
         r->d[0] = (ULONG)WBConfig((ULONG)r->d[0],
               (ULONG)r->d[1]);
         return 0;
+    case 24:  /* UnregisterWorkbench(struct MsgPort * messageport) -> BOOL  [-144] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_MsgPort, 1,
+                                        "MsgPort", &emu_object_0, err, errlen) < 0)
+            return 1;
+            r->d[0] = (ULONG)UnregisterWorkbench((struct MsgPort *)emu_object_0);
+            return 0;
+    }
     }
     return 1;   /* no safe generated crossing for this vector */
 }

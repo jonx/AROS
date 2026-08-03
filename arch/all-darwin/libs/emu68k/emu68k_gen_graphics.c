@@ -57,6 +57,60 @@ int emu68k_gen_graphics(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
 
     switch (lvo)
     {
+    case 7:  /* ClearEOL(struct RastPort * rp) -> void  [-42] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[1], EMU_OBJ_RastPort, 1,
+                                        "RastPort", &emu_object_0, err, errlen) < 0)
+            return 1;
+            ClearEOL((struct RastPort *)emu_object_0);
+            return 0;
+    }
+    case 8:  /* ClearScreen(struct RastPort * rp) -> void  [-48] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[1], EMU_OBJ_RastPort, 1,
+                                        "RastPort", &emu_object_0, err, errlen) < 0)
+            return 1;
+            ClearScreen((struct RastPort *)emu_object_0);
+            return 0;
+    }
+    case 9:  /* TextLength(struct RastPort * rp, CONST_STRPTR string, ULONG count) -> WORD  [-54] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[1], EMU_OBJ_RastPort, 1,
+                                        "RastPort", &emu_object_0, err, errlen) < 0)
+            return 1;
+            r->d[0] = (ULONG)TextLength((struct RastPort *)emu_object_0,
+              (CONST_STRPTR)EMU_GPTR(guest0, r->a[0]),
+              (ULONG)r->d[0]);
+            return 0;
+    }
+    case 10:  /* Text(struct RastPort * rp, CONST_STRPTR string, ULONG count) -> void  [-60] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[1], EMU_OBJ_RastPort, 1,
+                                        "RastPort", &emu_object_0, err, errlen) < 0)
+            return 1;
+            Text((struct RastPort *)emu_object_0,
+              (CONST_STRPTR)EMU_GPTR(guest0, r->a[0]),
+              (ULONG)r->d[0]);
+            return 0;
+    }
+    case 11:  /* SetFont(struct RastPort * rp, struct TextFont * textFont) -> void  [-66] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[1], EMU_OBJ_RastPort, 1,
+                                        "RastPort", &emu_object_0, err, errlen) < 0)
+            return 1;
+        APTR emu_object_1;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_TextFont, 1,
+                                        "TextFont", &emu_object_1, err, errlen) < 0)
+            return 1;
+            SetFont((struct RastPort *)emu_object_0,
+              (struct TextFont *)emu_object_1);
+            return 0;
+    }
     case 12:  /* OpenFont(const struct TextAttr * textAttr) -> struct TextFont *  [-72] */
     {
         struct TextAttr emu_struct_0;
@@ -85,6 +139,84 @@ int emu68k_gen_graphics(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
         emu68k_object_consume(guest0, r->a[1], EMU_OBJ_TextFont);
             return 0;
     }
+    case 14:  /* AskSoftStyle(struct RastPort * rp) -> ULONG  [-84] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[1], EMU_OBJ_RastPort, 1,
+                                        "RastPort", &emu_object_0, err, errlen) < 0)
+            return 1;
+            r->d[0] = (ULONG)AskSoftStyle((struct RastPort *)emu_object_0);
+            return 0;
+    }
+    case 15:  /* SetSoftStyle(struct RastPort * rp, ULONG style, ULONG enable) -> ULONG  [-90] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[1], EMU_OBJ_RastPort, 1,
+                                        "RastPort", &emu_object_0, err, errlen) < 0)
+            return 1;
+            r->d[0] = (ULONG)SetSoftStyle((struct RastPort *)emu_object_0,
+              (ULONG)r->d[0],
+              (ULONG)r->d[1]);
+            return 0;
+    }
+    case 18:  /* DoCollision(struct RastPort * rp) -> void  [-108] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[1], EMU_OBJ_RastPort, 1,
+                                        "RastPort", &emu_object_0, err, errlen) < 0)
+            return 1;
+            DoCollision((struct RastPort *)emu_object_0);
+            return 0;
+    }
+    case 19:  /* DrawGList(struct RastPort * rp, struct ViewPort * vp) -> void  [-114] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[1], EMU_OBJ_RastPort, 1,
+                                        "RastPort", &emu_object_0, err, errlen) < 0)
+            return 1;
+        APTR emu_object_1;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_ViewPort, 1,
+                                        "ViewPort", &emu_object_1, err, errlen) < 0)
+            return 1;
+            DrawGList((struct RastPort *)emu_object_0,
+              (struct ViewPort *)emu_object_1);
+            return 0;
+    }
+    case 25:  /* SortGList(struct RastPort * rp) -> void  [-150] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[1], EMU_OBJ_RastPort, 1,
+                                        "RastPort", &emu_object_0, err, errlen) < 0)
+            return 1;
+            SortGList((struct RastPort *)emu_object_0);
+            return 0;
+    }
+    case 30:  /* DrawEllipse(struct RastPort * rp, WORD xCenter, WORD yCenter, WORD a, WORD b) -> void  [-180] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[1], EMU_OBJ_RastPort, 1,
+                                        "RastPort", &emu_object_0, err, errlen) < 0)
+            return 1;
+            DrawEllipse((struct RastPort *)emu_object_0,
+              (WORD)r->d[0],
+              (WORD)r->d[1],
+              (WORD)r->d[2],
+              (WORD)r->d[3]);
+            return 0;
+    }
+    case 31:  /* AreaEllipse(struct RastPort * rp, WORD cx, WORD cy, WORD a, WORD b) -> ULONG  [-186] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[1], EMU_OBJ_RastPort, 1,
+                                        "RastPort", &emu_object_0, err, errlen) < 0)
+            return 1;
+            r->d[0] = (ULONG)AreaEllipse((struct RastPort *)emu_object_0,
+              (WORD)r->d[0],
+              (WORD)r->d[1],
+              (WORD)r->d[2],
+              (WORD)r->d[3]);
+            return 0;
+    }
     case 33:  /* InitRastPort(struct RastPort * rp) -> void  [-198] */
     {
         struct RastPort emu_struct_0;
@@ -98,12 +230,163 @@ int emu68k_gen_graphics(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
                            emu_fields_RastPort, EMU_NFIELDS(emu_fields_RastPort), M68K_RastPort_SIZEOF);
             return 0;
     }
+    case 34:  /* InitVPort(struct ViewPort * vp) -> void  [-204] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_ViewPort, 1,
+                                        "ViewPort", &emu_object_0, err, errlen) < 0)
+            return 1;
+            InitVPort((struct ViewPort *)emu_object_0);
+            return 0;
+    }
     case 38:  /* WaitBlit(void) -> void  [-228] */
         WaitBlit();
         return 0;
+    case 39:  /* SetRast(struct RastPort * rp, ULONG pen) -> void  [-234] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[1], EMU_OBJ_RastPort, 1,
+                                        "RastPort", &emu_object_0, err, errlen) < 0)
+            return 1;
+            SetRast((struct RastPort *)emu_object_0,
+              (ULONG)r->d[0]);
+            return 0;
+    }
+    case 40:  /* Move(struct RastPort * rp, WORD x, WORD y) -> void  [-240] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[1], EMU_OBJ_RastPort, 1,
+                                        "RastPort", &emu_object_0, err, errlen) < 0)
+            return 1;
+            Move((struct RastPort *)emu_object_0,
+              (WORD)r->d[0],
+              (WORD)r->d[1]);
+            return 0;
+    }
+    case 42:  /* AreaMove(struct RastPort * rp, WORD x, WORD y) -> ULONG  [-252] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[1], EMU_OBJ_RastPort, 1,
+                                        "RastPort", &emu_object_0, err, errlen) < 0)
+            return 1;
+            r->d[0] = (ULONG)AreaMove((struct RastPort *)emu_object_0,
+              (WORD)r->d[0],
+              (WORD)r->d[1]);
+            return 0;
+    }
+    case 43:  /* AreaDraw(struct RastPort * rp, WORD x, WORD y) -> ULONG  [-258] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[1], EMU_OBJ_RastPort, 1,
+                                        "RastPort", &emu_object_0, err, errlen) < 0)
+            return 1;
+            r->d[0] = (ULONG)AreaDraw((struct RastPort *)emu_object_0,
+              (WORD)r->d[0],
+              (WORD)r->d[1]);
+            return 0;
+    }
+    case 44:  /* AreaEnd(struct RastPort * rp) -> LONG  [-264] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[1], EMU_OBJ_RastPort, 1,
+                                        "RastPort", &emu_object_0, err, errlen) < 0)
+            return 1;
+            r->d[0] = (ULONG)AreaEnd((struct RastPort *)emu_object_0);
+            return 0;
+    }
     case 45:  /* WaitTOF(void) -> void  [-270] */
         WaitTOF();
         return 0;
+    case 48:  /* SetRGB4(struct ViewPort * vp, ULONG n, ULONG r, ULONG g, ULONG b) -> void  [-288] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_ViewPort, 1,
+                                        "ViewPort", &emu_object_0, err, errlen) < 0)
+            return 1;
+            SetRGB4((struct ViewPort *)emu_object_0,
+              (ULONG)r->d[0],
+              (ULONG)r->d[1],
+              (ULONG)r->d[2],
+              (ULONG)r->d[3]);
+            return 0;
+    }
+    case 51:  /* RectFill(struct RastPort * rp, WORD xMin, WORD yMin, WORD xMax, WORD yMax) -> void  [-306] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[1], EMU_OBJ_RastPort, 1,
+                                        "RastPort", &emu_object_0, err, errlen) < 0)
+            return 1;
+            RectFill((struct RastPort *)emu_object_0,
+              (WORD)r->d[0],
+              (WORD)r->d[1],
+              (WORD)r->d[2],
+              (WORD)r->d[3]);
+            return 0;
+    }
+    case 53:  /* ReadPixel(struct RastPort * rp, WORD x, WORD y) -> LONG  [-318] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[1], EMU_OBJ_RastPort, 1,
+                                        "RastPort", &emu_object_0, err, errlen) < 0)
+            return 1;
+            r->d[0] = (ULONG)ReadPixel((struct RastPort *)emu_object_0,
+              (WORD)r->d[0],
+              (WORD)r->d[1]);
+            return 0;
+    }
+    case 54:  /* WritePixel(struct RastPort * rp, WORD x, WORD y) -> LONG  [-324] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[1], EMU_OBJ_RastPort, 1,
+                                        "RastPort", &emu_object_0, err, errlen) < 0)
+            return 1;
+            r->d[0] = (ULONG)WritePixel((struct RastPort *)emu_object_0,
+              (WORD)r->d[0],
+              (WORD)r->d[1]);
+            return 0;
+    }
+    case 55:  /* Flood(struct RastPort * rp, ULONG mode, WORD x, WORD y) -> BOOL  [-330] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[1], EMU_OBJ_RastPort, 1,
+                                        "RastPort", &emu_object_0, err, errlen) < 0)
+            return 1;
+            r->d[0] = (ULONG)Flood((struct RastPort *)emu_object_0,
+              (ULONG)r->d[2],
+              (WORD)r->d[0],
+              (WORD)r->d[1]);
+            return 0;
+    }
+    case 57:  /* SetAPen(struct RastPort * rp, ULONG pen) -> void  [-342] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[1], EMU_OBJ_RastPort, 1,
+                                        "RastPort", &emu_object_0, err, errlen) < 0)
+            return 1;
+            SetAPen((struct RastPort *)emu_object_0,
+              (ULONG)r->d[0]);
+            return 0;
+    }
+    case 58:  /* SetBPen(struct RastPort * rp, ULONG pen) -> void  [-348] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[1], EMU_OBJ_RastPort, 1,
+                                        "RastPort", &emu_object_0, err, errlen) < 0)
+            return 1;
+            SetBPen((struct RastPort *)emu_object_0,
+              (ULONG)r->d[0]);
+            return 0;
+    }
+    case 59:  /* SetDrMd(struct RastPort * rp, ULONG drawMode) -> void  [-354] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[1], EMU_OBJ_RastPort, 1,
+                                        "RastPort", &emu_object_0, err, errlen) < 0)
+            return 1;
+            SetDrMd((struct RastPort *)emu_object_0,
+              (ULONG)r->d[0]);
+            return 0;
+    }
     case 64:  /* VBeamPos(void) -> LONG  [-384] */
         r->d[0] = (ULONG)VBeamPos();
         return 0;
@@ -122,6 +405,30 @@ int emu68k_gen_graphics(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
                            emu_fields_BitMap, EMU_NFIELDS(emu_fields_BitMap), M68K_BitMap_SIZEOF);
             return 0;
     }
+    case 66:  /* ScrollRaster(struct RastPort * rp, WORD dx, WORD dy, WORD xMin, WORD yMin, WORD xMax, WORD yMax) -> void  [-396] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[1], EMU_OBJ_RastPort, 1,
+                                        "RastPort", &emu_object_0, err, errlen) < 0)
+            return 1;
+            ScrollRaster((struct RastPort *)emu_object_0,
+              (WORD)r->d[0],
+              (WORD)r->d[1],
+              (WORD)r->d[2],
+              (WORD)r->d[3],
+              (WORD)r->d[4],
+              (WORD)r->d[5]);
+            return 0;
+    }
+    case 67:  /* WaitBOVP(struct ViewPort * vp) -> void  [-402] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_ViewPort, 1,
+                                        "ViewPort", &emu_object_0, err, errlen) < 0)
+            return 1;
+            WaitBOVP((struct ViewPort *)emu_object_0);
+            return 0;
+    }
     case 69:  /* FreeSprite(WORD pick) -> void  [-414] */
         FreeSprite((WORD)r->d[0]);
         return 0;
@@ -131,6 +438,24 @@ int emu68k_gen_graphics(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
     case 77:  /* DisownBlitter(void) -> void  [-462] */
         DisownBlitter();
         return 0;
+    case 80:  /* AddFont(struct TextFont * textFont) -> void  [-480] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[1], EMU_OBJ_TextFont, 1,
+                                        "TextFont", &emu_object_0, err, errlen) < 0)
+            return 1;
+            AddFont((struct TextFont *)emu_object_0);
+            return 0;
+    }
+    case 81:  /* RemFont(struct TextFont * textFont) -> void  [-486] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[1], EMU_OBJ_TextFont, 1,
+                                        "TextFont", &emu_object_0, err, errlen) < 0)
+            return 1;
+            RemFont((struct TextFont *)emu_object_0);
+            return 0;
+    }
     case 84:  /* AndRectRegion(struct Region * Reg, struct Rectangle * Rect) -> void  [-504] */
     {
         APTR emu_object_0;
@@ -227,6 +552,89 @@ int emu68k_gen_graphics(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
               (struct Rectangle *)&emu_struct_1);
             return 0;
     }
+    case 96:  /* FreeColorMap(struct ColorMap * colormap) -> void  [-576] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_ColorMap, 1,
+                                        "ColorMap", &emu_object_0, err, errlen) < 0)
+            return 1;
+            FreeColorMap((struct ColorMap *)emu_object_0);
+            return 0;
+    }
+    case 97:  /* GetRGB4(struct ColorMap * colormap, LONG entry) -> ULONG  [-582] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_ColorMap, 1,
+                                        "ColorMap", &emu_object_0, err, errlen) < 0)
+            return 1;
+            r->d[0] = (ULONG)GetRGB4((struct ColorMap *)emu_object_0,
+              (LONG)r->d[0]);
+            return 0;
+    }
+    case 98:  /* ScrollVPort(struct ViewPort * vp) -> void  [-588] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_ViewPort, 1,
+                                        "ViewPort", &emu_object_0, err, errlen) < 0)
+            return 1;
+            ScrollVPort((struct ViewPort *)emu_object_0);
+            return 0;
+    }
+    case 102:  /* OrRegionRegion(struct Region * R1, struct Region * R2) -> BOOL  [-612] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_Region, 1,
+                                        "Region", &emu_object_0, err, errlen) < 0)
+            return 1;
+        APTR emu_object_1;
+        if (emu68k_object_from_guest(guest0, r->a[1], EMU_OBJ_Region, 1,
+                                        "Region", &emu_object_1, err, errlen) < 0)
+            return 1;
+            r->d[0] = (ULONG)OrRegionRegion((struct Region *)emu_object_0,
+              (struct Region *)emu_object_1);
+            return 0;
+    }
+    case 103:  /* XorRegionRegion(struct Region * R1, struct Region * R2) -> BOOL  [-618] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_Region, 1,
+                                        "Region", &emu_object_0, err, errlen) < 0)
+            return 1;
+        APTR emu_object_1;
+        if (emu68k_object_from_guest(guest0, r->a[1], EMU_OBJ_Region, 1,
+                                        "Region", &emu_object_1, err, errlen) < 0)
+            return 1;
+            r->d[0] = (ULONG)XorRegionRegion((struct Region *)emu_object_0,
+              (struct Region *)emu_object_1);
+            return 0;
+    }
+    case 104:  /* AndRegionRegion(struct Region * R1, struct Region * R2) -> BOOL  [-624] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_Region, 1,
+                                        "Region", &emu_object_0, err, errlen) < 0)
+            return 1;
+        APTR emu_object_1;
+        if (emu68k_object_from_guest(guest0, r->a[1], EMU_OBJ_Region, 1,
+                                        "Region", &emu_object_1, err, errlen) < 0)
+            return 1;
+            r->d[0] = (ULONG)AndRegionRegion((struct Region *)emu_object_0,
+              (struct Region *)emu_object_1);
+            return 0;
+    }
+    case 105:  /* SetRGB4CM(struct ColorMap * cm, WORD n, UBYTE r, UBYTE g, UBYTE b) -> void  [-630] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_ColorMap, 1,
+                                        "ColorMap", &emu_object_0, err, errlen) < 0)
+            return 1;
+            SetRGB4CM((struct ColorMap *)emu_object_0,
+              (WORD)r->d[0],
+              (UBYTE)r->d[1],
+              (UBYTE)r->d[2],
+              (UBYTE)r->d[3]);
+            return 0;
+    }
     case 114:  /* ScalerDiv(UWORD factor, UWORD numerator, UWORD denominator) -> UWORD  [-684] */
         r->d[0] = (ULONG)ScalerDiv((UWORD)r->d[0],
               (UWORD)r->d[1],
@@ -292,9 +700,168 @@ int emu68k_gen_graphics(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
         }
             return 0;
     }
+    case 128:  /* ReadPixelLine8(struct RastPort * rp, WORD xstart, WORD ystart, WORD width, UBYTE * array, struct RastPort * tempRP) -> LONG  [-768] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_RastPort, 1,
+                                        "RastPort", &emu_object_0, err, errlen) < 0)
+            return 1;
+        APTR emu_object_5;
+        if (emu68k_object_from_guest(guest0, r->a[1], EMU_OBJ_RastPort, 1,
+                                        "RastPort", &emu_object_5, err, errlen) < 0)
+            return 1;
+            r->d[0] = (ULONG)ReadPixelLine8((struct RastPort *)emu_object_0,
+              (WORD)r->d[0],
+              (WORD)r->d[1],
+              (WORD)r->d[2],
+              (UBYTE *)EMU_GPTR(guest0, r->a[2]),
+              (struct RastPort *)emu_object_5);
+            return 0;
+    }
+    case 129:  /* WritePixelLine8(struct RastPort * rp, WORD xstart, WORD ystart, WORD width, UBYTE * array, struct RastPort * tempRP) -> LONG  [-774] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_RastPort, 1,
+                                        "RastPort", &emu_object_0, err, errlen) < 0)
+            return 1;
+        APTR emu_object_5;
+        if (emu68k_object_from_guest(guest0, r->a[1], EMU_OBJ_RastPort, 1,
+                                        "RastPort", &emu_object_5, err, errlen) < 0)
+            return 1;
+            r->d[0] = (ULONG)WritePixelLine8((struct RastPort *)emu_object_0,
+              (WORD)r->d[0],
+              (WORD)r->d[1],
+              (WORD)r->d[2],
+              (UBYTE *)EMU_GPTR(guest0, r->a[2]),
+              (struct RastPort *)emu_object_5);
+            return 0;
+    }
+    case 130:  /* ReadPixelArray8(struct RastPort * rp, WORD xstart, WORD ystart, WORD xstop, WORD ystop, UBYTE * array, struct RastPort * temprp) -> WORD  [-780] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_RastPort, 1,
+                                        "RastPort", &emu_object_0, err, errlen) < 0)
+            return 1;
+        APTR emu_object_6;
+        if (emu68k_object_from_guest(guest0, r->a[1], EMU_OBJ_RastPort, 1,
+                                        "RastPort", &emu_object_6, err, errlen) < 0)
+            return 1;
+            r->d[0] = (ULONG)ReadPixelArray8((struct RastPort *)emu_object_0,
+              (WORD)r->d[0],
+              (WORD)r->d[1],
+              (WORD)r->d[2],
+              (WORD)r->d[3],
+              (UBYTE *)EMU_GPTR(guest0, r->a[2]),
+              (struct RastPort *)emu_object_6);
+            return 0;
+    }
+    case 131:  /* WritePixelArray8(struct RastPort * rp, WORD xstart, WORD ystart, WORD xstop, WORD ystop, UBYTE * array, struct RastPort * temprp) -> LONG  [-786] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_RastPort, 1,
+                                        "RastPort", &emu_object_0, err, errlen) < 0)
+            return 1;
+        APTR emu_object_6;
+        if (emu68k_object_from_guest(guest0, r->a[1], EMU_OBJ_RastPort, 1,
+                                        "RastPort", &emu_object_6, err, errlen) < 0)
+            return 1;
+            r->d[0] = (ULONG)WritePixelArray8((struct RastPort *)emu_object_0,
+              (WORD)r->d[0],
+              (WORD)r->d[1],
+              (WORD)r->d[2],
+              (WORD)r->d[3],
+              (UBYTE *)EMU_GPTR(guest0, r->a[2]),
+              (struct RastPort *)emu_object_6);
+            return 0;
+    }
     case 133:  /* ModeNotAvailable(ULONG modeID) -> ULONG  [-798] */
         r->d[0] = (ULONG)ModeNotAvailable((ULONG)r->d[0]);
         return 0;
+    case 135:  /* EraseRect(struct RastPort * rp, WORD xMin, WORD yMin, WORD xMax, WORD yMax) -> void  [-810] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[1], EMU_OBJ_RastPort, 1,
+                                        "RastPort", &emu_object_0, err, errlen) < 0)
+            return 1;
+            EraseRect((struct RastPort *)emu_object_0,
+              (WORD)r->d[0],
+              (WORD)r->d[1],
+              (WORD)r->d[2],
+              (WORD)r->d[3]);
+            return 0;
+    }
+    case 137:  /* StripFont(struct TextFont * font) -> void  [-822] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_TextFont, 1,
+                                        "TextFont", &emu_object_0, err, errlen) < 0)
+            return 1;
+            StripFont((struct TextFont *)emu_object_0);
+            return 0;
+    }
+    case 139:  /* AttachPalExtra(struct ColorMap * cm, struct ViewPort * vp) -> LONG  [-834] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_ColorMap, 1,
+                                        "ColorMap", &emu_object_0, err, errlen) < 0)
+            return 1;
+        APTR emu_object_1;
+        if (emu68k_object_from_guest(guest0, r->a[1], EMU_OBJ_ViewPort, 1,
+                                        "ViewPort", &emu_object_1, err, errlen) < 0)
+            return 1;
+            r->d[0] = (ULONG)AttachPalExtra((struct ColorMap *)emu_object_0,
+              (struct ViewPort *)emu_object_1);
+            return 0;
+    }
+    case 142:  /* SetRGB32(struct ViewPort * vp, ULONG n, ULONG r, ULONG g, ULONG b) -> void  [-852] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_ViewPort, 1,
+                                        "ViewPort", &emu_object_0, err, errlen) < 0)
+            return 1;
+            SetRGB32((struct ViewPort *)emu_object_0,
+              (ULONG)r->d[0],
+              (ULONG)r->d[1],
+              (ULONG)r->d[2],
+              (ULONG)r->d[3]);
+            return 0;
+    }
+    case 143:  /* GetAPen(struct RastPort * rp) -> ULONG  [-858] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_RastPort, 1,
+                                        "RastPort", &emu_object_0, err, errlen) < 0)
+            return 1;
+            r->d[0] = (ULONG)GetAPen((struct RastPort *)emu_object_0);
+            return 0;
+    }
+    case 144:  /* GetBPen(struct RastPort * rp) -> ULONG  [-864] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_RastPort, 1,
+                                        "RastPort", &emu_object_0, err, errlen) < 0)
+            return 1;
+            r->d[0] = (ULONG)GetBPen((struct RastPort *)emu_object_0);
+            return 0;
+    }
+    case 145:  /* GetDrMd(struct RastPort * rp) -> ULONG  [-870] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_RastPort, 1,
+                                        "RastPort", &emu_object_0, err, errlen) < 0)
+            return 1;
+            r->d[0] = (ULONG)GetDrMd((struct RastPort *)emu_object_0);
+            return 0;
+    }
+    case 146:  /* GetOutlinePen(struct RastPort * rp) -> ULONG  [-876] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_RastPort, 1,
+                                        "RastPort", &emu_object_0, err, errlen) < 0)
+            return 1;
+            r->d[0] = (ULONG)GetOutlinePen((struct RastPort *)emu_object_0);
+            return 0;
+    }
     case 147:  /* LoadRGB32(struct ViewPort * vp, const ULONG * table) -> void  [-882] */
     {
         APTR emu_object_0;
@@ -328,6 +895,29 @@ int emu68k_gen_graphics(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
     case 148:  /* SetChipRev(ULONG ChipRev) -> ULONG  [-888] */
         r->d[0] = (ULONG)SetChipRev((ULONG)r->d[0]);
         return 0;
+    case 149:  /* SetABPenDrMd(struct RastPort * rp, ULONG apen, ULONG bpen, ULONG drawMode) -> void  [-894] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[1], EMU_OBJ_RastPort, 1,
+                                        "RastPort", &emu_object_0, err, errlen) < 0)
+            return 1;
+            SetABPenDrMd((struct RastPort *)emu_object_0,
+              (ULONG)r->d[0],
+              (ULONG)r->d[1],
+              (ULONG)r->d[2]);
+            return 0;
+    }
+    case 156:  /* CoerceMode(struct ViewPort * RealViewPort, ULONG MonitorID, ULONG Flags) -> ULONG  [-936] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_ViewPort, 1,
+                                        "ViewPort", &emu_object_0, err, errlen) < 0)
+            return 1;
+            r->d[0] = (ULONG)CoerceMode((struct ViewPort *)emu_object_0,
+              (ULONG)r->d[0],
+              (ULONG)r->d[1]);
+            return 0;
+    }
     case 158:  /* ReleasePen(struct ColorMap * cm, ULONG n) -> void  [-948] */
     {
         APTR emu_object_0;
@@ -352,12 +942,98 @@ int emu68k_gen_graphics(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
               (ULONG)r->d[4]);
             return 0;
     }
+    case 163:  /* SetOutlinePen(struct RastPort * rp, ULONG pen) -> ULONG  [-978] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_RastPort, 1,
+                                        "RastPort", &emu_object_0, err, errlen) < 0)
+            return 1;
+            r->d[0] = (ULONG)SetOutlinePen((struct RastPort *)emu_object_0,
+              (ULONG)r->d[0]);
+            return 0;
+    }
+    case 164:  /* SetWriteMask(struct RastPort * rp, ULONG mask) -> ULONG  [-984] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_RastPort, 1,
+                                        "RastPort", &emu_object_0, err, errlen) < 0)
+            return 1;
+            r->d[0] = (ULONG)SetWriteMask((struct RastPort *)emu_object_0,
+              (ULONG)r->d[0]);
+            return 0;
+    }
+    case 165:  /* SetMaxPen(struct RastPort * rp, ULONG maxpen) -> void  [-990] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_RastPort, 1,
+                                        "RastPort", &emu_object_0, err, errlen) < 0)
+            return 1;
+            SetMaxPen((struct RastPort *)emu_object_0,
+              (ULONG)r->d[0]);
+            return 0;
+    }
+    case 166:  /* SetRGB32CM(struct ColorMap * cm, ULONG n, ULONG r, ULONG g, ULONG b) -> void  [-996] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_ColorMap, 1,
+                                        "ColorMap", &emu_object_0, err, errlen) < 0)
+            return 1;
+            SetRGB32CM((struct ColorMap *)emu_object_0,
+              (ULONG)r->d[0],
+              (ULONG)r->d[1],
+              (ULONG)r->d[2],
+              (ULONG)r->d[3]);
+            return 0;
+    }
+    case 167:  /* ScrollRasterBF(struct RastPort * rp, WORD dx, WORD dy, WORD xMin, WORD yMin, WORD xMax, WORD yMax) -> void  [-1002] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[1], EMU_OBJ_RastPort, 1,
+                                        "RastPort", &emu_object_0, err, errlen) < 0)
+            return 1;
+            ScrollRasterBF((struct RastPort *)emu_object_0,
+              (WORD)r->d[0],
+              (WORD)r->d[1],
+              (WORD)r->d[2],
+              (WORD)r->d[3],
+              (WORD)r->d[4],
+              (WORD)r->d[5]);
+            return 0;
+    }
+    case 168:  /* FindColor(struct ColorMap * cm, ULONG r, ULONG g, ULONG b, ULONG maxpen) -> ULONG  [-1008] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[3], EMU_OBJ_ColorMap, 1,
+                                        "ColorMap", &emu_object_0, err, errlen) < 0)
+            return 1;
+            r->d[0] = (ULONG)FindColor((struct ColorMap *)emu_object_0,
+              (ULONG)r->d[1],
+              (ULONG)r->d[2],
+              (ULONG)r->d[3],
+              (ULONG)r->d[4]);
+            return 0;
+    }
     case 175:  /* BestModeIDA(struct TagItem * TagItems) -> ULONG  [-1050] */
     {
         struct TagItem emu_tags_0[33];
         if (emu68k_tags_to_native(guest0, r->a[0], &emu_tagdomain_graphics_best_mode, emu_tags_0, 33, NULL, 0, err, errlen) < 0)
             return 1;
             r->d[0] = (ULONG)BestModeIDA((struct TagItem *)(r->a[0] ? emu_tags_0 : NULL));
+            return 0;
+    }
+    case 176:  /* WriteChunkyPixels(struct RastPort * rp, WORD xstart, WORD ystart, WORD xstop, WORD ystop, UBYTE * array, LONG bytesperrow) -> void  [-1056] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_RastPort, 1,
+                                        "RastPort", &emu_object_0, err, errlen) < 0)
+            return 1;
+            WriteChunkyPixels((struct RastPort *)emu_object_0,
+              (WORD)r->d[0],
+              (WORD)r->d[1],
+              (WORD)r->d[2],
+              (WORD)r->d[3],
+              (UBYTE *)EMU_GPTR(guest0, r->a[2]),
+              (LONG)r->d[4]);
             return 0;
     }
     case 181:  /* SetRegion(struct Region * src, struct Region * dest) -> BOOL  [-1086] */
@@ -371,6 +1047,20 @@ int emu68k_gen_graphics(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
                                         "Region", &emu_object_1, err, errlen) < 0)
             return 1;
             r->d[0] = (ULONG)SetRegion((struct Region *)emu_object_0,
+              (struct Region *)emu_object_1);
+            return 0;
+    }
+    case 182:  /* ClearRegionRegion(struct Region * R1, struct Region * R2) -> BOOL  [-1092] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_Region, 1,
+                                        "Region", &emu_object_0, err, errlen) < 0)
+            return 1;
+        APTR emu_object_1;
+        if (emu68k_object_from_guest(guest0, r->a[1], EMU_OBJ_Region, 1,
+                                        "Region", &emu_object_1, err, errlen) < 0)
+            return 1;
+            r->d[0] = (ULONG)ClearRegionRegion((struct Region *)emu_object_0,
               (struct Region *)emu_object_1);
             return 0;
     }
@@ -397,6 +1087,22 @@ int emu68k_gen_graphics(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
             r->d[0] = (ULONG)IsPointInRegion((struct Region *)emu_object_0,
               (WORD)r->d[0],
               (WORD)r->d[1]);
+            return 0;
+    }
+    case 198:  /* FillRectPenDrMd(struct RastPort * rp, WORD x1, WORD y1, WORD x2, WORD y2, ULONG pix, IPTR drmd, BOOL do_update) -> LONG  [-1188] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_RastPort, 1,
+                                        "RastPort", &emu_object_0, err, errlen) < 0)
+            return 1;
+            r->d[0] = (ULONG)FillRectPenDrMd((struct RastPort *)emu_object_0,
+              (WORD)r->d[0],
+              (WORD)r->d[1],
+              (WORD)r->d[2],
+              (WORD)r->d[3],
+              (ULONG)r->d[4],
+              (IPTR)(LONG)r->d[5],
+              (BOOL)r->d[6]);
             return 0;
     }
     }

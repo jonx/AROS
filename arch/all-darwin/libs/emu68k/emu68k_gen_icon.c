@@ -54,6 +54,16 @@ int emu68k_gen_icon(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
             return 1;
             return 0;
     }
+    case 14:  /* PutDiskObject(CONST_STRPTR name, struct DiskObject * icon) -> BOOL  [-84] */
+    {
+        APTR emu_object_1;
+        if (emu68k_object_from_guest(guest0, r->a[1], EMU_OBJ_DiskObject, 1,
+                                        "DiskObject", &emu_object_1, err, errlen) < 0)
+            return 1;
+            r->d[0] = (ULONG)PutDiskObject((CONST_STRPTR)EMU_GPTR(guest0, r->a[0]),
+              (struct DiskObject *)emu_object_1);
+            return 0;
+    }
     case 15:  /* FreeDiskObject(struct DiskObject * diskobj) -> void  [-90] */
     {
         APTR emu_object_0;
@@ -77,6 +87,15 @@ int emu68k_gen_icon(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
                                              emu_fields_DiskObject, EMU_NFIELDS(emu_fields_DiskObject),
                                              &r->d[0], err, errlen) < 0)
             return 1;
+            return 0;
+    }
+    case 21:  /* PutDefDiskObject(struct DiskObject * icon) -> BOOL  [-126] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_DiskObject, 1,
+                                        "DiskObject", &emu_object_0, err, errlen) < 0)
+            return 1;
+            r->d[0] = (ULONG)PutDefDiskObject((struct DiskObject *)emu_object_0);
             return 0;
     }
     case 22:  /* GetDiskObjectNew(CONST_STRPTR name) -> struct DiskObject *  [-132] */

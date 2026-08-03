@@ -8,9 +8,11 @@
 
 #include <exec/types.h>
 #include <proto/cybergraphics.h>
+#include <string.h>
 #include <cybergraphx/cybergraphics.h>
 
 #include "emu68k_gen.h"
+#include "emu68k_layouts.h"
 
 static const struct EmuTagDesc emu_tagdesc_cybergraphics_best_mode[] =
 {
@@ -48,6 +50,71 @@ int emu68k_gen_cybergraphics(int lvo, struct Emu68kRegs *r, APTR guest0, APTR ba
         r->d[0] = (ULONG)GetCyberIDAttr((ULONG)r->d[0],
               (ULONG)r->d[1]);
         return 0;
+    case 18:  /* ReadRGBPixel(struct RastPort * rp, UWORD x, UWORD y) -> ULONG  [-108] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[1], EMU_OBJ_RastPort, 1,
+                                        "RastPort", &emu_object_0, err, errlen) < 0)
+            return 1;
+            r->d[0] = (ULONG)ReadRGBPixel((struct RastPort *)emu_object_0,
+              (UWORD)r->d[0],
+              (UWORD)r->d[1]);
+            return 0;
+    }
+    case 19:  /* WriteRGBPixel(struct RastPort * rp, UWORD x, UWORD y, ULONG pixel) -> LONG  [-114] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[1], EMU_OBJ_RastPort, 1,
+                                        "RastPort", &emu_object_0, err, errlen) < 0)
+            return 1;
+            r->d[0] = (ULONG)WriteRGBPixel((struct RastPort *)emu_object_0,
+              (UWORD)r->d[0],
+              (UWORD)r->d[1],
+              (ULONG)r->d[2]);
+            return 0;
+    }
+    case 22:  /* MovePixelArray(UWORD SrcX, UWORD SrcY, struct RastPort * RastPort, UWORD DstX, UWORD DstY, UWORD SizeX, UWORD SizeY) -> ULONG  [-132] */
+    {
+        APTR emu_object_2;
+        if (emu68k_object_from_guest(guest0, r->a[1], EMU_OBJ_RastPort, 1,
+                                        "RastPort", &emu_object_2, err, errlen) < 0)
+            return 1;
+            r->d[0] = (ULONG)MovePixelArray((UWORD)r->d[0],
+              (UWORD)r->d[1],
+              (struct RastPort *)emu_object_2,
+              (UWORD)r->d[2],
+              (UWORD)r->d[3],
+              (UWORD)r->d[4],
+              (UWORD)r->d[5]);
+            return 0;
+    }
+    case 24:  /* InvertPixelArray(struct RastPort * rp, UWORD destx, UWORD desty, UWORD width, UWORD height) -> ULONG  [-144] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[1], EMU_OBJ_RastPort, 1,
+                                        "RastPort", &emu_object_0, err, errlen) < 0)
+            return 1;
+            r->d[0] = (ULONG)InvertPixelArray((struct RastPort *)emu_object_0,
+              (UWORD)r->d[0],
+              (UWORD)r->d[1],
+              (UWORD)r->d[2],
+              (UWORD)r->d[3]);
+            return 0;
+    }
+    case 25:  /* FillPixelArray(struct RastPort * rp, UWORD destx, UWORD desty, UWORD width, UWORD height, ULONG pixel) -> ULONG  [-150] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[1], EMU_OBJ_RastPort, 1,
+                                        "RastPort", &emu_object_0, err, errlen) < 0)
+            return 1;
+            r->d[0] = (ULONG)FillPixelArray((struct RastPort *)emu_object_0,
+              (UWORD)r->d[0],
+              (UWORD)r->d[1],
+              (UWORD)r->d[2],
+              (UWORD)r->d[3],
+              (ULONG)r->d[4]);
+            return 0;
+    }
     }
     return 1;   /* no safe generated crossing for this vector */
 }

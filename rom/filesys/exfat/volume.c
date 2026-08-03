@@ -205,9 +205,13 @@ static LONG MountVolume(struct Globals *glob, UQUAD part_start,
     if (sb->cache == NULL)
         return ERROR_NO_FREE_STORE;
 
-    D(bug("[exfat] mounted: %lu sectors of %lu, %lu clusters, root at %lu\n",
-        (unsigned long)sb->total_sectors, (unsigned long)sb->sector_size,
-        (unsigned long)sb->cluster_count, (unsigned long)sb->root_cluster));
+    {
+        TEXT s1[SECTORSTR_LEN];
+
+        bug("[exfat] %s sectors of %lu bytes, %lu clusters, root at %lu\n",
+            FmtSector(sb->total_sectors, s1), (unsigned long)sb->sector_size,
+            (unsigned long)sb->cluster_count, (unsigned long)sb->root_cluster);
+    }
 
     return 0;
 }
@@ -218,30 +222,27 @@ void DoDiskInsert(struct Globals *glob)
     struct DosEnvec *de;
     struct FSSuper *sb;
     UQUAD part_start, part_blocks;
-    ULONG block_size, surfaces, spt, cylinder;
+    ULONG block_size;
     LONG err;
+
+    glob->mount_error = ERROR_NOT_A_DOS_DISK;
 
     if (glob->sb != NULL || fssm == NULL)
         return;
 
     de = (struct DosEnvec *)BADDR(fssm->fssm_Environ);
-    block_size = de->de_SizeBlock << 2;
-    surfaces   = de->de_Surfaces;
-    spt        = de->de_BlocksPerTrack;
-    cylinder   = surfaces * spt;
 
     /*
-     * The partition extent from the Mountlist, in device blocks. Computed in
-     * UQUAD because a large disk overflows the 32-bit product, and checked
-     * before use rather than after (spec U6).
+     * Spec U6. Every product here is computed in UQUAD inside the helper: a
+     * 32-bit surfaces * blocks_per_track overflows on a large disk, and that
+     * is the same narrow-intermediate defect this layer exists to remove.
      */
-    part_start  = (UQUAD)de->de_LowCyl * cylinder;
-    part_blocks = ((UQUAD)de->de_HighCyl + 1 - de->de_LowCyl) * cylinder;
-
-    if (de->de_HighCyl < de->de_LowCyl || cylinder == 0 || block_size == 0
-        || !exfat_geometry_ok(part_start, part_blocks))
+    if (exfat_mountlist_extent(de->de_LowCyl, de->de_HighCyl,
+            de->de_Surfaces, de->de_BlocksPerTrack, de->de_SizeBlock,
+            &part_start, &part_blocks, &block_size) != EXFAT_RANGE_OK)
     {
-        D(bug("[exfat] Mountlist geometry is unusable\n"));
+        glob->mount_error = ERROR_BAD_NUMBER;
+        bug("[exfat] Mountlist geometry is unusable, not mounting\n");
         return;
     }
 
@@ -250,14 +251,23 @@ void DoDiskInsert(struct Globals *glob)
         return;
 
     err = MountVolume(glob, part_start, part_blocks, block_size, sb);
+    glob->mount_error = err;
+
+    /*
+     * Deliberately unconditional, not D(). Until the volume is visible to
+     * DOS there is no other way to tell a refusal from a success, and a
+     * silent refusal that still answers the startup packet with DOSTRUE is
+     * indistinguishable from a working mount.
+     */
     if (err != 0)
     {
-        D(bug("[exfat] mount refused, error %ld\n", (long)err));
+        bug("[exfat] mount REFUSED, error %ld\n", (long)err);
         FreeVec(sb);
         return;
     }
 
     glob->sb = sb;
+    bug("[exfat] boot region accepted, superblock constructed\n");
 }
 
 void DoDiskRemove(struct Globals *glob)

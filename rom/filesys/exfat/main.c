@@ -58,11 +58,12 @@ static void ReplyPacket(struct DosPacket *dp, struct ExecBase *SysBase)
  * below rather than glob->gl_SysBase at each call.
  */
 static struct Globals *exfat_init(struct Process *proc, struct DosPacket *dp,
-    struct ExecBase *SysBase)
+    struct ExecBase *SysBase, LONG *err)
 {
     struct Globals *glob;
     struct FileSysStartupMsg *fssm;
     struct DosEnvec *de;
+    LONG why = ERROR_NO_FREE_STORE;
 
     glob = AllocMem(sizeof(struct Globals), MEMF_PUBLIC | MEMF_CLEAR);
     if (glob == NULL)
@@ -82,7 +83,10 @@ static struct Globals *exfat_init(struct Process *proc, struct DosPacket *dp,
     glob->fssm = fssm;
 
     if (fssm == NULL || fssm->fssm_Environ == BNULL)
+    {
+        why = ERROR_BAD_NUMBER;     /* nothing to mount from */
         goto fail;
+    }
 
     de = (struct DosEnvec *)BADDR(fssm->fssm_Environ);
 
@@ -97,7 +101,10 @@ static struct Globals *exfat_init(struct Process *proc, struct DosPacket *dp,
 
     if (OpenDevice(AROS_BSTR_ADDR(fssm->fssm_Device), fssm->fssm_Unit,
         (struct IORequest *)glob->diskioreq, fssm->fssm_Flags) != 0)
+    {
+        why = ERROR_DEVICE_NOT_MOUNTED;
         goto fail;
+    }
 
     /*
      * Establishes readcmd/writecmd. Every access above 4 GB depends on this
@@ -121,6 +128,7 @@ fail:
     if (glob->gl_DOSBase != NULL)
         CloseLibrary((struct Library *)glob->gl_DOSBase);
     FreeMem(glob, sizeof(struct Globals));
+    *err = why;
     return NULL;
 }
 
@@ -184,17 +192,18 @@ LONG handler(struct ExecBase *SysBase)
     struct Process *proc;
     struct MsgPort *mp;
     struct DosPacket *dp;
+    LONG initerr = ERROR_NO_FREE_STORE;
 
     proc = (struct Process *)FindTask(NULL);
     mp = &proc->pr_MsgPort;
     WaitPort(mp);
     dp = (struct DosPacket *)GetMsg(mp)->mn_Node.ln_Name;
 
-    glob = exfat_init(proc, dp, SysBase);
+    glob = exfat_init(proc, dp, SysBase, &initerr);
     if (glob == NULL)
     {
         dp->dp_Res1 = DOSFALSE;
-        dp->dp_Res2 = ERROR_NO_FREE_STORE;
+        dp->dp_Res2 = initerr;
         ReplyPacket(dp, SysBase);
         return RETURN_FAIL;
     }

@@ -136,4 +136,71 @@ static inline enum exfat_range exfat_byte_range(UQUAD num, ULONG nblocks,
     return EXFAT_RANGE_OK;
 }
 
+/*
+ * Mountlist geometry, promoted safely.
+ *
+ * de_Surfaces * de_BlocksPerTrack is a 32-bit product on a 32-bit target and
+ * overflows on a large disk, and de_SizeBlock << 2 shifts a value that came
+ * from a Mountlist and is therefore not trusted. Both are computed here in
+ * UQUAD with the result range checked, rather than at the call site where the
+ * promotion is easy to place one operator too late.
+ *
+ * Returns the partition extent in device blocks and the block size in bytes.
+ */
+static inline enum exfat_range exfat_mountlist_extent(
+    ULONG low_cyl, ULONG high_cyl, ULONG surfaces, ULONG blocks_per_track,
+    ULONG size_block_longs,
+    UQUAD *start, UQUAD *blocks, ULONG *block_size)
+{
+    UQUAD cylinder, cyl_count, bsize;
+
+    if (surfaces == 0 || blocks_per_track == 0 || size_block_longs == 0)
+        return EXFAT_RANGE_BADGEOMETRY;
+    if (high_cyl < low_cyl)
+        return EXFAT_RANGE_BADGEOMETRY;
+
+    /* Promote before multiplying, not after. */
+    cylinder = (UQUAD)surfaces * (UQUAD)blocks_per_track;
+    if (cylinder == 0)
+        return EXFAT_RANGE_BADGEOMETRY;
+
+    cyl_count = (UQUAD)high_cyl - (UQUAD)low_cyl + 1;
+
+    /* start = low_cyl * cylinder, refused rather than wrapped */
+    if ((UQUAD)low_cyl > EXFAT_UQUAD_MAX / cylinder)
+        return EXFAT_RANGE_TOOBIG;
+    *start = (UQUAD)low_cyl * cylinder;
+
+    if (cyl_count > EXFAT_UQUAD_MAX / cylinder)
+        return EXFAT_RANGE_TOOBIG;
+    *blocks = cyl_count * cylinder;
+
+    /* A block size is a power of two between 512 and 32768 bytes. */
+    bsize = (UQUAD)size_block_longs << 2;
+    if (bsize < 512 || bsize > 32768 || (bsize & (bsize - 1)) != 0)
+        return EXFAT_RANGE_BADGEOMETRY;
+    *block_size = (ULONG)bsize;
+
+    if (!exfat_geometry_ok(*start, *blocks))
+        return EXFAT_RANGE_BADGEOMETRY;
+
+    return EXFAT_RANGE_OK;
+}
+
+/*
+ * A device without TD64 or NSD 64-bit support takes only the low 32 bits of
+ * the offset: the high word is placed in io_Actual and a 32-bit CMD_READ
+ * ignores it, so the transfer silently lands somewhere else entirely. Refuse
+ * instead.
+ */
+static inline int exfat_offset_fits_32(UQUAD off, ULONG len)
+{
+    if (off > 0xFFFFFFFFull)
+        return 0;
+    if (len == 0)
+        return 1;
+    /* off + len - 1 must still fit, expressed without the addition. */
+    return (UQUAD)(len - 1) <= 0xFFFFFFFFull - off;
+}
+
 #endif /* EXFAT_BOUNDS_H */

@@ -97,6 +97,7 @@ void Probe64BitSupport(struct Globals *glob)
 
     glob->readcmd = CMD_READ;
     glob->writecmd = CMD_WRITE;
+    glob->dev_64bit = FALSE;
 
     /* Probe TD64 */
     glob->diskioreq->iotd_Req.io_Command = TD_READ64;
@@ -111,6 +112,7 @@ void Probe64BitSupport(struct Globals *glob)
             " device supports 64-bit trackdisk extensions\n"));
         glob->readcmd = TD_READ64;
         glob->writecmd = TD_WRITE64;
+        glob->dev_64bit = TRUE;
     }
 
     /* Probe NSD */
@@ -129,6 +131,7 @@ void Probe64BitSupport(struct Globals *glob)
                     " device supports NSD 64-bit trackdisk extensions\n"));
                 glob->readcmd = NSCMD_TD_READ64;
                 glob->writecmd = NSCMD_TD_WRITE64;
+                glob->dev_64bit = TRUE;
                 break;
             }
         }
@@ -221,6 +224,19 @@ LONG AccessDisk(BOOL do_write, UQUAD num, ULONG nblocks, ULONG block_size,
     {
         D(bug("[exfat] byte range for sector %s x %lu overflows\n",
             FmtSector(num, s1), nblocks));
+        return IOERR_BADADDRESS;
+    }
+
+    /*
+     * Without TD64 or NSD the device sees only the low 32 bits: the high word
+     * goes into io_Actual and a 32-bit command ignores it, so the transfer
+     * lands elsewhere rather than failing. Refuse instead of reading the
+     * wrong place.
+     */
+    if (!glob->dev_64bit && !exfat_offset_fits_32(off, io_len))
+    {
+        D(bug("[exfat] sector %s needs 64-bit addressing,"
+            " device has none\n", FmtSector(num, s1)));
         return IOERR_BADADDRESS;
     }
 

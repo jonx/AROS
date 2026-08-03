@@ -122,6 +122,16 @@ struct Globals
     struct MsgPort      *diskport;
     UWORD                readcmd;
     UWORD                writecmd;
+    /*
+     * TRUE only when the device answered a TD64 or NSD 64-bit probe. A 32-bit
+     * command takes the low half of the offset and ignores the high word in
+     * io_Actual, so a request past 4 GB on such a device does not fail: it
+     * reads somewhere else. Every access checks this.
+     */
+    BOOL                 dev_64bit;
+
+    /* Result of the last mount attempt, so a refusal is reportable. */
+    LONG                 mount_error;
 
     /*
      * Last out-of-range sector reported, so a runaway caller does not produce

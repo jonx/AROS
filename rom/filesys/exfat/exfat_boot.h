@@ -1,0 +1,243 @@
+/*
+ * exfat-handler - Main Boot Sector validation
+ *
+ * Copyright (C) 2026 The AROS Development Team
+ *
+ * This program is free software; you can redistribute it and/or modify it
+ * under the same terms as AROS itself.
+ */
+
+#ifndef EXFAT_BOOT_H
+#define EXFAT_BOOT_H
+
+#include "exfat_bounds.h"
+
+/*
+ * Implements docs/features/exfat/spec.md section 3.1 and 3.2. Free of AROS
+ * dependencies so the host tests exercise this code rather than a copy: the
+ * caller supplies UQUAD/ULONG/UWORD/UBYTE and a sector buffer.
+ *
+ * Every multi-byte field is read byte-wise (spec A1 and A2): the structures
+ * are packed with fields at unaligned offsets, and a 68000 or 68010 takes an
+ * address error on an odd-address word access.
+ */
+
+/* Main Boot Sector field offsets */
+#define EXFAT_BOOT_JUMPBOOT        0
+#define EXFAT_BOOT_FSNAME          3
+#define EXFAT_BOOT_MUSTBEZERO      11
+#define EXFAT_BOOT_MUSTBEZERO_LEN  53
+#define EXFAT_BOOT_PARTITIONOFF    64
+#define EXFAT_BOOT_VOLUMELENGTH    72
+#define EXFAT_BOOT_FATOFFSET       80
+#define EXFAT_BOOT_FATLENGTH       84
+#define EXFAT_BOOT_HEAPOFFSET      88
+#define EXFAT_BOOT_CLUSTERCOUNT    92
+#define EXFAT_BOOT_ROOTCLUSTER     96
+#define EXFAT_BOOT_VOLUMESERIAL    100
+#define EXFAT_BOOT_REVISION        104
+#define EXFAT_BOOT_VOLUMEFLAGS     106
+#define EXFAT_BOOT_SECTORSHIFT     108
+#define EXFAT_BOOT_CLUSTERSHIFT    109
+#define EXFAT_BOOT_NUMBEROFFATS    110
+#define EXFAT_BOOT_DRIVESELECT     111
+#define EXFAT_BOOT_PERCENTINUSE    112
+#define EXFAT_BOOT_SIGNATURE       510
+
+#define EXFAT_VOLUMEFLAG_ACTIVEFAT 0x0001
+
+/* The first sector the FAT may occupy: the boot region is 24 sectors. */
+#define EXFAT_BOOT_REGION_SECTORS  24
+
+enum exfat_boot_result
+{
+    EXFAT_BOOT_OK = 0,
+    EXFAT_BOOT_NOT_EXFAT,      /* -> ERROR_NOT_A_DOS_DISK */
+    EXFAT_BOOT_WRONG_VERSION,  /* -> ERROR_OBJECT_WRONG_TYPE */
+    EXFAT_BOOT_TEXFAT,         /* -> ERROR_OBJECT_WRONG_TYPE */
+    EXFAT_BOOT_BAD_GEOMETRY,   /* -> ERROR_BAD_NUMBER */
+    EXFAT_BOOT_BAD_CHECKSUM    /* -> ERROR_DISK_NOT_VALIDATED */
+};
+
+struct exfat_geometry
+{
+    UQUAD partition_offset;
+    UQUAD volume_length;       /* sectors */
+    ULONG fat_offset;          /* sectors from volume start */
+    ULONG fat_length;          /* sectors */
+    ULONG heap_offset;         /* sectors from volume start */
+    ULONG cluster_count;
+    ULONG root_cluster;
+    ULONG volume_serial;
+    UWORD sector_size;         /* bytes */
+    UBYTE sector_shift;
+    UBYTE cluster_shift;       /* sectors per cluster, as a shift */
+    UBYTE percent_in_use;
+};
+
+/* Byte-wise little-endian readers (spec A2). */
+static inline UWORD exfat_rd16(const UBYTE *p, unsigned off)
+{
+    return (UWORD)((UWORD)p[off] | ((UWORD)p[off + 1] << 8));
+}
+
+static inline ULONG exfat_rd32(const UBYTE *p, unsigned off)
+{
+    return (ULONG)p[off]
+        | ((ULONG)p[off + 1] << 8)
+        | ((ULONG)p[off + 2] << 16)
+        | ((ULONG)p[off + 3] << 24);
+}
+
+static inline UQUAD exfat_rd64(const UBYTE *p, unsigned off)
+{
+    return (UQUAD)exfat_rd32(p, off)
+        | ((UQUAD)exfat_rd32(p, off + 4) << 32);
+}
+
+/*
+ * Boot region checksum (spec 3.2). Fed sectors 0 to 10 in order. Bytes 106,
+ * 107 and 112 of sector 0 are excluded: VolumeFlags and PercentInUse mutate
+ * in normal use.
+ */
+static inline ULONG exfat_boot_checksum(ULONG sum, const UBYTE *sector,
+    ULONG sector_size, int is_first)
+{
+    ULONG i;
+
+    for (i = 0; i < sector_size; i++)
+    {
+        if (is_first && (i == EXFAT_BOOT_VOLUMEFLAGS
+                      || i == EXFAT_BOOT_VOLUMEFLAGS + 1
+                      || i == EXFAT_BOOT_PERCENTINUSE))
+            continue;
+
+        sum = ((sum & 1) ? 0x80000000u : 0u) + (sum >> 1) + (ULONG)sector[i];
+    }
+
+    return sum;
+}
+
+/*
+ * Validate the Main Boot Sector and fill in the geometry.
+ *
+ * Fields are checked in the order required by spec G1, so that each bound is
+ * evaluated against operands already known to be good. Every comparison is in
+ * the S2 subtraction form.
+ */
+static inline enum exfat_boot_result exfat_validate_boot(const UBYTE *b,
+    ULONG buf_len, struct exfat_geometry *g)
+{
+    static const UBYTE fsname[8] =
+        { 'E', 'X', 'F', 'A', 'T', ' ', ' ', ' ' };
+    ULONG i, sector_size, fat_entries, fat_min;
+    UWORD revision, flags;
+    UBYTE nfats;
+
+    if (buf_len < 512)
+        return EXFAT_BOOT_NOT_EXFAT;
+
+    /* Identity first: anything below is meaningless if this is not exFAT. */
+    if (b[EXFAT_BOOT_JUMPBOOT] != 0xEB || b[EXFAT_BOOT_JUMPBOOT + 1] != 0x76
+        || b[EXFAT_BOOT_JUMPBOOT + 2] != 0x90)
+        return EXFAT_BOOT_NOT_EXFAT;
+
+    for (i = 0; i < 8; i++)
+        if (b[EXFAT_BOOT_FSNAME + i] != fsname[i])
+            return EXFAT_BOOT_NOT_EXFAT;
+
+    /* The region a legacy FAT driver would read as its BPB (spec G2). */
+    for (i = 0; i < EXFAT_BOOT_MUSTBEZERO_LEN; i++)
+        if (b[EXFAT_BOOT_MUSTBEZERO + i] != 0)
+            return EXFAT_BOOT_NOT_EXFAT;
+
+    if (exfat_rd16(b, EXFAT_BOOT_SIGNATURE) != 0xAA55)
+        return EXFAT_BOOT_NOT_EXFAT;
+
+    /* Revision: exactly 1.00 (spec V1). Minor is the low byte. */
+    revision = exfat_rd16(b, EXFAT_BOOT_REVISION);
+    if (revision != 0x0100)
+        return EXFAT_BOOT_WRONG_VERSION;
+
+    /* TexFAT (spec 1.2). */
+    nfats = b[EXFAT_BOOT_NUMBEROFFATS];
+    if (nfats == 2)
+        return EXFAT_BOOT_TEXFAT;
+    if (nfats != 1)
+        return EXFAT_BOOT_BAD_GEOMETRY;
+
+    flags = exfat_rd16(b, EXFAT_BOOT_VOLUMEFLAGS);
+    if (flags & EXFAT_VOLUMEFLAG_ACTIVEFAT)
+        return EXFAT_BOOT_WRONG_VERSION;   /* ActiveFat set with one FAT */
+
+    /* Sector shift, then cluster shift: everything below is in these units. */
+    g->sector_shift = b[EXFAT_BOOT_SECTORSHIFT];
+    if (g->sector_shift < 9 || g->sector_shift > 12)
+        return EXFAT_BOOT_BAD_GEOMETRY;
+    sector_size = 1u << g->sector_shift;
+    g->sector_size = (UWORD)sector_size;
+
+    g->cluster_shift = b[EXFAT_BOOT_CLUSTERSHIFT];
+    if (g->cluster_shift > (UBYTE)(25 - g->sector_shift))
+        return EXFAT_BOOT_BAD_GEOMETRY;    /* cluster > 32 MiB */
+
+    g->percent_in_use = b[EXFAT_BOOT_PERCENTINUSE];
+    if (g->percent_in_use > 100 && g->percent_in_use != 0xFF)
+        return EXFAT_BOOT_BAD_GEOMETRY;
+
+    /* VolumeLength: at least 1 MiB expressed in sectors. */
+    g->volume_length = exfat_rd64(b, EXFAT_BOOT_VOLUMELENGTH);
+    if (g->volume_length < ((UQUAD)1 << (20 - g->sector_shift)))
+        return EXFAT_BOOT_BAD_GEOMETRY;
+
+    g->partition_offset = exfat_rd64(b, EXFAT_BOOT_PARTITIONOFF);
+
+    g->fat_offset = exfat_rd32(b, EXFAT_BOOT_FATOFFSET);
+    g->fat_length = exfat_rd32(b, EXFAT_BOOT_FATLENGTH);
+    g->heap_offset = exfat_rd32(b, EXFAT_BOOT_HEAPOFFSET);
+    g->cluster_count = exfat_rd32(b, EXFAT_BOOT_CLUSTERCOUNT);
+    g->root_cluster = exfat_rd32(b, EXFAT_BOOT_ROOTCLUSTER);
+    g->volume_serial = exfat_rd32(b, EXFAT_BOOT_VOLUMESERIAL);
+
+    /* The FAT cannot start inside the boot region. */
+    if (g->fat_offset < EXFAT_BOOT_REGION_SECTORS)
+        return EXFAT_BOOT_BAD_GEOMETRY;
+
+    /* Heap after the FAT, and the whole lot inside the volume. */
+    if (g->heap_offset <= g->fat_offset)
+        return EXFAT_BOOT_BAD_GEOMETRY;
+    if (g->fat_length > g->heap_offset - g->fat_offset)
+        return EXFAT_BOOT_BAD_GEOMETRY;
+    if ((UQUAD)g->heap_offset >= g->volume_length)
+        return EXFAT_BOOT_BAD_GEOMETRY;
+
+    /* The FAT must cover ClusterCount + 2 entries of 4 bytes each. */
+    if (g->cluster_count > 0xFFFFFFF5u)
+        return EXFAT_BOOT_BAD_GEOMETRY;
+    fat_entries = g->cluster_count + 2;
+    fat_min = fat_entries / (sector_size / 4);
+    if (fat_entries % (sector_size / 4))
+        fat_min++;
+    if (g->fat_length < fat_min)
+        return EXFAT_BOOT_BAD_GEOMETRY;
+
+    /* ClusterCount must match what the heap can actually hold. */
+    {
+        UQUAD heap_sectors = g->volume_length - (UQUAD)g->heap_offset;
+        UQUAD capacity = heap_sectors >> g->cluster_shift;
+
+        if (capacity > 0xFFFFFFF5u)
+            capacity = 0xFFFFFFF5u;
+        if ((UQUAD)g->cluster_count != capacity)
+            return EXFAT_BOOT_BAD_GEOMETRY;
+    }
+
+    /* Root directory must name a real cluster. */
+    if (g->root_cluster < 2
+        || (UQUAD)g->root_cluster > (UQUAD)g->cluster_count + 1)
+        return EXFAT_BOOT_BAD_GEOMETRY;
+
+    return EXFAT_BOOT_OK;
+}
+
+#endif /* EXFAT_BOOT_H */

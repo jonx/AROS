@@ -138,7 +138,9 @@
 #include <dos/exall.h>
 #include <dos/dosasl.h>
 #include <dos/datetime.h>
+#include <dos/dos64.h>
 #include <proto/dos.h>
+#include <proto/dos64.h>
 #include <proto/alib.h>
 #include <proto/utility.h>
 #include <utility/tagitem.h>
@@ -570,23 +572,31 @@ int printFileData(struct AnchorPath *ap,
 
     struct DateTime dt;
 
-#if defined(ACTION_GET_FILE_SIZE64)
     if (ap->ap_Info.fib_Size >= 0x7FFFFFFF)
     {
-        BPTR flock = BNULL;
-        flock = Lock(filename, ACCESS_READ);
+        struct Library *DOS64Base = OpenLibrary("dos64.library", 0);
 
-        if (flock)
+        if (DOS64Base != NULL)
         {
-            UQUAD *size_ptr = (UQUAD *)DoPkt(((struct FileLock *)flock)->fl_Task, ACTION_GET_FILE_SIZE64, (IPTR)flock, 0, 0, 0, 0);
-            if (size_ptr)
+            BPTR flock = Lock(filename, ACCESS_READ);
+
+            if (flock)
             {
-                size = *size_ptr;
+                struct FileInfoBlock64 *fib64 =
+                    AllocDosObject64(DOS64_FIB, NULL);
+
+                if (fib64 != NULL)
+                {
+                    if (Examine64(flock, fib64, NULL))
+                        size = fib64->fib_Size;
+
+                    FreeDosObject64(DOS64_FIB, fib64);
+                }
+                UnLock(flock);
             }
-            UnLock(flock);
+            CloseLibrary(DOS64Base);
         }
     }
-#endif
     /* Do the file match the time interval we are looking for?
        (ARG_SINCE and ARG_UPTO) -- any combination of these may be
        specified */

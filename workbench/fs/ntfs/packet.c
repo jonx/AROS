@@ -370,6 +370,7 @@ void ProcessPackets(void)
         case ACTION_CHANGE_FILE_POSITION64: {
             D(bug("[NTFS] %s: ** CHANGE_FILE_POSITION64\n", __func__));
             res = DOSFALSE;
+            err = ERROR_ACTION_NOT_KNOWN;
             break;
         }
 #endif
@@ -378,6 +379,7 @@ void ProcessPackets(void)
         case ACTION_GET_FILE_POSITION64: {
             D(bug("[NTFS] %s: ** GET_FILE_POSITION64\n", __func__));
             res = DOSFALSE;
+            err = ERROR_ACTION_NOT_KNOWN;
             break;
         }
 #endif
@@ -460,8 +462,21 @@ void ProcessPackets(void)
                   pkt->dp_Arg1,
                   (fl != NULL && fl->dir != NULL) ? fl->dir->ioh.mft.mftrec_no : FILE_ROOT, (fl != NULL && fl->entry != NULL) ? fl->entry->no : -1));
 
-            if ((fl->entry) && (fl->gl))
-                res = (IPTR)&fl->gl->size;
+            if ((fl != NULL) && (fl->entry) && (fl->gl)
+                && (fl->gl->size <= (UQUAD)(~(IPTR)0)))
+            {
+                res = (IPTR)fl->gl->size;
+            }
+            else
+            {
+                /*
+                 * Either there is nothing to measure, or dp_Res1 is too
+                 * narrow to carry the size on this target. Decline so the
+                 * caller falls back rather than believing a wrong answer.
+                 */
+                res = DOSFALSE;
+                err = ERROR_ACTION_NOT_KNOWN;
+            }
 
             break;
         }

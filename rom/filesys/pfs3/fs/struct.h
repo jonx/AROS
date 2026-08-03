@@ -1017,14 +1017,6 @@ typedef struct lockentry
 #define BLOCKSHIFT (g->blockshift)
 #define DIRECTSIZE (g->directsize)
 
-#ifndef ACTION_CHANGE_FILE_POSITION64
-/* OS4 64-bit filesize packets */
-#define ACTION_CHANGE_FILE_POSITION64  8001
-#define ACTION_GET_FILE_POSITION64     8002
-#define ACTION_CHANGE_FILE_SIZE64      8003
-#define ACTION_GET_FILE_SIZE64         8004
-#endif
-
 #ifndef ACTION_SEEK64
 /* MOS 64-bit filesize packets */
 #define ACTION_SEEK64			26400

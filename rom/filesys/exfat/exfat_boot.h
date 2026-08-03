@@ -17,9 +17,11 @@
  * dependencies so the host tests exercise this code rather than a copy: the
  * caller supplies UQUAD/ULONG/UWORD/UBYTE and a sector buffer.
  *
- * Every multi-byte field is read byte-wise (spec A1 and A2): the structures
- * are packed with fields at unaligned offsets, and a 68000 or 68010 takes an
- * address error on an odd-address word access.
+ * Every multi-byte field is read byte-wise (spec A1 and A2). This is a raw
+ * little-endian byte buffer straight off the device: neither its base
+ * alignment nor any C structure layout over it can be assumed. Casting a
+ * pointer into it and dereferencing would be an unaligned access on m68k and
+ * would depend on the compiler's padding everywhere else.
  */
 
 /* Main Boot Sector field offsets */
@@ -95,27 +97,64 @@ static inline UQUAD exfat_rd64(const UBYTE *p, unsigned off)
         | ((UQUAD)exfat_rd32(p, off + 4) << 32);
 }
 
+/* Sectors 0 to 10 inclusive are covered by the boot region checksum. */
+#define EXFAT_BOOT_CHECKSUM_SECTORS  11
+/* Sector 11 holds the checksum, repeated to fill it. */
+#define EXFAT_BOOT_CHECKSUM_SECTOR   11
+
 /*
- * Boot region checksum (spec 3.2). Fed sectors 0 to 10 in order. Bytes 106,
- * 107 and 112 of sector 0 are excluded: VolumeFlags and PercentInUse mutate
- * in normal use.
+ * Boot region checksum (spec 3.2). Call for sector_index 0 through 10 in
+ * order, carrying the running sum.
+ *
+ * The exclusions are positional and belong to sector 0 alone: bytes 106, 107
+ * and 112 there are VolumeFlags and PercentInUse, which mutate in normal use.
+ * The same offsets in the later sectors are ordinary data and are covered.
+ *
+ * This takes the sector index rather than an is_first flag deliberately. A
+ * caller feeding one buffer repeatedly can pass a true flag more than once,
+ * silently applying the exclusion where it does not belong and weakening the
+ * checksum. An index makes that a visible mistake instead of a plausible one.
  */
 static inline ULONG exfat_boot_checksum(ULONG sum, const UBYTE *sector,
-    ULONG sector_size, int is_first)
+    ULONG sector_size, ULONG sector_index)
 {
     ULONG i;
 
     for (i = 0; i < sector_size; i++)
     {
-        if (is_first && (i == EXFAT_BOOT_VOLUMEFLAGS
-                      || i == EXFAT_BOOT_VOLUMEFLAGS + 1
-                      || i == EXFAT_BOOT_PERCENTINUSE))
+        if (sector_index == 0 && (i == EXFAT_BOOT_VOLUMEFLAGS
+                               || i == EXFAT_BOOT_VOLUMEFLAGS + 1
+                               || i == EXFAT_BOOT_PERCENTINUSE))
             continue;
 
         sum = ((sum & 1) ? 0x80000000u : 0u) + (sum >> 1) + (ULONG)sector[i];
     }
 
     return sum;
+}
+
+/*
+ * Spec B3: sector 11 is filled with repeated copies of the checksum, one per
+ * four bytes. Every copy is verified, not just the first: a sector whose
+ * copies disagree is self-inconsistent, which is evidence of damage even when
+ * the first happens to match.
+ *
+ * Reading the sector belongs to the mount path; deciding whether it is right
+ * does not, so it lives here where it can be tested.
+ */
+static inline int exfat_verify_boot_checksum(const UBYTE *checksum_sector,
+    ULONG sector_size, ULONG expected)
+{
+    ULONG off;
+
+    if (sector_size < 4 || (sector_size & 3) != 0)
+        return 0;
+
+    for (off = 0; off < sector_size; off += 4)
+        if (exfat_rd32(checksum_sector, off) != expected)
+            return 0;
+
+    return 1;
 }
 
 /*
@@ -126,10 +165,17 @@ static inline ULONG exfat_boot_checksum(ULONG sum, const UBYTE *sector,
  * the S2 subtraction form.
  */
 static inline enum exfat_boot_result exfat_validate_boot(const UBYTE *b,
-    ULONG buf_len, struct exfat_geometry *g)
+    ULONG buf_len, struct exfat_geometry *out)
 {
     static const UBYTE fsname[8] =
         { 'E', 'X', 'F', 'A', 'T', ' ', ' ', ' ' };
+    /*
+     * Built here and copied out only once every check has passed, so a
+     * refused volume never leaves half-validated geometry where a caller
+     * that ignored the return value could act on it.
+     */
+    struct exfat_geometry tmp;
+    struct exfat_geometry *g = &tmp;
     ULONG i, sector_size, fat_entries, fat_min;
     UWORD revision, flags;
     UBYTE nfats;
@@ -237,6 +283,7 @@ static inline enum exfat_boot_result exfat_validate_boot(const UBYTE *b,
         || (UQUAD)g->root_cluster > (UQUAD)g->cluster_count + 1)
         return EXFAT_BOOT_BAD_GEOMETRY;
 
+    *out = tmp;
     return EXFAT_BOOT_OK;
 }
 

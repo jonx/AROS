@@ -354,6 +354,9 @@ LONG emu68k_hook_finish(const struct Emu68kHookBridge *bridge,
     return -1;
 }
 
+static struct Emu68kObject *object_by_token(struct Emu68kRunState *rs,
+                                            ULONG token);
+
 AROS_UFH3(static IPTR, emu68k_native_boopsi_entry,
           AROS_UFHA(Class *, cl, A0),
           AROS_UFHA(Object *, object, A2),
@@ -416,6 +419,22 @@ AROS_UFH3(static IPTR, emu68k_native_boopsi_entry,
     {
         bridge->failed = TRUE;
         return 0;
+    }
+    if (method == OM_NEW && result)
+    {
+        /* The guest dispatcher answers OM_NEW with the guest FACADE of the
+         * object its super call made; native intuition needs the native
+         * object behind it. Anything else is not an object this run knows. */
+        struct Emu68kObject *o = object_by_token(rs, result);
+        if (!o)
+        {
+            bridge->failed = TRUE;
+            snprintf(bridge->error, sizeof bridge->error,
+                     "guest OM_NEW returned %08lx, which is not an object "
+                     "this run issued", (unsigned long)result);
+            return 0;
+        }
+        return (IPTR)o->native;
     }
     return (IPTR)result;
 
@@ -1272,6 +1291,122 @@ void Emu68k_OSCallPreopen(void)
     }
 }
 
+/* ---- The BOOPSI super chain for a guest-created class -------------------
+ *
+ * A guest class's facade cannot carry native cl_Super (a native pointer has
+ * no guest form). MakeClass therefore plants a guest-side STUB IClass there:
+ * its dispatcher h_Entry is a reserved vector below the caller's own
+ * intuition base - an address the engine already traps on - and its h_Data
+ * names the native superclass as a Class token. The guest dispatcher's
+ * DoSuperMethodA lands here.
+ *
+ * OM_NEW is served by making the object on the NATIVE superclass with the
+ * same tag domain the outer call used, and answering with a guest FACADE
+ * sized to cover the guest class's cl_InstOffset + cl_InstSize, so the
+ * guest dispatcher's INST_DATA arithmetic lands in guest-writable memory
+ * that native code never reads. Every other method refuses by name until a
+ * program drives it. */
+#define EMU68K_SUPER_LVO 250   /* offset -1500, far above every real vector */
+
+static LONG class_super_stub(struct Emu68kRunState *rs, APTR guest0,
+                             struct Emu68kRegs *r, char *err, ULONG errlen)
+{
+    struct Emu68kObject *co = object_by_token(rs, r->d[0]);
+    Class *cl, *super;
+    ULONG stok = 0, stub;
+
+    if (!co) return 0;                     /* NULL result: nothing to plant */
+    cl = co->native;
+    super = cl->cl_Super;
+    if (!super) return 0;
+    if (!rs->guest_alloc)
+    {
+        if (err && errlen)
+            snprintf(err, errlen, "no guest allocator for a class super stub");
+        return -1;
+    }
+    if (emu68k_object_to_guest(guest0, super, EMU_OBJ_Class, NULL, NULL,
+                               "Class", &stok, err, errlen) < 0)
+        return -1;
+    stub = rs->guest_alloc(rs->run, M68K_IClass_SIZEOF);
+    if (!stub)
+    {
+        if (err && errlen)
+            snprintf(err, errlen, "guest memory exhausted for a super stub");
+        return -1;
+    }
+    emu68k_scalar_to_guest(guest0, stub + M68K_IClass_cl_Dispatcher_h_Entry, 4,
+                           r->a[6] - EMU68K_SUPER_LVO * 6u);
+    emu68k_scalar_to_guest(guest0, stub + M68K_IClass_cl_Dispatcher_h_Data, 4,
+                           stok);
+    emu68k_scalar_to_guest(guest0, stub + M68K_IClass_cl_InstOffset, 2,
+                           cl->cl_InstOffset);
+    emu68k_scalar_to_guest(guest0, stub + M68K_IClass_cl_InstSize, 2,
+                           cl->cl_InstSize);
+    emu68k_scalar_to_guest(guest0, r->d[0] + M68K_IClass_cl_Super, 4, stub);
+    return 0;
+}
+
+static int super_dispatch(struct Emu68kRunState *rs, APTR guest0, APTR base,
+                          struct Emu68kRegs *r, char *err, ULONG errlen)
+{
+    struct IntuitionBase *IntuitionBase = base;
+    ULONG stub = r->a[0];                 /* CallHook A0: the stub IClass    */
+    ULONG msg  = r->a[1];
+    ULONG gcls = r->a[2];                 /* OM_NEW convention: o is the cl  */
+    ULONG stok, method, gtags, inst_end, token = 0;
+    APTR super = NULL, nobj;
+    struct TagItem ntags[71];
+    UQUAD scratch[192];
+
+    if (emu68k_require_guest_range(stub, M68K_IClass_SIZEOF, "super stub",
+                                   err, errlen) < 0 ||
+        emu68k_require_guest_range(msg, 12, "super message", err, errlen) < 0)
+        return 1;
+    stok   = gr32(guest0, stub + M68K_IClass_cl_Dispatcher_h_Data);
+    method = gr32(guest0, msg);
+    if (method != OM_NEW)
+    {
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: super method %08lx "
+                     "unserved (only OM_NEW crosses)", (unsigned long)method);
+        return 1;
+    }
+    if (emu68k_object_from_guest(guest0, stok, EMU_OBJ_Class, 0, "Class",
+                                 &super, err, errlen) < 0)
+        return 1;
+    gtags = gr32(guest0, msg + 4);
+    if (emu68k_tags_to_native(guest0, gtags, emu68k_domain_intuition_new_object,
+                              ntags, 71, scratch, sizeof scratch,
+                              err, errlen) < 0)
+        return 1;
+    nobj = NewObjectA((struct IClass *)super, NULL, gtags ? ntags : NULL);
+    if (!nobj)
+    {
+        r->d[0] = 0;
+        return 0;
+    }
+    /* The annex bound comes from the guest class itself; a class that lies
+     * about its instance size only corrupts its own annex. */
+    inst_end = 64;
+    if (emu68k_require_guest_range(gcls, M68K_IClass_SIZEOF, "class",
+                                   NULL, 0) >= 0)
+    {
+        ULONG off = emu68k_scalar_from_guest(guest0,
+                        gcls + M68K_IClass_cl_InstOffset, 2);
+        ULONG size = emu68k_scalar_from_guest(guest0,
+                        gcls + M68K_IClass_cl_InstSize, 2);
+        if (off + size > inst_end) inst_end = off + size;
+        if (inst_end > 4096) inst_end = 4096;
+    }
+    if (emu68k_object_to_guest_facade(guest0, nobj, EMU_OBJ_Object, NULL,
+                                      NULL, "Object", inst_end, NULL, 0,
+                                      &token, err, errlen) < 0)
+        return 1;
+    r->d[0] = token;
+    return 0;
+}
+
 static int gen_dispatch(const char *libname, int lvo, struct Emu68kRegs *r,
                         APTR guest0, APTR DOSBase, char *err, ULONG errlen)
 {
@@ -1313,7 +1448,19 @@ static int gen_dispatch(const char *libname, int lvo, struct Emu68kRegs *r,
             int rc;
             emu68k_persist_alloc = emu68k_persist_from_run;
             g_persist_rs = run_state(guest0);
-            rc = g->fn(lvo, r, guest0, g->base, err, errlen);
+            if (lvo == EMU68K_SUPER_LVO &&
+                strcmp(g->name, "intuition.library") == 0)
+                rc = super_dispatch(g_persist_rs, guest0, g->base, r,
+                                    err, errlen);
+            else
+                rc = g->fn(lvo, r, guest0, g->base, err, errlen);
+            /* MakeClass (vector 113): the class machinery is execution
+             * substrate, served here beside ports and processes; when the
+             * importer learns to describe it, this moves behind policy. */
+            if (rc == 0 && lvo == 113 &&
+                strcmp(g->name, "intuition.library") == 0 && r->d[0] &&
+                class_super_stub(g_persist_rs, guest0, r, err, errlen) < 0)
+                rc = 1;
             g_persist_rs = prev;
             return rc;
         }

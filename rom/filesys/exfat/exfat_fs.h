@@ -27,6 +27,8 @@
 #define DEBUG_DIRENTRY      0
 
 #define EXFAT_POOL_SIZE     65536
+#define EXFAT_MAX_NAME      255
+#define EXFAT_MAX_PATH      1023
 
 /* DosType for exFAT: 'FATX'. Matches the existing OS4 and Aminet handlers so
    media written by them is interchangeable. */
@@ -97,8 +99,54 @@ struct FSSuper
     /* The root directory, a FAT-chained stream of unknown length (spec F4). */
     struct exfat_stream root;
 
+    /* Phase-1 metadata loaded from the root directory. */
+    UBYTE            *bitmap;
+    UQUAD             bitmap_length;
+    UWORD            *upcase;          /* 65536 host-endian UTF-16 entries */
+    ULONG             free_clusters;
+    ULONG             lock_count;
+
     struct VolumeIdentity volume;
 };
+
+/* A validated file entry set, independent of the directory buffer. */
+struct exfat_entry
+{
+    struct exfat_stream stream;
+    UWORD name[EXFAT_MAX_NAME];
+    UWORD name_length;
+    UWORD attributes;
+    ULONG directory_index;
+    ULONG modify_timestamp;
+    UBYTE modify_10ms;
+    BYTE  modify_utc;
+};
+
+/* Locks and file handles use the same DOS-visible prefix as FileLock. */
+struct exfat_lock
+{
+    BPTR             fl_Link;
+    IPTR             fl_Key;
+    LONG             fl_Access;
+    struct MsgPort  *fl_Task;
+    BPTR             fl_Volume;
+
+    ULONG            magic;
+    struct FSSuper  *sb;
+    struct exfat_entry entry;
+    struct exfat_stream parent;
+    UQUAD            position;
+    ULONG            enum_index;
+    UWORD            path_length;
+    UBYTE            path[EXFAT_MAX_PATH + 1];
+};
+
+#define EXFAT_LOCK_MAGIC 0x58464c4bUL /* 'XFLK' */
+#define EXFAT_ATTR_READONLY  0x0001
+#define EXFAT_ATTR_HIDDEN    0x0002
+#define EXFAT_ATTR_SYSTEM    0x0004
+#define EXFAT_ATTR_DIRECTORY 0x0010
+#define EXFAT_ATTR_ARCHIVE   0x0020
 
 /*
  * Handler-wide state. Only what the transport layer needs; the rest arrives

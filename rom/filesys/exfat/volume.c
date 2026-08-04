@@ -217,6 +217,41 @@ static LONG MountVolume(struct Globals *glob, UQUAD part_start,
     if (sb->cache == NULL)
         return ERROR_NO_FREE_STORE;
 
+    err = ExfatLoadMetadata(sb);
+    if (err != 0)
+    {
+        if (sb->upcase != NULL)
+            FreeVec(sb->upcase);
+        if (sb->bitmap != NULL)
+            FreeVec(sb->bitmap);
+        Cache_DestroyCache(sb->cache);
+        sb->cache = NULL;
+        return err;
+    }
+
+    sb->doslist = MakeDosEntry((STRPTR)sb->volume.name + 1, DLT_VOLUME);
+    if (sb->doslist == NULL)
+    {
+        FreeVec(sb->upcase);
+        FreeVec(sb->bitmap);
+        Cache_DestroyCache(sb->cache);
+        sb->cache = NULL;
+        return ERROR_NO_FREE_STORE;
+    }
+    sb->doslist->dol_Task = glob->ourport;
+    sb->doslist->dol_misc.dol_volume.dol_DiskType = ID_EXFAT_DISK;
+    sb->doslist->dol_misc.dol_volume.dol_VolumeDate = sb->volume.create_time;
+    if (!AddDosEntry(sb->doslist))
+    {
+        FreeDosEntry(sb->doslist);
+        sb->doslist = NULL;
+        FreeVec(sb->upcase);
+        FreeVec(sb->bitmap);
+        Cache_DestroyCache(sb->cache);
+        sb->cache = NULL;
+        return IoErr() != 0 ? IoErr() : ERROR_OBJECT_EXISTS;
+    }
+
     {
         TEXT s1[SECTORSTR_LEN];
 
@@ -298,6 +333,17 @@ void DoDiskRemove(struct Globals *glob)
         return;
 
     glob->sb = NULL;
+
+    if (sb->doslist != NULL)
+    {
+        RemDosEntry(sb->doslist);
+        FreeDosEntry(sb->doslist);
+    }
+
+    if (sb->upcase != NULL)
+        FreeVec(sb->upcase);
+    if (sb->bitmap != NULL)
+        FreeVec(sb->bitmap);
 
     if (sb->cache != NULL)
         Cache_DestroyCache(sb->cache);

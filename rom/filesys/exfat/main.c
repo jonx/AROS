@@ -151,41 +151,6 @@ static void exfat_exit(struct Globals *glob)
     FreeMem(glob, sizeof(struct Globals));
 }
 
-/* Answer every packet as not-implemented until the packet layer exists. */
-static void ProcessPackets(struct Globals *glob)
-{
-    struct ExecBase *SysBase = glob->gl_SysBase;
-    struct Message *msg;
-    struct DosPacket *dp;
-
-    while ((msg = GetMsg(glob->ourport)) != NULL)
-    {
-        dp = (struct DosPacket *)msg->mn_Node.ln_Name;
-
-        switch (dp->dp_Type)
-        {
-        case ACTION_DIE:
-            glob->quit = TRUE;
-            dp->dp_Res1 = DOSTRUE;
-            dp->dp_Res2 = 0;
-            break;
-
-        case ACTION_IS_FILESYSTEM:
-            dp->dp_Res1 = DOSTRUE;
-            dp->dp_Res2 = 0;
-            break;
-
-        default:
-            /* Spec R4: never DOSFALSE with no error. */
-            dp->dp_Res1 = DOSFALSE;
-            dp->dp_Res2 = ERROR_ACTION_NOT_KNOWN;
-            break;
-        }
-
-        ReplyPacket(dp, SysBase);
-    }
-}
-
 LONG handler(struct ExecBase *SysBase)
 {
     struct Globals *glob;
@@ -221,7 +186,7 @@ LONG handler(struct ExecBase *SysBase)
     while (!glob->quit)
     {
         Wait(1UL << glob->ourport->mp_SigBit);
-        ProcessPackets(glob);
+        ExfatProcessPackets(glob);
     }
 
     exfat_exit(glob);

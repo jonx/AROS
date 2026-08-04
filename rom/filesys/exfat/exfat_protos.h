@@ -19,6 +19,24 @@ void Probe64BitSupport(struct Globals *glob);
 void DoDiskInsert(struct Globals *glob);
 void DoDiskRemove(struct Globals *glob);
 
+/* stream.c */
+LONG ExfatReadStream(struct FSSuper *sb, const struct exfat_stream *stream,
+    UQUAD offset, APTR buffer, ULONG length, ULONG *actual);
+LONG ExfatLoadStream(struct FSSuper *sb, const struct exfat_stream *stream,
+    UBYTE **buffer, ULONG *length);
+
+/* directory.c */
+LONG ExfatLoadMetadata(struct FSSuper *sb);
+LONG ExfatNextEntry(struct FSSuper *sb, const struct exfat_stream *directory,
+    ULONG *index, struct exfat_entry *entry);
+LONG ExfatFindEntry(struct FSSuper *sb, const struct exfat_stream *directory,
+    CONST_STRPTR name, ULONG name_length, struct exfat_entry *entry);
+void ExfatNameToLocal(const struct exfat_entry *entry, STRPTR out,
+    ULONG out_size);
+
+/* packet.c */
+void ExfatProcessPackets(struct Globals *glob);
+
 /* support.c */
 LONG ErrorMessageArgs(struct Globals *glob, char *options,
     CONST_STRPTR format, ...);

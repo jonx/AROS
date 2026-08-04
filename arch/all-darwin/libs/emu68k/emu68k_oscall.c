@@ -384,7 +384,15 @@ AROS_UFH3(static IPTR, emu68k_native_boopsi_entry,
                  "BOOPSI callback object needs a guest facade");
         return 0;
     }
-    guest_message = rs->guest_alloc(rs->run, 4);
+    method = message ? *(const ULONG *)(const void *)message : 0;
+    D(bug("[emu68k/boopsi] dispatch method=%lx guest_tags=%lx object=%p class=%p\n",
+          (unsigned long)method, (unsigned long)bridge->guest_tags,
+          object, (APTR)cl));
+    /* OM_NEW carries a real opSet: the guest dispatcher parses attributes
+     * itself, so ops_AttrList is the caller's ORIGINAL guest taglist, not a
+     * conversion. Anything else still crosses as the method ID alone and a
+     * dispatcher that needs more will fail visibly rather than read garbage. */
+    guest_message = rs->guest_alloc(rs->run, method == OM_NEW ? 12 : 4);
     if (!guest_message)
     {
         bridge->failed = TRUE;
@@ -392,10 +400,16 @@ AROS_UFH3(static IPTR, emu68k_native_boopsi_entry,
                  "guest memory exhausted for BOOPSI message");
         return 0;
     }
-    method = message ? *(const ULONG *)(const void *)message : 0;
     p = (UBYTE *)rs->guest0 + guest_message;
     p[0] = (UBYTE)(method >> 24); p[1] = (UBYTE)(method >> 16);
     p[2] = (UBYTE)(method >> 8);  p[3] = (UBYTE)method;
+    if (method == OM_NEW)
+    {
+        ULONG t = bridge->guest_tags;
+        p[4] = (UBYTE)(t >> 24); p[5] = (UBYTE)(t >> 16);
+        p[6] = (UBYTE)(t >> 8);  p[7] = (UBYTE)t;
+        p[8] = p[9] = p[10] = p[11] = 0;              /* ops_GInfo = NULL */
+    }
     if (rs->call_hook(rs->run, bridge->entry, bridge->guest_class,
                       bridge->guest_class, guest_message, &result,
                       bridge->error, sizeof bridge->error) != 0)
@@ -409,7 +423,7 @@ AROS_UFH3(static IPTR, emu68k_native_boopsi_entry,
 }
 
 LONG emu68k_boopsi_prepare(APTR guest0, ULONG guest_class, APTR native_class,
-                           struct Emu68kBoopsiBridge *bridge,
+                           ULONG guest_tags, struct Emu68kBoopsiBridge *bridge,
                            char *err, ULONG errlen)
 {
     Class *cl = native_class;
@@ -444,6 +458,7 @@ LONG emu68k_boopsi_prepare(APTR guest0, ULONG guest_class, APTR native_class,
     bridge->native_class = cl;
     bridge->state = rs;
     bridge->guest_class = guest_class;
+    bridge->guest_tags = guest_tags;
     bridge->entry = entry;
     cl->cl_Dispatcher.h_Entry = (APTR)emu68k_native_boopsi_entry;
     cl->cl_Dispatcher.h_Data = bridge;

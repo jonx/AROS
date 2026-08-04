@@ -1414,7 +1414,7 @@ int emu68k_gen_intuition(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
         if (emu68k_tags_to_native(guest0, r->a[2], &emu_tagdomain_intuition_new_object, emu_tags_2, 71, emu_tagscratch_2, sizeof emu_tagscratch_2, err, errlen) < 0)
             return 1;
         if (emu68k_boopsi_prepare(guest0, r->a[0], emu_object_0,
-                                   &emu_boopsi_0, err, errlen) < 0)
+                                   r->a[2], &emu_boopsi_0, err, errlen) < 0)
             return 1;
         APTR emu_result = (APTR)NewObjectA((struct IClass *)emu_object_0,
               (UBYTE *)EMU_GPTR(guest0, r->a[1]),

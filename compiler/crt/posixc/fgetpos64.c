@@ -1,5 +1,5 @@
 /*
-    Copyright (C) 2020, The AROS Development Team. All rights reserved.
+    Copyright (C) 2020-2026, The AROS Development Team. All rights reserved.
 
     Get the position in a stream.
 */
@@ -10,6 +10,8 @@
 
     NAME */
 #include <stdio.h>
+
+#include "__stdio.h"
 
         int fgetpos64 (
 
@@ -50,12 +52,14 @@
         return -1;
     }
 
-    *pos = ftell (stream);
+    __off64_t tmp = __ftello64 (stream);
 
-    if ( *pos < 0L )
+    if ( tmp < 0 )
     {
         return -1;
     }
+
+    *pos = (__fpos64_t)tmp;
 
     return 0;
 } /* fgetpos64 */

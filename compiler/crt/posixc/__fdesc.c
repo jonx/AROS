@@ -24,6 +24,7 @@
 #include <unistd.h>
 #include <errno.h>
 
+#include "__dos64.h"
 #include "__fdesc.h"
 #include "__upath.h"
 
@@ -515,6 +516,10 @@ success:
     currdesc->fcb->flags     = flags;
     currdesc->fcb->opencount = 1;
 
+    /* Detect 64-bit filesystem support once, and cache it in the fcb */
+    if (!(currdesc->fcb->privflags & _FCB_ISDIR))
+        __dos64_probe(currdesc->fcb);
+
     __setfdesc(wanted_fd, currdesc);
 
     D(bug("__open: exiting fd=%d\n", wanted_fd));
@@ -646,6 +651,11 @@ int __init_stdfiles(struct PosixCIntBase *PosixCBase)
     D(bug("[__init_stdfiles]me->pr_CES: %p, errfcb->handle: %p\n",
           BADDR(me->pr_CES), BADDR(errfcb->handle)
     ));
+
+    /* Std streams may be redirected to files; detect 64-bit support */
+    __dos64_probe(infcb);
+    __dos64_probe(outfcb);
+    __dos64_probe(errfcb);
 
     PosixCBase->fd_array[STDIN_FILENO]  = indesc;
     PosixCBase->fd_array[STDOUT_FILENO] = outdesc;

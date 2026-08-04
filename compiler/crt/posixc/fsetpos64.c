@@ -1,5 +1,5 @@
 /*
-    Copyright (C) 2020, The AROS Development Team. All rights reserved.
+    Copyright (C) 2020-2026, The AROS Development Team. All rights reserved.
 
     Change the position in a stream.
 */
@@ -10,6 +10,8 @@
 
     NAME */
 #include <stdio.h>
+
+#include "__stdio.h"
 
         int fsetpos64 (
 
@@ -52,7 +54,7 @@
         return -1;
     }
 
-    retval = fseek (stream, *pos, SEEK_SET);
+    retval = __fseeko64 (stream, (off64_t)*pos, SEEK_SET);
 
     return retval;
 } /* fsetpos64 */

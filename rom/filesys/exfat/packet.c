@@ -524,7 +524,7 @@ void ExfatProcessPackets(struct Globals *glob)
             res = glob->sb != NULL ? (IPTR)MKBADDR(glob->sb->doslist) : 0;
             break;
         case ACTION_INHIBIT:
-            if (dp->dp_Arg1 == DOSTRUE) { glob->disk_inhibited++; if (glob->disk_inhibited == 1 && glob->sb->lock_count == 0) DoDiskRemove(glob); }
+            if (dp->dp_Arg1 == DOSTRUE) { glob->disk_inhibited++; if (glob->disk_inhibited == 1 && glob->sb != NULL && glob->sb->lock_count == 0) DoDiskRemove(glob); }
             else if (glob->disk_inhibited != 0) { glob->disk_inhibited--; if (glob->disk_inhibited == 0) DoDiskInsert(glob); }
             res = DOSTRUE;
             break;

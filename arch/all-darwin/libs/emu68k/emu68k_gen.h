@@ -215,6 +215,8 @@ LONG emu68k_tags_to_native(APTR guest0, ULONG guest_tags,
 LONG emu68k_tags_to_guest(APTR guest0, struct TagItem *native_tags,
                           ULONG count, const struct EmuTagDomain *domain,
                           char *err, ULONG errlen);
+const struct EmuTagDesc *emu68k_tag_lookup(const struct EmuTagDomain *domain,
+                                           ULONG tag);
 LONG emu68k_rgb32_to_native(APTR guest0, ULONG guest_table,
                             ULONG *native_table, ULONG capacity,
                             const char *what, char *err, ULONG errlen);

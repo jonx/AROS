@@ -1438,6 +1438,34 @@ int emu68k_gen_intuition(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
         emu68k_object_consume(guest0, r->a[0], EMU_OBJ_Object);
             return 0;
     }
+    case 109:  /* GetAttr(ULONG attrID, Object * object, IPTR * storagePtr) -> ULONG  [-654] */
+    {
+        APTR emu_object_1;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_Object, 1,
+                                        "Object", &emu_object_1, err, errlen) < 0)
+            return 1;
+        const struct EmuTagDesc *emu_attr =
+            emu68k_tag_lookup(&emu_tagdomain_intuition_new_object, r->d[0]);
+        if (!emu_attr || (emu_attr->kind != EMU_TAG_U32 &&
+                          emu_attr->kind != EMU_TAG_OUT_U32))
+        {
+            if (err && errlen)
+                snprintf(err, errlen, "capability gap: attribute "
+                         "%08lx is not a served scalar in intuition.new_object",
+                         (unsigned long)r->d[0]);
+            return 1;
+        }
+        if (emu68k_require_guest_range(r->a[1], 4, "GetAttr storage",
+                                       err, errlen) < 0)
+            return 1;
+        {
+            IPTR emu_attr_value = 0;
+            r->d[0] = (ULONG)GetAttr((ULONG)r->d[0], (Object *)emu_object_1, &emu_attr_value);
+            emu68k_scalar_to_guest(guest0, r->a[1], 4,
+                                   (ULONG)emu_attr_value);
+        }
+        return 0;
+    }
     case 113:  /* MakeClass(ClassID classID, ClassID superClassID, struct IClass * superClassPtr, ULONG instanceSize, ULONG flags) -> struct IClass *  [-678] */
     {
         APTR emu_object_2;

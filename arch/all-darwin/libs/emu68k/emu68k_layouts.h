@@ -25,6 +25,28 @@ struct EmuField
     unsigned char  kind;
 };
 
+/* A pointer field the marshaller FOLLOWS: what it references is converted
+ * too, and the converted copy's native address is written at n_off. `ref`
+ * indexes emu_sdescs (an index, not a pointer, so a chain may reference its
+ * own descriptor). */
+struct EmuFollow
+{
+    unsigned short g_off, n_off;
+    unsigned short ref;
+};
+
+/* A whole structure the marshaller can convert, flat fields plus followed
+ * pointers. Sizes are numeric so this header needs no other includes. */
+struct EmuStructDesc
+{
+    const struct EmuField *fields;
+    unsigned short nfields;
+    unsigned short guest_size, native_size;
+    const struct EmuFollow *follow;
+    unsigned short nfollow;
+    const char *name;
+};
+
 
 /* struct FileInfoBlock: 260 bytes on m68k (FileInfoBlock32), 264 native (FileInfoBlock32) */
 #define M68K_FileInfoBlock_SIZEOF 260
@@ -553,6 +575,17 @@ struct EmuField
 #define M68K_TextFont_tf_CharLoc 40   /* native @80 - CONVERT */
 #define M68K_TextFont_tf_CharSpace 44   /* native @88 - CONVERT */
 #define M68K_TextFont_tf_CharKern 48   /* native @96 - CONVERT */
+
+/* struct IntuiText: 20 bytes on m68k (IntuiText), 32 native (IntuiText) */
+#define M68K_IntuiText_SIZEOF 20
+#define M68K_IntuiText_FrontPen 0
+#define M68K_IntuiText_BackPen 1
+#define M68K_IntuiText_DrawMode 2
+#define M68K_IntuiText_LeftEdge 4
+#define M68K_IntuiText_TopEdge 6
+#define M68K_IntuiText_ITextFont 8
+#define M68K_IntuiText_IText 12   /* native @16 - CONVERT */
+#define M68K_IntuiText_NextText 16   /* native @24 - CONVERT */
 
 /* struct DimensionInfo: 88 bytes on m68k (DimensionInfo), 96 native (DimensionInfo) */
 #define M68K_DimensionInfo_SIZEOF 88
@@ -1281,6 +1314,19 @@ static const struct EmuField emu_fields_TextFont[] = {
  *   tf_CharKern (APTR)
  */
 
+static const struct EmuField emu_fields_IntuiText[] = {
+    {    0,    0,    1, 1, 1, EMU_F_SCALAR },   /* FrontPen                 UBYTE */
+    {    1,    1,    1, 1, 1, EMU_F_SCALAR },   /* BackPen                  UBYTE */
+    {    2,    2,    1, 1, 1, EMU_F_SCALAR },   /* DrawMode                 UBYTE */
+    {    4,    4,    1, 2, 2, EMU_F_SCALAR },   /* LeftEdge                 WORD */
+    {    6,    6,    1, 2, 2, EMU_F_SCALAR },   /* TopEdge                  WORD */
+    {   12,   16,    1, 4, 8, EMU_F_GUESTPTR },   /* IText                    UBYTE * */
+};
+/* NOT converted, and deliberately not guessed at:
+ *   ITextFont (struct TextAttr *)
+ *   NextText (struct IntuiText *)
+ */
+
 static const struct EmuField emu_fields_DimensionInfo[] = {
     {    0,    0,    1, 4, 4, EMU_F_SCALAR },   /* Header_StructID          ULONG */
     {    4,    4,    1, 4, 4, EMU_F_SCALAR },   /* Header_DisplayID         ULONG */
@@ -1484,5 +1530,23 @@ static const struct EmuField emu_fields_ExtGadget[] = {
  *   GadgetText (struct IntuiText *)
  *   SpecialInfo (APTR)
  */
+
+/* Followed pointer fields (policy struct_metadata.follow_fields):
+ * what these reference is rebuilt too, recursively; a chain is
+ * bounded by the marshaller's depth guard, never by this table. */
+static const struct EmuFollow emu_follow_IntuiText[] = {
+    {    8,    8, 0 },   /* ITextFont -> struct TextAttr */
+    {   16,   24, 1 },   /* NextText -> struct IntuiText */
+};
+static const struct EmuStructDesc emu_sdescs[] = {
+    { emu_fields_TextAttr,
+      (int)(sizeof(emu_fields_TextAttr) / sizeof(emu_fields_TextAttr[0])),
+      8, 16, (const struct EmuFollow *)0, 0, "TextAttr" },
+    { emu_fields_IntuiText,
+      (int)(sizeof(emu_fields_IntuiText) / sizeof(emu_fields_IntuiText[0])),
+      20, 32, emu_follow_IntuiText, 2, "IntuiText" },
+};
+#define EMU_SDESC_TextAttr 0
+#define EMU_SDESC_IntuiText 1
 
 #endif /* EMU68K_LAYOUTS_H */

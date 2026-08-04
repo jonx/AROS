@@ -244,9 +244,37 @@ struct Emu68kRunState
     struct { struct IORequest *req; ULONG guest_req; char name[32]; } dev[EMU68K_MAX_DEV];
     ULONG (*device_base)(emu68k_run_h r, const char *name);
     ULONG next_object;
+    /* Deep-marshalled structures the callee retains (a class keeps the label
+     * it was given); freed when the run ends, after the objects holding them
+     * are disposed. */
+    struct Emu68kPersistHdr *persist_head;
+};
+
+struct Emu68kPersistHdr
+{
+    struct Emu68kPersistHdr *next;
+    IPTR pad;                       /* keep the payload 16-aligned */
 };
 
 static struct Emu68kRunState g_runs[EMU68K_MAX_RUNS];
+
+/* The run whose crossing is currently executing. The service is driven by
+ * one scheduler thread, so a plain static is the whole story. */
+static struct Emu68kRunState *g_persist_rs;
+
+static APTR emu68k_persist_from_run(ULONG size)
+{
+    struct Emu68kPersistHdr *h;
+
+    if (!g_persist_rs)
+        return NULL;
+    h = AllocVec(sizeof *h + size, MEMF_CLEAR);
+    if (!h)
+        return NULL;
+    h->next = g_persist_rs->persist_head;
+    g_persist_rs->persist_head = h;
+    return h + 1;
+}
 
 static struct Emu68kRunState *run_state(APTR guest0)
 {
@@ -1262,7 +1290,18 @@ static int gen_dispatch(const char *libname, int lvo, struct Emu68kRegs *r,
                 snprintf(err, errlen, "%s could not be opened natively", g->name);
             return 1;
         }
-        return g->fn(lvo, r, guest0, g->base, err, errlen);
+        {
+            /* Deep tag conversions allocate run-lifetime memory, and the
+             * marshaller has no run in its signature: the crossing scope is
+             * what names it. */
+            struct Emu68kRunState *prev = g_persist_rs;
+            int rc;
+            emu68k_persist_alloc = emu68k_persist_from_run;
+            g_persist_rs = run_state(guest0);
+            rc = g->fn(lvo, r, guest0, g->base, err, errlen);
+            g_persist_rs = prev;
+            return rc;
+        }
     }
     return 1;
 }
@@ -1314,6 +1353,16 @@ void Emu68k_OSCallEndRun(APTR guest0)
                                            rs->objects[j].native);
                 }
             }
+        /* After the objects: a disposed class instance may read its label
+         * structure right up to the end. */
+        while (rs->persist_head)
+        {
+            struct Emu68kPersistHdr *h = rs->persist_head;
+            rs->persist_head = h->next;
+            FreeVec(h);
+        }
+        if (g_persist_rs == rs)
+            g_persist_rs = NULL;
         memset(rs, 0, sizeof *rs);
     }
 }

@@ -107,6 +107,17 @@ static int GM_UNIQUENAME(Open)
 
     D(bug("[FDSK%02ld] in libopen func.\n", unitnum));
 
+    /*
+     * The generated device wrapper increments lib_OpenCnt only after this
+     * function returns successfully.  Opening a new unit allocates memory and
+     * starts a process; either operation may invoke the low-memory handlers.
+     * Without a temporary reference, lddemon sees a zero-open device and may
+     * expunge/unload fdsk.device while this function and the new process still
+     * execute its text.  diskimage.device uses the same lifetime guard around
+     * its custom open path.
+     */
+    fdskbase->device.dd_Library.lib_OpenCnt++;
+
     D(bug("[FDSK%02ld] in libopen func. Looking if unit%ld is already open\n", unitnum, unitnum));
 
     ObtainSemaphore(&fdskbase->sigsem);
@@ -125,6 +136,7 @@ static int GM_UNIQUENAME(Open)
 
         D(bug("[FDSK%02ld] in libopen func. Yep. Unit is already open\n", unitnum));
 
+        fdskbase->device.dd_Library.lib_OpenCnt--;
         return TRUE;
     }
 
@@ -169,6 +181,7 @@ static int GM_UNIQUENAME(Open)
         /* Set returncode */
         iotd->iotd_Req.io_Error = 0;
         ReleaseSemaphore(&fdskbase->sigsem);
+        fdskbase->device.dd_Library.lib_OpenCnt--;
         return TRUE;
     }else
         iotd->iotd_Req.io_Error = TDERR_NoMem;
@@ -178,6 +191,7 @@ static int GM_UNIQUENAME(Open)
 
     ReleaseSemaphore(&fdskbase->sigsem);
 
+    fdskbase->device.dd_Library.lib_OpenCnt--;
     return FALSE;
 }
 

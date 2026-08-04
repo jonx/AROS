@@ -17,6 +17,16 @@
 #include "emu68k_gen.h"
 #include "emu68k_layouts.h"
 
+/* A Gadget the program allocated itself: mirrored natively under its
+ * guest address, converted in and back out around every call. */
+static const struct EmuMirror emu_mirror_Gadget =
+{
+    emu_fields_ExtGadget, EMU_NFIELDS(emu_fields_ExtGadget),
+    sizeof(struct ExtGadget), M68K_ExtGadget_SIZEOF,
+    M68K_Gadget_SIZEOF, M68K_ExtGadget_Flags, 0x8000,
+    offsetof(struct ExtGadget, NextGadget), M68K_ExtGadget_NextGadget, 4096
+};
+
 static const struct EmuTagDesc emu_tagdesc_gadtools_create_gadget[] =
 {
     { GA_Disabled, EMU_TAG_U32, "GA_Disabled", NULL, 0, 0, 0, 0, 0 },
@@ -214,16 +224,6 @@ static void emu_object_cleanup_VisualInfo(APTR emu_base, APTR emu_object)
     struct Library *GadToolsBase = emu_base;
     FreeVisualInfo((APTR)emu_object);
 }
-
-/* A Gadget the program allocated itself: mirrored natively under its
- * guest address, converted in and back out around every call. */
-static const struct EmuMirror emu_mirror_Gadget =
-{
-    emu_fields_ExtGadget, EMU_NFIELDS(emu_fields_ExtGadget),
-    sizeof(struct ExtGadget), M68K_ExtGadget_SIZEOF,
-    M68K_Gadget_SIZEOF, M68K_ExtGadget_Flags, 0x8000,
-    offsetof(struct ExtGadget, NextGadget), M68K_ExtGadget_NextGadget, 4096
-};
 
 int emu68k_gen_gadtools(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
                   char *err, ULONG errlen)

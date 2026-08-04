@@ -21,6 +21,16 @@
 #include "emu68k_gen.h"
 #include "emu68k_layouts.h"
 
+/* A Gadget the program allocated itself: mirrored natively under its
+ * guest address, converted in and back out around every call. */
+static const struct EmuMirror emu_mirror_Gadget =
+{
+    emu_fields_ExtGadget, EMU_NFIELDS(emu_fields_ExtGadget),
+    sizeof(struct ExtGadget), M68K_ExtGadget_SIZEOF,
+    M68K_Gadget_SIZEOF, M68K_ExtGadget_Flags, 0x8000,
+    offsetof(struct ExtGadget, NextGadget), M68K_ExtGadget_NextGadget, 4096
+};
+
 static const struct EmuTagDesc emu_tagdesc_intuition_open_window[] =
 {
     { WA_Left, EMU_TAG_U32, "WA_Left", NULL, 0, 0, 0, 0, 0 },
@@ -172,15 +182,19 @@ static const struct EmuTagDesc emu_tagdesc_intuition_new_object[] =
     { GA_LabelPlace, EMU_TAG_U32, "GA_LabelPlace", NULL, 0, 0, 0, 0, 0 },
     { GA_Image, EMU_TAG_OBJECT, "GA_Image", NULL, 0, 0, 0, EMU_OBJ_Object, 1 },
     { GA_LabelImage, EMU_TAG_OBJECT, "GA_LabelImage", NULL, 0, 0, 0, EMU_OBJ_Object, 1 },
-    { GA_Previous, EMU_TAG_OBJECT, "GA_Previous", NULL, 0, 0, 0, EMU_OBJ_Gadget, 1 },
+    { GA_Previous, EMU_TAG_OBJECT, "GA_Previous", NULL, 0, 0, 0, EMU_OBJ_Gadget, 1,
+      NULL, 0, &emu_mirror_Gadget },
     { GA_DrawInfo, EMU_TAG_OBJECT, "GA_DrawInfo", NULL, 0, 0, 0, EMU_OBJ_DrawInfo, 1 },
     { GA_TextAttr, EMU_TAG_STRUCT, "GA_TextAttr", emu_fields_TextAttr, EMU_NFIELDS(emu_fields_TextAttr),
       M68K_TextAttr_SIZEOF, sizeof(struct TextAttr), 0, 0 },
     { GA_Text, EMU_TAG_CSTR, "GA_Text", NULL, 0, 0, 0, 0, 0 },
+    { GA_IntuiText, EMU_TAG_STRUCT, "GA_IntuiText", emu_fields_IntuiText, EMU_NFIELDS(emu_fields_IntuiText),
+      M68K_IntuiText_SIZEOF, sizeof(struct IntuiText), 0, 0,
+      emu_sdescs, EMU_SDESC_IntuiText + 1 },
 };
 static const struct EmuTagDomain emu_tagdomain_intuition_new_object =
 {
-    emu_tagdesc_intuition_new_object, 61, "intuition.new_object"
+    emu_tagdesc_intuition_new_object, 62, "intuition.new_object"
 };
 
 static void emu_object_cleanup_Window(APTR emu_base, APTR emu_object)
@@ -206,16 +220,6 @@ static void emu_object_cleanup_Object(APTR emu_base, APTR emu_object)
     struct IntuitionBase *IntuitionBase = emu_base;
     DisposeObject((APTR)emu_object);
 }
-
-/* A Gadget the program allocated itself: mirrored natively under its
- * guest address, converted in and back out around every call. */
-static const struct EmuMirror emu_mirror_Gadget =
-{
-    emu_fields_ExtGadget, EMU_NFIELDS(emu_fields_ExtGadget),
-    sizeof(struct ExtGadget), M68K_ExtGadget_SIZEOF,
-    M68K_Gadget_SIZEOF, M68K_ExtGadget_Flags, 0x8000,
-    offsetof(struct ExtGadget, NextGadget), M68K_ExtGadget_NextGadget, 4096
-};
 
 int emu68k_gen_intuition(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
                   char *err, ULONG errlen)
@@ -1405,9 +1409,9 @@ int emu68k_gen_intuition(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
                                         "Class", &emu_object_0, err, errlen) < 0)
             return 1;
         struct Emu68kBoopsiBridge emu_boopsi_0;
-        struct TagItem emu_tags_2[70];
-        UQUAD emu_tagscratch_2[(sizeof(struct BitMap) + 7) / 8 + (sizeof(struct TextAttr) + 7) / 8];
-        if (emu68k_tags_to_native(guest0, r->a[2], &emu_tagdomain_intuition_new_object, emu_tags_2, 70, emu_tagscratch_2, sizeof emu_tagscratch_2, err, errlen) < 0)
+        struct TagItem emu_tags_2[71];
+        UQUAD emu_tagscratch_2[(sizeof(struct BitMap) + 7) / 8 + (sizeof(struct TextAttr) + 7) / 8 + (sizeof(struct IntuiText) + 7) / 8];
+        if (emu68k_tags_to_native(guest0, r->a[2], &emu_tagdomain_intuition_new_object, emu_tags_2, 71, emu_tagscratch_2, sizeof emu_tagscratch_2, err, errlen) < 0)
             return 1;
         if (emu68k_boopsi_prepare(guest0, r->a[0], emu_object_0,
                                    &emu_boopsi_0, err, errlen) < 0)

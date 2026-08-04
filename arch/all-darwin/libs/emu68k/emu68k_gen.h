@@ -34,6 +34,11 @@ struct Emu68kBoopsiBridge
     APTR state;
     ULONG guest_class;
     ULONG entry;
+    /* The caller's ORIGINAL guest taglist. OM_NEW's message carries it as
+     * ops_AttrList, because the guest dispatcher parses guest tags itself -
+     * handing it the method ID alone made every dispatcher see no
+     * attributes and fail its OM_NEW cleanly, which read as NULL results. */
+    ULONG guest_tags;
     LONG failed;
     char error[160];
 };
@@ -142,7 +147,7 @@ LONG emu68k_hook_prepare(APTR guest0, ULONG guest_hook,
 LONG emu68k_hook_finish(const struct Emu68kHookBridge *bridge,
                         char *err, ULONG errlen);
 LONG emu68k_boopsi_prepare(APTR guest0, ULONG guest_class, APTR native_class,
-                           struct Emu68kBoopsiBridge *bridge,
+                           ULONG guest_tags, struct Emu68kBoopsiBridge *bridge,
                            char *err, ULONG errlen);
 LONG emu68k_boopsi_finish(struct Emu68kBoopsiBridge *bridge,
                           char *err, ULONG errlen);

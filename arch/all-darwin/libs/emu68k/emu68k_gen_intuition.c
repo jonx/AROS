@@ -123,10 +123,27 @@ static const struct EmuTagDesc emu_tagdesc_intuition_new_object[] =
     { POINTERA_WordWidth, EMU_TAG_U32, "POINTERA_WordWidth", NULL, 0, 0, 0, 0, 0 },
     { POINTERA_XResolution, EMU_TAG_U32, "POINTERA_XResolution", NULL, 0, 0, 0, 0, 0 },
     { POINTERA_YResolution, EMU_TAG_U32, "POINTERA_YResolution", NULL, 0, 0, 0, 0, 0 },
+    { IA_Left, EMU_TAG_U32, "IA_Left", NULL, 0, 0, 0, 0, 0 },
+    { IA_Top, EMU_TAG_U32, "IA_Top", NULL, 0, 0, 0, 0, 0 },
+    { IA_Width, EMU_TAG_U32, "IA_Width", NULL, 0, 0, 0, 0, 0 },
+    { IA_Height, EMU_TAG_U32, "IA_Height", NULL, 0, 0, 0, 0, 0 },
+    { IA_FGPen, EMU_TAG_U32, "IA_FGPen", NULL, 0, 0, 0, 0, 0 },
+    { IA_BGPen, EMU_TAG_U32, "IA_BGPen", NULL, 0, 0, 0, 0, 0 },
+    { IA_LineWidth, EMU_TAG_U32, "IA_LineWidth", NULL, 0, 0, 0, 0, 0 },
+    { IA_Resolution, EMU_TAG_U32, "IA_Resolution", NULL, 0, 0, 0, 0, 0 },
+    { IA_APatSize, EMU_TAG_U32, "IA_APatSize", NULL, 0, 0, 0, 0, 0 },
+    { IA_Mode, EMU_TAG_U32, "IA_Mode", NULL, 0, 0, 0, 0, 0 },
+    { IA_Outline, EMU_TAG_U32, "IA_Outline", NULL, 0, 0, 0, 0, 0 },
+    { IA_Recessed, EMU_TAG_U32, "IA_Recessed", NULL, 0, 0, 0, 0, 0 },
+    { IA_DoubleEmboss, EMU_TAG_U32, "IA_DoubleEmboss", NULL, 0, 0, 0, 0, 0 },
+    { IA_EdgesOnly, EMU_TAG_U32, "IA_EdgesOnly", NULL, 0, 0, 0, 0, 0 },
+    { IA_SupportsDisable, EMU_TAG_U32, "IA_SupportsDisable", NULL, 0, 0, 0, 0, 0 },
+    { IA_FrameType, EMU_TAG_U32, "IA_FrameType", NULL, 0, 0, 0, 0, 0 },
+    { SYSIA_Depth, EMU_TAG_U32, "SYSIA_Depth", NULL, 0, 0, 0, 0, 0 },
 };
 static const struct EmuTagDomain emu_tagdomain_intuition_new_object =
 {
-    emu_tagdesc_intuition_new_object, 9, "intuition.new_object"
+    emu_tagdesc_intuition_new_object, 26, "intuition.new_object"
 };
 
 static void emu_object_cleanup_Window(APTR emu_base, APTR emu_object)

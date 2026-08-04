@@ -31,6 +31,7 @@
 #include <utility/tagitem.h>
 #include <dos/exall.h>
 #include <dos/dosasl.h>
+#include <dos/dos64.h>
 #include <proto/arossupport.h>
 #include <proto/dos.h>
 #include <proto/expansion.h>
@@ -926,8 +927,12 @@ static void handlePacket(struct emulbase *emulbase, struct filehandle *fhv, stru
         break;
 
     case ACTION_SEEK:
+    case ACTION_SEEK64:
+    case ACTION_CHANGE_FILE_POSITION64:
         fh = FH_FROM(dp->dp_Arg1);
-        DCMD(bug("[emul] %p ACTION_SEEK %p, mode %ld, offset %lu\n", fhv, fh, dp->dp_Arg3, dp->dp_Arg2));
+        DCMD(bug("[emul] %p ACTION_SEEK%s %p, mode %ld, offset %ld\n", fhv,
+            dp->dp_Type == ACTION_SEEK ? "" : "64", fh, dp->dp_Arg3,
+            dp->dp_Arg2));
 
         if (fh->type == FHD_FILE)
             Res1 = DoSeek(emulbase, fh, dp->dp_Arg2, dp->dp_Arg3, &Res2);
@@ -938,14 +943,55 @@ static void handlePacket(struct emulbase *emulbase, struct filehandle *fhv, stru
 
         break;
 
-    case ACTION_SET_FILE_SIZE:
+    case ACTION_GET_FILE_POSITION64:
         fh = FH_FROM(dp->dp_Arg1);
-        DCMD(bug("[emul] %p ACTION_SET_FILE_SIZE: %p, mode %ld, offset %ld\n", fhv, fh, dp->dp_Arg3, dp->dp_Arg2));
+        if (fh->type == FHD_FILE)
+            Res1 = DoSeek(emulbase, fh, 0, OFFSET_CURRENT, &Res2);
+        else {
+            Res1 = -1;
+            Res2 = ERROR_OBJECT_WRONG_TYPE;
+        }
+        break;
+
+    case ACTION_GET_FILE_SIZE64:
+    {
+        SIPTR oldpos, size;
+
+        fh = FH_FROM(dp->dp_Arg1);
+        if (fh->type != FHD_FILE) {
+            Res1 = -1;
+            Res2 = ERROR_OBJECT_WRONG_TYPE;
+            break;
+        }
+
+        oldpos = DoSeek(emulbase, fh, 0, OFFSET_CURRENT, &Res2);
+        if (oldpos == -1) {
+            Res1 = -1;
+            break;
+        }
+        if (DoSeek(emulbase, fh, 0, OFFSET_END, &Res2) == -1) {
+            Res1 = -1;
+            break;
+        }
+        size = DoSeek(emulbase, fh, oldpos, OFFSET_BEGINNING, &Res2);
+        Res1 = size;
+        break;
+    }
+
+    case ACTION_SET_FILE_SIZE:
+    case ACTION_SET_FILE_SIZE64:
+    case ACTION_CHANGE_FILE_SIZE64:
+        fh = FH_FROM(dp->dp_Arg1);
+        DCMD(bug("[emul] %p ACTION_SET_FILE_SIZE%s: %p, mode %ld, offset %ld\n",
+            fhv, dp->dp_Type == ACTION_SET_FILE_SIZE ? "" : "64", fh,
+            dp->dp_Arg3, dp->dp_Arg2));
 
         Res1 = DoSetSize(emulbase, fh, dp->dp_Arg2, dp->dp_Arg3, &Res2);
         if (Res2 != 0) {
            Res1 = -1;
         }
+        else if (dp->dp_Type == ACTION_CHANGE_FILE_SIZE64)
+            Res1 = DOSTRUE;
         break;
 
     case ACTION_SAME_LOCK:
@@ -963,6 +1009,7 @@ static void handlePacket(struct emulbase *emulbase, struct filehandle *fhv, stru
         break;
 
     case ACTION_EXAMINE_FH:
+    case ACTION_EXAMINE_FH64:
         fh = FH_FROM(dp->dp_Arg1);
         DCMD(bug("[emul] %p ACTION_EXAMINE_FH: %p, fib %p\n", fhv, fh, BADDR(dp->dp_Arg2)));
         Res2 = examine(emulbase, fh, (struct FileInfoBlock *)BADDR(dp->dp_Arg2));
@@ -970,6 +1017,7 @@ static void handlePacket(struct emulbase *emulbase, struct filehandle *fhv, stru
         break;
 
     case ACTION_EXAMINE_OBJECT:
+    case ACTION_EXAMINE_OBJECT64:
         fh = FH_FROM_LOCK(dp->dp_Arg1);
         DCMD(bug("[emul] %p ACTION_EXAMINE_OBJECT: %p, fib %p\n", fhv, fh, BADDR(dp->dp_Arg2)));
         Res2 = examine(emulbase, fh, (struct FileInfoBlock *)BADDR(dp->dp_Arg2));
@@ -977,6 +1025,7 @@ static void handlePacket(struct emulbase *emulbase, struct filehandle *fhv, stru
         break;
 
     case ACTION_EXAMINE_NEXT:
+    case ACTION_EXAMINE_NEXT64:
         fh = FH_FROM_LOCK(dp->dp_Arg1);
         DCMD(bug("[emul] %p ACTION_EXAMINE_NEXT: %p, fib %p (key %d)\n", fhv, fh, BADDR(dp->dp_Arg2), ((struct FileInfoBlock *)BADDR(dp->dp_Arg2))->fib_DiskKey));
         Res2 = DoExamineNext(emulbase, (struct filehandle *)fh, (struct FileInfoBlock *)BADDR(dp->dp_Arg2));
@@ -1410,4 +1459,3 @@ AROS_PROCH(EmulHandlerMain, argptr, argstr, SysBase)
 
     AROS_PROCFUNC_EXIT
 }
-

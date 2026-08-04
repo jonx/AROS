@@ -815,7 +815,7 @@ LONG DoWrite(struct emulbase *emulbase, struct filehandle *fh, CONST_APTR buff, 
 SIPTR DoSeek(struct emulbase *emulbase, struct filehandle *fh, SIPTR offset, ULONG mode, SIPTR *err)
 {
     off_t res;
-    LONG oldpos = 0, newpos;
+    SIPTR oldpos = 0, newpos;
     struct stat st;
 
     DSEEK(bug("[emul] DoSeek(%d, %d, %d)\n", (int)fh->fd, offset, mode));

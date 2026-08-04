@@ -14,6 +14,7 @@
 #include <dos/dosextens.h>
 #include <dos/dostags.h>
 #include <proto/dos.h>
+#include <proto/dos64.h>
 #include <aros/asmcall.h>
 #include <aros/libcall.h>
 #include <aros/symbolsets.h>
@@ -52,6 +53,8 @@ static const UWORD SupportedCommands[] =
     ETD_FORMAT,
     TD_GETDRIVETYPE,
     NSCMD_DEVICEQUERY,
+    NSCMD_TD_READ64,
+    NSCMD_TD_WRITE64,
     0
 };
 #endif
@@ -282,6 +285,8 @@ AROS_LH1(void, beginio,
         case CMD_READ:
         case CMD_WRITE:
         case TD_FORMAT:
+        case NSCMD_TD_READ64:
+        case NSCMD_TD_WRITE64:
         case TD_GETGEOMETRY:
             if (unit->file == BNULL)
             {
@@ -355,12 +360,41 @@ static LONG error(LONG error)
 
 /****************************************************************************************/
 
-static LONG read(struct unit *unit, struct IOExtTD *iotd)
+/* NSD puts the upper half of an input offset in io_Actual.  That field is
+ * repurposed for the completed byte count, so capture the offset before any
+ * I/O is issued. */
+static UQUAD request_offset64(const struct IOExtTD *iotd)
+{
+    return (UQUAD)iotd->iotd_Req.io_Offset |
+           ((UQUAD)iotd->iotd_Req.io_Actual << 32);
+}
+
+/* fdsk is a device and has no persistent library-base field.  Open dos64 only
+ * around the seek so the 64-bit commands remain optional on older systems and
+ * an expunge cannot invalidate an in-flight vector call. */
+static LONG seek64(struct unit *unit, UQUAD offset)
+{
+    struct Library *DOS64Base = OpenLibrary("dos64.library", 50);
+    QUAD oldpos;
+
+    if (DOS64Base == NULL)
+        return IOERR_NOCMD;
+
+    oldpos = Seek64(unit->file, OFFSET_BEGINNING, (QUAD)offset);
+    CloseLibrary(DOS64Base);
+
+    return oldpos == -1 ? TDERR_SeekError : 0;
+}
+
+static LONG read_at(struct unit *unit, struct IOExtTD *iotd, UQUAD offset,
+                    BOOL is64)
 {
     STRPTR      buf;
     LONG        size, subsize;
 
-    D(bug("[FDSK%02ld] read32: offset = %08x  size = %08x\n", unit->unitnum, iotd->iotd_Req.io_Offset, iotd->iotd_Req.io_Length));
+    D(bug("[FDSK%02ld] read%s: offset = %08x%08x size = %08x\n",
+        unit->unitnum, is64 ? "64" : "32", (ULONG)(offset >> 32),
+        (ULONG)offset, iotd->iotd_Req.io_Length));
 
 #if 0
     if(iotd->iotd_SecLabel)
@@ -370,9 +404,17 @@ static LONG read(struct unit *unit, struct IOExtTD *iotd)
     }
 #endif
 
-    if(Seek(unit->file, iotd->iotd_Req.io_Offset, OFFSET_BEGINNING) == -1)
+    if (is64)
     {
-        D(bug("[FDSK%02ld] read32: Seek to offset %d failed. Returning TDERR_SeekError\n", unit->unitnum, iotd->iotd_Req.io_Offset));
+        LONG err = seek64(unit, offset);
+
+        if (err != 0)
+            return err;
+    }
+    else if (Seek(unit->file, (LONG)offset, OFFSET_BEGINNING) == -1)
+    {
+        D(bug("[FDSK%02ld] read32: Seek failed. Returning TDERR_SeekError\n",
+            unit->unitnum));
         return TDERR_SeekError;
     }
 
@@ -407,14 +449,27 @@ static LONG read(struct unit *unit, struct IOExtTD *iotd)
     return 0;
 }
 
+static LONG read(struct unit *unit, struct IOExtTD *iotd)
+{
+    return read_at(unit, iotd, (UQUAD)iotd->iotd_Req.io_Offset, FALSE);
+}
+
+static LONG read64(struct unit *unit, struct IOExtTD *iotd)
+{
+    return read_at(unit, iotd, request_offset64(iotd), TRUE);
+}
+
 /****************************************************************************************/
 
-static LONG write(struct unit *unit, struct IOExtTD *iotd)
+static LONG write_at(struct unit *unit, struct IOExtTD *iotd, UQUAD offset,
+                     BOOL is64)
 {
     STRPTR  buf;
     LONG    size, subsize;
 
-    D(bug("[FDSK%02ld] write32: offset = %08x  size = %08x\n", unit->unitnum, iotd->iotd_Req.io_Offset, iotd->iotd_Req.io_Length));
+    D(bug("[FDSK%02ld] write%s: offset = %08x%08x size = %08x\n",
+        unit->unitnum, is64 ? "64" : "32", (ULONG)(offset >> 32),
+        (ULONG)offset, iotd->iotd_Req.io_Length));
 
     if(!unit->writable)
         return TDERR_WriteProt;
@@ -422,7 +477,14 @@ static LONG write(struct unit *unit, struct IOExtTD *iotd)
     if(iotd->iotd_SecLabel)
         return IOERR_NOCMD;
 #endif
-    if(Seek(unit->file, iotd->iotd_Req.io_Offset, OFFSET_BEGINNING) == -1)
+    if (is64)
+    {
+        LONG err = seek64(unit, offset);
+
+        if (err != 0)
+            return err;
+    }
+    else if (Seek(unit->file, (LONG)offset, OFFSET_BEGINNING) == -1)
         return TDERR_SeekError;
 
     buf  = iotd->iotd_Req.io_Data;
@@ -442,6 +504,16 @@ static LONG write(struct unit *unit, struct IOExtTD *iotd)
     }
 
     return 0;
+}
+
+static LONG write(struct unit *unit, struct IOExtTD *iotd)
+{
+    return write_at(unit, iotd, (UQUAD)iotd->iotd_Req.io_Offset, FALSE);
+}
+
+static LONG write64(struct unit *unit, struct IOExtTD *iotd)
+{
+    return write_at(unit, iotd, request_offset64(iotd), TRUE);
 }
 
 /**************************************************************************/
@@ -597,6 +669,10 @@ AROS_UFH3(LONG, unitentry,
                     D(bug("[FDSK%02ld] received CMD_READ.\n", unit->unitnum));
                     err = read(unit, iotd);
                     break;
+                case NSCMD_TD_READ64:
+                    D(bug("[FDSK%02ld] received NSCMD_TD_READ64.\n", unit->unitnum));
+                    err = read64(unit, iotd);
+                    break;
                 case ETD_WRITE:
                 case CMD_WRITE:
                 case TD_FORMAT:
@@ -605,6 +681,10 @@ AROS_UFH3(LONG, unitentry,
                         (iotd->iotd_Req.io_Command == ETD_WRITE) ||
                         (iotd->iotd_Req.io_Command == CMD_WRITE)) ? "CMD_WRITE" : "TD_FORMAT"));
                     err = write(unit, iotd);
+                    break;
+                case NSCMD_TD_WRITE64:
+                    D(bug("[FDSK%02ld] received NSCMD_TD_WRITE64.\n", unit->unitnum));
+                    err = write64(unit, iotd);
                     break;
                 case TD_CHANGENUM:
                     err = 0;

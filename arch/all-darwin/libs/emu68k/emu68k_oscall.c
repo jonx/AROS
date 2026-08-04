@@ -356,6 +356,8 @@ LONG emu68k_hook_finish(const struct Emu68kHookBridge *bridge,
 
 static struct Emu68kObject *object_by_token(struct Emu68kRunState *rs,
                                             ULONG token);
+static struct Emu68kObject *object_by_native(struct Emu68kRunState *rs,
+                                             APTR native);
 
 AROS_UFH3(static IPTR, emu68k_native_boopsi_entry,
           AROS_UFHA(Class *, cl, A0),
@@ -367,7 +369,7 @@ AROS_UFH3(static IPTR, emu68k_native_boopsi_entry,
     struct Emu68kBoopsiBridge *bridge = cl ? cl->cl_Dispatcher.h_Data : NULL;
     struct Emu68kRunState *rs = bridge ? bridge->state : NULL;
     unsigned int result = 0;
-    ULONG guest_message, method;
+    ULONG guest_message, guest_object, method;
     UBYTE *p;
 
     if (!bridge || !rs || !rs->call_hook || !rs->guest_alloc)
@@ -380,22 +382,34 @@ AROS_UFH3(static IPTR, emu68k_native_boopsi_entry,
         }
         return 0;
     }
-    if ((APTR)object != bridge->native_class)
+    if ((APTR)object == bridge->native_class)
+        guest_object = bridge->guest_class;   /* OM_NEW convention: o is the cl */
+    else
     {
-        bridge->failed = TRUE;
-        snprintf(bridge->error, sizeof bridge->error,
-                 "BOOPSI callback object needs a guest facade");
-        return 0;
+        /* A method on an instance: the guest dispatcher must see the guest
+         * facade this run issued for it, never the native pointer. */
+        struct Emu68kObject *o = object_by_native(rs, (APTR)object);
+        if (!o)
+        {
+            bridge->failed = TRUE;
+            snprintf(bridge->error, sizeof bridge->error,
+                     "BOOPSI callback object needs a guest facade");
+            return 0;
+        }
+        guest_object = o->token;
     }
     method = message ? *(const ULONG *)(const void *)message : 0;
-    D(bug("[emu68k/boopsi] dispatch method=%lx guest_tags=%lx object=%p class=%p\n",
-          (unsigned long)method, (unsigned long)bridge->guest_tags,
-          object, (APTR)cl));
+    bug("[emu68k/boopsi] dispatch method=%lx object=%p guest_object=%lx\n",
+        (unsigned long)method, object, (unsigned long)guest_object);
     /* OM_NEW carries a real opSet: the guest dispatcher parses attributes
      * itself, so ops_AttrList is the caller's ORIGINAL guest taglist, not a
-     * conversion. Anything else still crosses as the method ID alone and a
-     * dispatcher that needs more will fail visibly rather than read garbage. */
-    guest_message = rs->guest_alloc(rs->run, method == OM_NEW ? 12 : 4);
+     * conversion. OM_GET carries a real opGet with a guest storage slot,
+     * copied back after the dispatcher answers. Anything else still crosses
+     * as the method ID alone and a dispatcher that needs more will fail
+     * visibly rather than read garbage. */
+    guest_message = rs->guest_alloc(rs->run,
+                                    method == OM_NEW ? 12 :
+                                    method == OM_GET ? 16 : 4);
     if (!guest_message)
     {
         bridge->failed = TRUE;
@@ -413,12 +427,37 @@ AROS_UFH3(static IPTR, emu68k_native_boopsi_entry,
         p[6] = (UBYTE)(t >> 8);  p[7] = (UBYTE)t;
         p[8] = p[9] = p[10] = p[11] = 0;              /* ops_GInfo = NULL */
     }
+    else if (method == OM_GET)
+    {
+        const struct opGet *og = (const struct opGet *)message;
+        ULONG a = (ULONG)og->opg_AttrID;
+        ULONG s = guest_message + 12;                 /* the guest storage slot */
+        p[4] = (UBYTE)(a >> 24); p[5] = (UBYTE)(a >> 16);
+        p[6] = (UBYTE)(a >> 8);  p[7] = (UBYTE)a;
+        p[8] = (UBYTE)(s >> 24); p[9] = (UBYTE)(s >> 16);
+        p[10] = (UBYTE)(s >> 8); p[11] = (UBYTE)s;
+        p[12] = p[13] = p[14] = p[15] = 0;
+    }
     if (rs->call_hook(rs->run, bridge->entry, bridge->guest_class,
-                      bridge->guest_class, guest_message, &result,
+                      guest_object, guest_message, &result,
                       bridge->error, sizeof bridge->error) != 0)
     {
         bridge->failed = TRUE;
+        bug("[emu68k/boopsi] dispatch method=%lx FAILED: %s\n",
+            (unsigned long)method, bridge->error);
         return 0;
+    }
+    bug("[emu68k/boopsi] dispatch method=%lx -> %lx\n",
+        (unsigned long)method, (unsigned long)result);
+    if (method == OM_GET && message)
+    {
+        /* Guest attribute values are guest-meaningful (scalars, or guest
+         * addresses the querying guest reads back through GetAttr); the
+         * native caller gets the raw 32-bit value. */
+        struct opGet *og = (struct opGet *)message;
+        if (og->opg_Storage)
+            *og->opg_Storage = (IPTR)(ULONG)((p[12] << 24) | (p[13] << 16) |
+                                             (p[14] << 8) | p[15]);
     }
     if (method == OM_NEW && result)
     {
@@ -1365,6 +1404,9 @@ static int super_dispatch(struct Emu68kRunState *rs, APTR guest0, APTR base,
         return 1;
     stok   = gr32(guest0, stub + M68K_IClass_cl_Dispatcher_h_Data);
     method = gr32(guest0, msg);
+    bug("[emu68k/boopsi] super method=%lx stub=%lx stok=%lx gcls=%lx\n",
+        (unsigned long)method, (unsigned long)stub, (unsigned long)stok,
+        (unsigned long)gcls);
     if (method != OM_NEW)
     {
         if (err && errlen)

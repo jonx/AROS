@@ -20,6 +20,7 @@
 
 #include <proto/exec.h>
 #include <proto/dos.h>
+#include <proto/intuition.h>
 
 #include "emu68k_intern.h"
 #include "emu68k_gen.h"
@@ -1003,6 +1004,9 @@ LONG emu68k_object_from_guest(APTR guest0, ULONG token, UWORD type,
         return -1;
     }
     if (native) *native = o->native;
+    if (type == EMU_OBJ_Object)
+        bug("[emu68k/boopsi] resolve token %08lx -> native %p\n",
+            (unsigned long)token, o->native);
     return 0;
 }
 
@@ -1122,6 +1126,9 @@ LONG emu68k_object_to_guest_facade(APTR guest0, APTR native, UWORD type,
     rs->objects[free_slot].token = facade;
     rs->objects[free_slot].refs = 1;
     rs->objects[free_slot].type = type;
+    if (type == EMU_OBJ_Object)
+        bug("[emu68k/boopsi] facade %08lx registered for native %p\n",
+            (unsigned long)facade, native);
     memset((UBYTE *)guest0 + facade, 0, facade_size);
     emu68k_to_guest(guest0, facade, native, fields, field_count);
     if (token) *token = facade;

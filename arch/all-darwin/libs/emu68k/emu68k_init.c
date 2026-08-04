@@ -8,9 +8,11 @@
 #include <exec/types.h>
 #include <aros/libcall.h>
 #include <aros/symbolsets.h>
+#include <libraries/debug.h>
 
 #include <proto/exec.h>
 #include <proto/hostlib.h>
+#include <proto/debug.h>
 
 #include "emu68k_intern.h"
 #include LC_LIBDEFS_FILE
@@ -36,10 +38,45 @@ static const char *const emu68k_syms[] =
 
 #define HostLibBase LIBBASE->hostlibBase
 
+/* Resolve a host code address to "module symbol + offset" for the host-side
+ * crash report. Same contract as the kernel's own trap symbolizer: DebugBase
+ * by list walk (no OpenLibrary in a crash path), DecodeLocationA is read-only.
+ * Writes "" when the address is not in any registered module. */
+static void emu68k_symbolize(unsigned long long addr, char *out, unsigned outlen)
+{
+    static struct Library *DebugBase = NULL;
+    char *modname = NULL, *symname = NULL;
+    void *symaddr = NULL, *segaddr = NULL;
+    unsigned int segnum = 0;
+    struct TagItem tags[] =
+    {
+        { DL_ModuleName,    (IPTR)&modname },
+        { DL_SegmentNumber, (IPTR)&segnum  },
+        { DL_SegmentStart,  (IPTR)&segaddr },
+        { DL_SymbolName,    (IPTR)&symname },
+        { DL_SymbolStart,   (IPTR)&symaddr },
+        { TAG_DONE }
+    };
+
+    if (out && outlen) out[0] = 0;
+    if (!out || !outlen) return;
+    if (!DebugBase)
+        DebugBase = (struct Library *)FindName(&SysBase->LibList, "debug.library");
+    if (!DebugBase) return;
+    if (!DecodeLocationA((APTR)(IPTR)addr, tags) || !modname) return;
+    if (symaddr)
+        snprintf(out, outlen, "%s %s + 0x%lx", modname,
+                 symname ? symname : "(no symbol)",
+                 (unsigned long)((IPTR)addr - (IPTR)symaddr));
+    else
+        snprintf(out, outlen, "%s seg %u + 0x%lx", modname, segnum,
+                 (unsigned long)((IPTR)addr - (IPTR)segaddr));
+}
+
 static int Emu68k_InitLib(LIBBASETYPEPTR LIBBASE)
 {
     ULONG errcount = 0;
-    void *syms[11] = { 0 };
+    void *syms[16] = { 0 };
     int i;
 
     InitSemaphore(&LIBBASE->runlock);
@@ -89,6 +126,13 @@ static int Emu68k_InitLib(LIBBASETYPEPTR LIBBASE)
     LIBBASE->host.run_call_hook = syms[10];
     LIBBASE->host.run_device_base = syms[11];
     LIBBASE->host_ok = TRUE;
+
+    {   /* optional: an older dylib without the symbolizer hook still binds */
+        void (*set_sym)(void (*)(unsigned long long, char *, unsigned)) =
+            HostLib_GetPointer(LIBBASE->dylib, "emu68k_set_symbolizer", NULL);
+        if (set_sym)
+            set_sym(emu68k_symbolize);
+    }
 
     D(bug("[emu68k.library] bound: %s\n", LIBBASE->host.version()));
     return TRUE;

@@ -56,7 +56,23 @@ static AROS_UFH4(int, emu68k_run_to_completion,
                  AROS_UFHA(char *, err, A3))
 {
     AROS_USERFUNC_INIT
+    struct Task *me = FindTask(NULL);
+    APTR saved_lower = me->tc_SPLower;
+    APTR saved_upper = me->tc_SPUpper;
     int rc;
+
+    /* The engine executes guest code with SP translated into the run's arena.
+     * The scheduler's stack probe would see that SP outside the task's bounds
+     * and suspend the task for good, mid-run, holding whatever native locks
+     * the bridge had taken. Widen the bounds to cover the arena for the
+     * duration of the run; native frames still live on the swapped stack. */
+    if (Emu68kBase->host.run_guest0)
+    {
+        APTR g0 = Emu68kBase->host.run_guest0(run);
+        if (g0 && g0 < me->tc_SPLower)
+            me->tc_SPLower = g0;
+    }
+    me->tc_SPUpper = (APTR)~(IPTR)0;
 
     for (;;)
     {
@@ -75,6 +91,8 @@ static AROS_UFH4(int, emu68k_run_to_completion,
             }
             continue;
         }
+        me->tc_SPLower = saved_lower;
+        me->tc_SPUpper = saved_upper;
         return rc;
     }
 

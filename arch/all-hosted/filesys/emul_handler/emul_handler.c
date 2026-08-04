@@ -1009,7 +1009,6 @@ static void handlePacket(struct emulbase *emulbase, struct filehandle *fhv, stru
         break;
 
     case ACTION_EXAMINE_FH:
-    case ACTION_EXAMINE_FH64:
         fh = FH_FROM(dp->dp_Arg1);
         DCMD(bug("[emul] %p ACTION_EXAMINE_FH: %p, fib %p\n", fhv, fh, BADDR(dp->dp_Arg2)));
         Res2 = examine(emulbase, fh, (struct FileInfoBlock *)BADDR(dp->dp_Arg2));
@@ -1017,7 +1016,6 @@ static void handlePacket(struct emulbase *emulbase, struct filehandle *fhv, stru
         break;
 
     case ACTION_EXAMINE_OBJECT:
-    case ACTION_EXAMINE_OBJECT64:
         fh = FH_FROM_LOCK(dp->dp_Arg1);
         DCMD(bug("[emul] %p ACTION_EXAMINE_OBJECT: %p, fib %p\n", fhv, fh, BADDR(dp->dp_Arg2)));
         Res2 = examine(emulbase, fh, (struct FileInfoBlock *)BADDR(dp->dp_Arg2));
@@ -1025,7 +1023,6 @@ static void handlePacket(struct emulbase *emulbase, struct filehandle *fhv, stru
         break;
 
     case ACTION_EXAMINE_NEXT:
-    case ACTION_EXAMINE_NEXT64:
         fh = FH_FROM_LOCK(dp->dp_Arg1);
         DCMD(bug("[emul] %p ACTION_EXAMINE_NEXT: %p, fib %p (key %d)\n", fhv, fh, BADDR(dp->dp_Arg2), ((struct FileInfoBlock *)BADDR(dp->dp_Arg2))->fib_DiskKey));
         Res2 = DoExamineNext(emulbase, (struct filehandle *)fh, (struct FileInfoBlock *)BADDR(dp->dp_Arg2));

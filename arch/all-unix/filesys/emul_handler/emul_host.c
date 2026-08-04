@@ -861,11 +861,15 @@ SIPTR DoSeek(struct emulbase *emulbase, struct filehandle *fh, SIPTR offset, ULO
     }
 
     if (res == -1)
+    {
         oldpos = -1;
+        *err = ERROR_SEEK_ERROR;
+    }
+    else
+        *err = 0;
 
     HostLib_Unlock();
 
-    *err = ERROR_SEEK_ERROR;
     return oldpos;
 }
 

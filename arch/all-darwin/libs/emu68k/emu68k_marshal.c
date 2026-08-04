@@ -56,6 +56,12 @@ LONG emu68k_require_guest_range(ULONG guest_addr, ULONG length,
     return -1;
 }
 
+/* Installed by the run owner (emu68k_oscall.c); the allocations live until
+ * the run tears down, because the callee RETAINS what a followed conversion
+ * builds - a gadget class keeps the label structure it was given and reads
+ * it again at render time, long after the call returned. */
+APTR (*emu68k_persist_alloc)(ULONG size) = NULL;
+
 APTR emu68k_scratch_alloc(ULONG size, char *err, ULONG errlen)
 {
     APTR scratch = size ? AllocMem(size, MEMF_ANY) : NULL;
@@ -132,6 +138,64 @@ LONG emu68k_rgb32_to_native(APTR guest0, ULONG guest_table,
         snprintf(err, errlen, "%s RGB32 stream is malformed or unterminated",
                  what ? what : "guest");
     return -1;
+}
+
+/* Convert one structure AND everything its followed pointer fields reference.
+ * Each node is a run-lifetime allocation, because the callee RETAINS what a
+ * followed conversion builds - a gadget class keeps the label structure it
+ * was given and reads it again at render time, long after the call returned.
+ * The depth bound is what terminates a cyclic or runaway chain, and hitting
+ * it is a refusal by name, never a silently shortened list. */
+static APTR emu68k_deep_convert(APTR guest0, ULONG gaddr,
+                                const struct EmuStructDesc *all,
+                                const struct EmuStructDesc *sd,
+                                int depth, const char *what,
+                                char *err, ULONG errlen)
+{
+    UBYTE *node;
+    UWORD i;
+
+    if (depth <= 0)
+    {
+        if (err && errlen)
+            snprintf(err, errlen, "%s: %s chain deeper than the marshaller "
+                     "follows", what, sd->name);
+        return NULL;
+    }
+    if (emu68k_require_guest_range(gaddr, sd->guest_size, what, err, errlen) < 0)
+        return NULL;
+    if (!emu68k_persist_alloc)
+    {
+        if (err && errlen)
+            snprintf(err, errlen, "%s: no run-lifetime allocator for %s",
+                     what, sd->name);
+        return NULL;
+    }
+    node = emu68k_persist_alloc(sd->native_size);
+    if (!node)
+    {
+        if (err && errlen)
+            snprintf(err, errlen, "%s: no memory for a native %s",
+                     what, sd->name);
+        return NULL;
+    }
+    memset(node, 0, sd->native_size);
+    emu68k_from_guest(guest0, gaddr, node, sd->fields, sd->nfields);
+    for (i = 0; i < sd->nfollow; i++)
+    {
+        const struct EmuFollow *f = &sd->follow[i];
+        ULONG gp = guest_be32(guest0, gaddr + f->g_off);
+        APTR sub;
+
+        if (!gp)
+            continue;
+        sub = emu68k_deep_convert(guest0, gp, all, &all[f->ref],
+                                  depth - 1, what, err, errlen);
+        if (!sub)
+            return NULL;
+        *(APTR *)(void *)(node + f->n_off) = sub;
+    }
+    return node;
 }
 
 /* Convert a guest's packed, big-endian 8-byte TagItems into native 16-byte
@@ -228,9 +292,27 @@ LONG emu68k_tags_to_native(APTR guest0, ULONG guest_tags,
         if (desc->kind == EMU_TAG_OBJECT)
         {
             APTR object;
-            if (emu68k_object_from_guest(guest0, data, desc->object_type,
-                                         desc->object_nullable, desc->name,
-                                         &object, err, errlen) < 0)
+            if (desc->mirror)
+            {
+                /* An adoptable type: the value may be a structure the program
+                 * (or a guest-side library) built itself. The adopt path
+                 * resolves an issued token at the head anyway, so this only
+                 * widens what the tag accepts. */
+                if (!data && !desc->object_nullable)
+                {
+                    if (err && errlen)
+                        snprintf(err, errlen, "capability gap: NULL %s object",
+                                 desc->name);
+                    return -1;
+                }
+                if (emu68k_object_adopt_guest(guest0, data, desc->object_type,
+                                              desc->name, desc->mirror,
+                                              &object, err, errlen) < 0)
+                    return -1;
+            }
+            else if (emu68k_object_from_guest(guest0, data, desc->object_type,
+                                              desc->object_nullable, desc->name,
+                                              &object, err, errlen) < 0)
                 return -1;
             native_tags[out].ti_Data = (IPTR)object;
         }
@@ -254,6 +336,25 @@ LONG emu68k_tags_to_native(APTR guest0, ULONG guest_tags,
             slot->value = (IPTR)(ULONG)emu68k_scalar_from_guest(guest0, data, 4);
             slot->guest_addr = data;
             native_tags[out].ti_Data = (IPTR)&slot->value;
+        }
+        else if (desc->kind == EMU_TAG_STRUCT && desc->sdesc1)
+        {
+            /* A structure with followed pointer fields: rebuilt whole,
+             * run-lifetime, because the callee retains it. */
+            APTR node;
+
+            if (!data)
+            {
+                native_tags[out].ti_Data = 0;
+                out++; p += 8;
+                continue;
+            }
+            node = emu68k_deep_convert(guest0, data, desc->sdescs,
+                                       &desc->sdescs[desc->sdesc1 - 1],
+                                       33, desc->name, err, errlen);
+            if (!node)
+                return -1;
+            native_tags[out].ti_Data = (IPTR)node;
         }
         else if (desc->kind == EMU_TAG_STRUCT)
         {

@@ -179,7 +179,23 @@ struct EmuTagDesc
     UWORD native_size;
     UWORD object_type;
     UBYTE object_nullable;
+    /* EMU_TAG_STRUCT with followed pointer fields: the descriptor table base
+     * and 1+index of this structure's descriptor (0 = flat, no follow pass).
+     * A followed conversion is RETAINED by the callee (a class keeps the
+     * label it was given), so it is allocated run-lifetime through
+     * emu68k_persist_alloc, never from call scratch. */
+    const struct EmuStructDesc *sdescs;
+    UWORD sdesc1;
+    /* EMU_TAG_OBJECT only, optional: a mirror descriptor makes the tag accept
+     * a GUEST-OWNED structure by adoption as well as an issued token - the
+     * adopt path resolves an issued token at the head anyway, so it strictly
+     * widens what the tag accepts. */
+    const struct EmuMirror *mirror;
 };
+struct EmuStructDesc;
+/* Run-lifetime allocator for retained deep conversions, installed by the
+ * run owner; deep marshalling refuses by name while it is unset. */
+extern APTR (*emu68k_persist_alloc)(ULONG size);
 struct EmuTagDomain
 {
     const struct EmuTagDesc *tags;

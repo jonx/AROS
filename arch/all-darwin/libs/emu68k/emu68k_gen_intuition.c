@@ -16,6 +16,7 @@
 #include <intuition/classes.h>
 #include <intuition/imageclass.h>
 #include <intuition/pointerclass.h>
+#include <intuition/gadgetclass.h>
 
 #include "emu68k_gen.h"
 #include "emu68k_layouts.h"
@@ -140,10 +141,46 @@ static const struct EmuTagDesc emu_tagdesc_intuition_new_object[] =
     { IA_SupportsDisable, EMU_TAG_U32, "IA_SupportsDisable", NULL, 0, 0, 0, 0, 0 },
     { IA_FrameType, EMU_TAG_U32, "IA_FrameType", NULL, 0, 0, 0, 0, 0 },
     { SYSIA_Depth, EMU_TAG_U32, "SYSIA_Depth", NULL, 0, 0, 0, 0, 0 },
+    { GA_Left, EMU_TAG_U32, "GA_Left", NULL, 0, 0, 0, 0, 0 },
+    { GA_RelRight, EMU_TAG_U32, "GA_RelRight", NULL, 0, 0, 0, 0, 0 },
+    { GA_Top, EMU_TAG_U32, "GA_Top", NULL, 0, 0, 0, 0, 0 },
+    { GA_RelBottom, EMU_TAG_U32, "GA_RelBottom", NULL, 0, 0, 0, 0, 0 },
+    { GA_Width, EMU_TAG_U32, "GA_Width", NULL, 0, 0, 0, 0, 0 },
+    { GA_RelWidth, EMU_TAG_U32, "GA_RelWidth", NULL, 0, 0, 0, 0, 0 },
+    { GA_Height, EMU_TAG_U32, "GA_Height", NULL, 0, 0, 0, 0, 0 },
+    { GA_RelHeight, EMU_TAG_U32, "GA_RelHeight", NULL, 0, 0, 0, 0, 0 },
+    { GA_Highlight, EMU_TAG_U32, "GA_Highlight", NULL, 0, 0, 0, 0, 0 },
+    { GA_Disabled, EMU_TAG_U32, "GA_Disabled", NULL, 0, 0, 0, 0, 0 },
+    { GA_GZZGadget, EMU_TAG_U32, "GA_GZZGadget", NULL, 0, 0, 0, 0, 0 },
+    { GA_ID, EMU_TAG_U32, "GA_ID", NULL, 0, 0, 0, 0, 0 },
+    { GA_UserData, EMU_TAG_U32, "GA_UserData", NULL, 0, 0, 0, 0, 0 },
+    { GA_Selected, EMU_TAG_U32, "GA_Selected", NULL, 0, 0, 0, 0, 0 },
+    { GA_EndGadget, EMU_TAG_U32, "GA_EndGadget", NULL, 0, 0, 0, 0, 0 },
+    { GA_Immediate, EMU_TAG_U32, "GA_Immediate", NULL, 0, 0, 0, 0, 0 },
+    { GA_RelVerify, EMU_TAG_U32, "GA_RelVerify", NULL, 0, 0, 0, 0, 0 },
+    { GA_FollowMouse, EMU_TAG_U32, "GA_FollowMouse", NULL, 0, 0, 0, 0, 0 },
+    { GA_RightBorder, EMU_TAG_U32, "GA_RightBorder", NULL, 0, 0, 0, 0, 0 },
+    { GA_LeftBorder, EMU_TAG_U32, "GA_LeftBorder", NULL, 0, 0, 0, 0, 0 },
+    { GA_TopBorder, EMU_TAG_U32, "GA_TopBorder", NULL, 0, 0, 0, 0, 0 },
+    { GA_BottomBorder, EMU_TAG_U32, "GA_BottomBorder", NULL, 0, 0, 0, 0, 0 },
+    { GA_ToggleSelect, EMU_TAG_U32, "GA_ToggleSelect", NULL, 0, 0, 0, 0, 0 },
+    { GA_SysGadget, EMU_TAG_U32, "GA_SysGadget", NULL, 0, 0, 0, 0, 0 },
+    { GA_SysGType, EMU_TAG_U32, "GA_SysGType", NULL, 0, 0, 0, 0, 0 },
+    { GA_TabCycle, EMU_TAG_U32, "GA_TabCycle", NULL, 0, 0, 0, 0, 0 },
+    { GA_RelSpecial, EMU_TAG_U32, "GA_RelSpecial", NULL, 0, 0, 0, 0, 0 },
+    { GA_ReadOnly, EMU_TAG_U32, "GA_ReadOnly", NULL, 0, 0, 0, 0, 0 },
+    { GA_LabelPlace, EMU_TAG_U32, "GA_LabelPlace", NULL, 0, 0, 0, 0, 0 },
+    { GA_Image, EMU_TAG_OBJECT, "GA_Image", NULL, 0, 0, 0, EMU_OBJ_Object, 1 },
+    { GA_LabelImage, EMU_TAG_OBJECT, "GA_LabelImage", NULL, 0, 0, 0, EMU_OBJ_Object, 1 },
+    { GA_Previous, EMU_TAG_OBJECT, "GA_Previous", NULL, 0, 0, 0, EMU_OBJ_Gadget, 1 },
+    { GA_DrawInfo, EMU_TAG_OBJECT, "GA_DrawInfo", NULL, 0, 0, 0, EMU_OBJ_DrawInfo, 1 },
+    { GA_TextAttr, EMU_TAG_STRUCT, "GA_TextAttr", emu_fields_TextAttr, EMU_NFIELDS(emu_fields_TextAttr),
+      M68K_TextAttr_SIZEOF, sizeof(struct TextAttr), 0, 0 },
+    { GA_Text, EMU_TAG_CSTR, "GA_Text", NULL, 0, 0, 0, 0, 0 },
 };
 static const struct EmuTagDomain emu_tagdomain_intuition_new_object =
 {
-    emu_tagdesc_intuition_new_object, 26, "intuition.new_object"
+    emu_tagdesc_intuition_new_object, 61, "intuition.new_object"
 };
 
 static void emu_object_cleanup_Window(APTR emu_base, APTR emu_object)
@@ -1368,9 +1405,9 @@ int emu68k_gen_intuition(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
                                         "Class", &emu_object_0, err, errlen) < 0)
             return 1;
         struct Emu68kBoopsiBridge emu_boopsi_0;
-        struct TagItem emu_tags_2[33];
-        UQUAD emu_tagscratch_2[(sizeof(struct BitMap) + 7) / 8];
-        if (emu68k_tags_to_native(guest0, r->a[2], &emu_tagdomain_intuition_new_object, emu_tags_2, 33, emu_tagscratch_2, sizeof emu_tagscratch_2, err, errlen) < 0)
+        struct TagItem emu_tags_2[70];
+        UQUAD emu_tagscratch_2[(sizeof(struct BitMap) + 7) / 8 + (sizeof(struct TextAttr) + 7) / 8];
+        if (emu68k_tags_to_native(guest0, r->a[2], &emu_tagdomain_intuition_new_object, emu_tags_2, 70, emu_tagscratch_2, sizeof emu_tagscratch_2, err, errlen) < 0)
             return 1;
         if (emu68k_boopsi_prepare(guest0, r->a[0], emu_object_0,
                                    &emu_boopsi_0, err, errlen) < 0)

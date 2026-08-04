@@ -196,6 +196,7 @@ static const struct EmuTagDomain emu_tagdomain_intuition_new_object =
 {
     emu_tagdesc_intuition_new_object, 62, "intuition.new_object"
 };
+const struct EmuTagDomain *const emu68k_domain_intuition_new_object = &emu_tagdomain_intuition_new_object;
 
 static void emu_object_cleanup_Window(APTR emu_base, APTR emu_object)
 {

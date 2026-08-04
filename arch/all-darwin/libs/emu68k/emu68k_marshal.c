@@ -140,6 +140,21 @@ LONG emu68k_rgb32_to_native(APTR guest0, ULONG guest_table,
     return -1;
 }
 
+/* Which descriptor a domain has for one tag value, or NULL: the lookup the
+ * single-attribute crossings (GetAttr) use to decide whether an attribute is
+ * a scalar they may serve. */
+const struct EmuTagDesc *emu68k_tag_lookup(const struct EmuTagDomain *domain,
+                                           ULONG tag)
+{
+    UWORD i;
+
+    if (!domain) return NULL;
+    for (i = 0; i < domain->count; i++)
+        if (domain->tags[i].tag == tag)
+            return &domain->tags[i];
+    return NULL;
+}
+
 /* Convert one structure AND everything its followed pointer fields reference.
  * Each node is a run-lifetime allocation, because the callee RETAINS what a
  * followed conversion builds - a gadget class keeps the label structure it

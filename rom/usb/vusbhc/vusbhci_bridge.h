@@ -7,7 +7,7 @@
 #ifndef VUSBHCI_BRIDGE_H
 #define VUSBHCI_BRIDGE_H
 
-#include <libusb-1.0/libusb.h>
+#include <libusb.h>
 
 static const char *libusb_func_names[] = {
     "libusb_init",

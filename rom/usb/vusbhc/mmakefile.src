@@ -5,7 +5,19 @@ FILES := vusbhci_device vusbhci_commands vusbhci_bridge
 
 NOWARN_FLAGS := $(NOWARN_UNUSED_VARIABLE) $(NOWARN_MAYBE_UNINITIALIZED)
 USER_CFLAGS := $(NOWARN_FLAGS)
-USER_INCLUDES := -isystem $(GENINCDIR) $(KERNEL_INCLUDES)
+# vusbhci is a hosted-only device, but target modules are compiled with
+# -nostdinc.  Ask the build host's pkg-config where its libusb headers live
+# instead of assuming a Linux system include directory (or a Homebrew prefix).
+HOST_LIBUSB_CFLAGS ?= $(shell pkg-config --cflags libusb-1.0 2>/dev/null)
+USER_INCLUDES := -isystem $(GENINCDIR) $(KERNEL_INCLUDES) $(HOST_LIBUSB_CFLAGS)
+
+# The hosted Darwin bootstrap supplies a restricted dyld fallback path, so an
+# unqualified Homebrew dylib name is not reliable.  Embed the pkg-config path
+# on Darwin while retaining the normal SONAME candidates in the bridge.
+ifeq ($(AROS_TARGET_ARCH),darwin)
+HOST_LIBUSB_LIBDIR ?= $(shell pkg-config --variable=libdir libusb-1.0 2>/dev/null)
+USER_CPPFLAGS += -DVUSBHCI_LIBUSB_HOST_PATH=\"$(HOST_LIBUSB_LIBDIR)/libusb-1.0.dylib\"
+endif
 
 %build_module mmake=kernel-usb-vusbhci \
     modname=vusbhci modtype=device \

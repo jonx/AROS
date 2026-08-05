@@ -14,6 +14,7 @@
 
 static const uuid_t GPT_Type_EFISystem    = MAKE_UUID(0xC12A7328, 0xF81F, 0x11D2, 0xBA4B, 0x00A0C93EC93BULL);
 static const uuid_t GPT_Type_HFSPlus      = MAKE_UUID(0x48465300, 0x0000, 0x11AA, 0xAA11, 0x00306543ECACULL);
+static const uuid_t GPT_Type_BasicData    = MAKE_UUID(0xEBD0A0A2, 0xB9E5, 0x4433, 0x87C0, 0x68B6B72699C7ULL);
 static const uuid_t GPT_Type_FreeBSD_Boot = MAKE_UUID(0x83BD6B9D, 0x7F41, 0x11DC, 0xBE0B, 0x001560B84F0FULL);
 static const uuid_t GPT_Type_FreeBSD_Data = MAKE_UUID(0x516E7CB4, 0x6ECF, 0x11D6, 0x8FF8, 0x00022D09712BULL);
 static const uuid_t GPT_Type_NetBSD_FFS   = MAKE_UUID(0x49F48D5A, 0xB10E, 0x11DC, 0xB99B, 0x0019D1879648ULL);
@@ -24,6 +25,7 @@ const struct TypeMapping PartTypes[] =
     { 0x04, MAKE_ID('F','A','T','\1'), NULL                  }, /* DOS 16-bit FAT (up to 32M) */
     { 0x06, MAKE_ID('F','A','T','\1'), NULL                  }, /* DOS 16-bit FAT (over 32M) */
     { 0x07, MAKE_ID('N','T','F','S') , NULL                  }, /* Windows NT NTFS */
+    { 0x07, MAKE_ID('N','T','F','S') , &GPT_Type_BasicData   }, /* Windows data; probe distinguishes exFAT */
     { 0x0b, MAKE_ID('F','A','T','\2'), NULL                  }, /* W95 FAT32 */
     { 0x0c, MAKE_ID('F','A','T','\2'), &GPT_Type_EFISystem   }, /* W95 LBA FAT32 */
     { 0x0e, MAKE_ID('F','A','T','\1'), NULL                  }, /* W95 16-bit LBA FAT */

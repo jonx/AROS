@@ -510,6 +510,10 @@ static const char libextra[] =
 "#define __AROS_LC2double __AROS_LC2D\n"
 "#define __AROS_LC3double __AROS_LC3D\n"
 "#define __AROS_LC4double __AROS_LC4D\n"
+"#define __AROS_LC2QUAD   __AROS_LC2D\n"
+"#define __AROS_LC3QUAD   __AROS_LC3D\n"
+"#define __AROS_LC4QUAD   __AROS_LC4D\n"
+"#define __AROS_LC5QUAD   __AROS_LC5D\n"
 "#define __AROS_LC2LONG   __AROS_LC2\n"
 "#define __AROS_LC3LONG   __AROS_LC3\n"
 "#define __AROS_LC4LONG   __AROS_LC4\n"
@@ -610,10 +614,12 @@ int main(int argc, char **argv)
             aros_lc(i, FLAG_NR);
         }
 
-        /* For double return AROS_LC2D..AROS_LC4D */
+        /* Wide returns use D0/D1.  The QUAD-argument wrappers may expand to
+           calls with up to five physical register arguments. */
         aros_lc(2, FLAG_DOUBLE);
         aros_lc(3, FLAG_DOUBLE);
         aros_lc(4, FLAG_DOUBLE);
+        aros_lc(5, FLAG_DOUBLE);
 
         for (i = 0; i < GENCALL_MAX; i++) {
             aros_call(i, 0);

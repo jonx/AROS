@@ -4,6 +4,7 @@
 
 #include <exec/memory.h>
 #include <exec/types.h>
+#include <dos/exfat.h>
 #include <libraries/partition.h>
 #include <proto/exec.h>
 #include <proto/partition.h>
@@ -19,6 +20,29 @@ struct MBRData {
     struct PCPartitionTable *entry;
     UBYTE position;
 };
+
+static void ProbeExfatPartition(struct Library *PartitionBase,
+    struct PartitionHandle *ph)
+{
+    ULONG size_longs = ph->de.de_SizeBlock;
+    ULONG size;
+    UBYTE *block;
+
+    /* DosEnvec geometry is external input.  Validate before shifting so a
+       malformed value cannot wrap, or request an unbounded allocation, on a
+       32-bit target. */
+    if (size_longs < 128 || size_longs > 8192
+        || (size_longs & (size_longs - 1)) != 0)
+        return;
+    size = size_longs << 2;
+    block = AllocMem(size, MEMF_ANY);
+    if (block == NULL)
+        return;
+    if (readBlock(PartitionBase, ph, 0, block) == 0
+        && IsExfatBootSector(block, size))
+        setDosType(&ph->de, ID_EXFAT_DISK);
+    FreeMem(block, size);
+}
 
 struct FATBootSector {
     UBYTE bs_jmp_boot[3];
@@ -162,6 +186,7 @@ static struct PartitionHandle *PartitionMBRNewHandle(struct Library *PartitionBa
 
                 /* Map type ID to a DOSType */
                 setDosType(&ph->de, MBR_FindDosType(data->entry->type));
+                ProbeExfatPartition(PartitionBase, ph);
 
                 /* Set position as priority */
                 ph->ln.ln_Pri = MBR_MAX_PARTITIONS - 1 - position;
@@ -563,4 +588,3 @@ const struct PTFunctionTable PartitionMBR =
     PartitionMBRDestroyPartitionTable,
     NULL
 };
-

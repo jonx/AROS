@@ -11,6 +11,7 @@
 #include <exec/errors.h>
 #include <dos/dos.h>
 #include <dos/filehandler.h>
+#include <devices/inputevent.h>
 #include <devices/trackdisk.h>
 
 #include <proto/exec.h>
@@ -40,6 +41,26 @@ static LONG BootResultToError(enum exfat_boot_result r)
     case EXFAT_BOOT_BAD_GEOMETRY:  return ERROR_BAD_NUMBER;
     }
     return ERROR_BAD_NUMBER;
+}
+
+static void FreeVolume(struct FSSuper *sb, BOOL flush_cache)
+{
+    struct Globals *glob = sb->glob;
+
+    if (sb->upcase != NULL)
+        FreeVec(sb->upcase);
+    if (sb->bitmap != NULL)
+        FreeVec(sb->bitmap);
+    if (sb->cache != NULL)
+    {
+        if (flush_cache)
+            Cache_DestroyCache(sb->cache);
+        else
+            Cache_DiscardCache(sb->cache);
+    }
+    if (sb->doslist != NULL)
+        FreeDosEntry(sb->doslist);
+    FreeVec(sb);
 }
 
 /*
@@ -201,6 +222,8 @@ static LONG MountVolume(struct Globals *glob, UQUAD part_start,
 
     sb->cluster_count = geo.cluster_count;
     sb->root_cluster  = geo.root_cluster;
+    sb->volume_flags  = geo.volume_flags;
+    sb->online = TRUE;
 
     /*
      * F4: the root directory is a FAT-chained stream with no directory entry
@@ -322,6 +345,7 @@ void DoDiskInsert(struct Globals *glob)
     }
 
     glob->sb = sb;
+    ExfatSendEvent(IECLASS_DISKINSERTED, glob);
     bug("[exfat] boot region accepted, superblock constructed\n");
 }
 
@@ -333,20 +357,28 @@ void DoDiskRemove(struct Globals *glob)
         return;
 
     glob->sb = NULL;
-
+    sb->online = FALSE;
+    sb->write_transaction_active = FALSE;
     if (sb->doslist != NULL)
-    {
+        sb->doslist->dol_Task = NULL;
+
+    AddTail((struct List *)&glob->sblist, &sb->node);
+    (void)ExfatAttemptDestroyVolume(sb);
+    ExfatSendEvent(IECLASS_DISKREMOVED, glob);
+}
+
+BOOL ExfatAttemptDestroyVolume(struct FSSuper *sb)
+{
+    struct Globals *glob;
+
+    if (sb == NULL || sb->online || sb->lock_count != 0)
+        return FALSE;
+
+    glob = sb->glob;
+    Remove(&sb->node);
+    if (sb->doslist != NULL)
         RemDosEntry(sb->doslist);
-        FreeDosEntry(sb->doslist);
-    }
-
-    if (sb->upcase != NULL)
-        FreeVec(sb->upcase);
-    if (sb->bitmap != NULL)
-        FreeVec(sb->bitmap);
-
-    if (sb->cache != NULL)
-        Cache_DestroyCache(sb->cache);
-
-    FreeVec(sb);
+    /* Never flush an offline cache: the device may already hold new media. */
+    FreeVolume(sb, FALSE);
+    return TRUE;
 }

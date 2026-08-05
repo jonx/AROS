@@ -26,6 +26,22 @@ struct libusb_func libusb_func;
 static void *libusbhandle;
 
 static libusb_device_handle *dev_handle = NULL;
+static int claimed_interfaces;
+
+static void close_device_handle(void)
+{
+    int i;
+
+    if (!dev_handle)
+        return;
+
+    for (i = 0; i < claimed_interfaces; i++)
+        LIBUSBCALL(libusb_release_interface, dev_handle, i);
+
+    claimed_interfaces = 0;
+    LIBUSBCALL(libusb_close, dev_handle);
+    dev_handle = NULL;
+}
 
 int hotplug_callback_event_handler(libusb_context *ctx, libusb_device *dev, libusb_hotplug_event event, void *user_data) {
 
@@ -70,79 +86,57 @@ int hotplug_callback_event_handler(libusb_context *ctx, libusb_device *dev, libu
                             break;
                         }
 
-                        if(speed != LIBUSB_SPEED_SUPER) {
-                        
-                            //LIBUSBCALL(libusb_set_auto_detach_kernel_driver, dev_handle, 1);
-
+                        {
                             struct libusb_config_descriptor *config = NULL;
                             unsigned int i;
 
                             rc = LIBUSBCALL(libusb_get_active_config_descriptor, dev, &config);
-                            if(rc == LIBUSB_SUCCESS) {
-                                bug("\nGot active config descriptor %d...\n", i);
+                            if ((rc != LIBUSB_SUCCESS) || !config) {
+                                mybug_unit(-1, ("Unable to read active configuration: %d\n", rc));
+                                close_device_handle();
+                                return 0;
                             }
 
-                                                        num_interfaces = config->bNumInterfaces;
-                                                        //LIBUSBCALL(libusb_free_config_descriptor, config);
+                            num_interfaces = config->bNumInterfaces;
+                            claimed_interfaces = 0;
 
-                            for (i=0; i<num_interfaces; i++) {
-                                if (LIBUSBCALL(libusb_kernel_driver_active, dev_handle, i) == 1) {
-                                    bug("Kernel driver is active on interface %d...\n", i);
+                            /* Linux may need a detach; Darwin reports that the
+                             * query/detach API is unsupported.  In either case
+                             * the interface itself still has to be claimed. */
+                            LIBUSBCALL(libusb_set_auto_detach_kernel_driver, dev_handle, 1);
+                            for (i = 0; i < num_interfaces; i++) {
+                                if (LIBUSBCALL(libusb_kernel_driver_active, dev_handle, i) == 1)
+                                    LIBUSBCALL(libusb_detach_kernel_driver, dev_handle, i);
 
-                                                                        rc = LIBUSBCALL(libusb_detach_kernel_driver, dev_handle, i);
-
-                                    rc = LIBUSBCALL(libusb_claim_interface, dev_handle, i);
-                                    if (rc != LIBUSB_SUCCESS) {
-                                        bug("    Failed to detach it...\n");
-                                    }
-                                } else {
-                                        bug("Kernel driver is not active on interface %d...\n", i);
+                                rc = LIBUSBCALL(libusb_claim_interface, dev_handle, i);
+                                if (rc != LIBUSB_SUCCESS) {
+                                    mybug_unit(-1, ("Unable to claim interface %u: %d\n", i, rc));
+                                    LIBUSBCALL(libusb_free_config_descriptor, config);
+                                    close_device_handle();
+                                    return 0;
                                 }
-
-                                if (LIBUSBCALL(libusb_kernel_driver_active, dev_handle, i) == 1) {
-                                    bug("Kernel driver is active on interface %d...\n", i);
-
-                                                                        rc = LIBUSBCALL(libusb_detach_kernel_driver, dev_handle, i);
-
-                                    rc = LIBUSBCALL(libusb_claim_interface, dev_handle, i);
-                                    if (rc != LIBUSB_SUCCESS) {
-                                        bug("    Failed to detach it...\n");
-                                    }
-                                } else {
-                                        bug("Kernel driver is not active on interface %d...\n", i);
-                                }
+                                claimed_interfaces++;
                             }
-                            
+
                             LIBUSBCALL(libusb_free_config_descriptor, config);
 
-                            //speed = LIBUSBCALL(libusb_get_device_speed, dev);
-                            switch(speed) {
-                                case LIBUSB_SPEED_LOW:
-                                    unit->roothub.portstatus.wPortStatus |=  AROS_WORD2LE(UPSF_PORT_LOW_SPEED);
-                                    unit->roothub.portstatus.wPortStatus &= ~AROS_WORD2LE(UPSF_PORT_HIGH_SPEED);
-                                break;
-                                case LIBUSB_SPEED_FULL:
-                                    unit->roothub.portstatus.wPortStatus &= ~AROS_WORD2LE(UPSF_PORT_LOW_SPEED);
-                                    unit->roothub.portstatus.wPortStatus &= ~AROS_WORD2LE(UPSF_PORT_HIGH_SPEED);
-                                break;
-                                case LIBUSB_SPEED_HIGH:
-                                    unit->roothub.portstatus.wPortStatus &= ~AROS_WORD2LE(UPSF_PORT_LOW_SPEED);
-                                    unit->roothub.portstatus.wPortStatus |=  AROS_WORD2LE(UPSF_PORT_HIGH_SPEED);
-                                break;
-                                //case LIBUSB_SPEED_SUPER:
-                                //break;
+                            unit->roothub.portstatus.wPortStatus &=
+                                ~AROS_WORD2LE(UPSF_PORT_LOW_SPEED | UPSF_PORT_HIGH_SPEED);
+                            if (speed == LIBUSB_SPEED_LOW) {
+                                unit->roothub.portstatus.wPortStatus |=
+                                    AROS_WORD2LE(UPSF_PORT_LOW_SPEED);
+                            } else if (speed >= LIBUSB_SPEED_HIGH) {
+                                /* The implemented virtual root hub is USB
+                                 * 2.0.  Present faster host links through
+                                 * its high-speed view; libusb still moves
+                                 * the transfers at the real link speed. */
+                                unit->roothub.portstatus.wPortStatus |=
+                                    AROS_WORD2LE(UPSF_PORT_HIGH_SPEED);
                             }
-
-                                        //unit->roothub.portstatus.wPortStatus &= ~UPSF_PORT_CONNECTION;
-                                        //unit->roothub.portstatus.wPortChange |= UPSF_PORT_CONNECTION;
-                                        //uhwCheckRootHubChanges(unit);
 
                             unit->roothub.portstatus.wPortStatus |= AROS_WORD2LE(UPSF_PORT_CONNECTION);
                             unit->roothub.portstatus.wPortChange |= AROS_WORD2LE(UPSF_PORT_CONNECTION);
                             uhwCheckRootHubChanges(unit);
-                        } else {
-                            LIBUSBCALL(libusb_close, dev_handle);
-                            dev_handle = NULL;
                         }
                     } else {
                         if(rc == LIBUSB_ERROR_ACCESS) {
@@ -164,10 +158,7 @@ int hotplug_callback_event_handler(libusb_context *ctx, libusb_device *dev, libu
                 uhwCheckRootHubChanges(unit);
             }
 
-            if(dev_handle != NULL) {
-                LIBUSBCALL(libusb_close, dev_handle);
-                dev_handle = NULL;
-            }
+            close_device_handle();
 
         break;
 
@@ -209,13 +200,29 @@ void *hostlib_load_so(const char *sofile, const char **names, int nfuncs, void *
 BOOL libusb_bridge_init(struct VUSBHCIBase *VUSBHCIBase) {
 
     int rc;
+    unsigned int i;
+    static const char *libusb_names[] = {
+#ifdef VUSBHCI_LIBUSB_HOST_PATH
+        VUSBHCI_LIBUSB_HOST_PATH,
+#endif
+        "libusb-1.0.so.0",
+        "libusb-1.0.so",
+        "libusb-1.0.dylib",
+        "libusb.so"
+    };
 
     HostLibBase = OpenResource("hostlib.resource");
 
     if (!HostLibBase)
         return FALSE;
 
-    libusbhandle = hostlib_load_so("libusb.so", libusb_func_names, LIBUSB_NUM_FUNCS, (void **)&libusb_func);
+    libusbhandle = NULL;
+    for (i = 0; i < sizeof(libusb_names) / sizeof(libusb_names[0]); i++) {
+        libusbhandle = hostlib_load_so(libusb_names[i], libusb_func_names,
+                                       LIBUSB_NUM_FUNCS, (void **)&libusb_func);
+        if (libusbhandle)
+            break;
+    }
 
     if (!libusbhandle)
         return FALSE;
@@ -647,4 +654,3 @@ int do_libusb_isoc_transfer(struct IOUsbHWReq *ioreq) {
     */
     return UHIOERR_NO_ERROR;
 }
-

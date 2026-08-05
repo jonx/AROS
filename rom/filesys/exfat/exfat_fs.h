@@ -12,6 +12,7 @@
 
 #include <dos/dos.h>
 #include <dos/dosextens.h>
+#include <dos/exfat.h>
 #include <exec/interrupts.h>
 
 #include "exfat_bounds.h"
@@ -29,12 +30,6 @@
 #define EXFAT_POOL_SIZE     65536
 #define EXFAT_MAX_NAME      255
 #define EXFAT_MAX_PATH      1023
-
-/* DosType for exFAT: 'FATX'. Matches the existing OS4 and Aminet handlers so
-   media written by them is interchangeable. */
-#ifndef ID_EXFAT_DISK
-#define ID_EXFAT_DISK       0x46415458UL
-#endif
 
 /*
  * A stream: anything with clusters behind it, whether a file's data or a
@@ -60,6 +55,9 @@ struct VolumeIdentity
     UBYTE            name[34];      /* BCPL string, 11 UTF-16 units max */
     struct DateStamp create_time;
 };
+
+struct exfat_lock;
+struct LocaleBase;
 
 /*
  * Per-volume state.
@@ -102,9 +100,25 @@ struct FSSuper
     /* Phase-1 metadata loaded from the root directory. */
     UBYTE            *bitmap;
     UQUAD             bitmap_length;
+    struct exfat_stream bitmap_stream;
     UWORD            *upcase;          /* 65536 host-endian UTF-16 entries */
     ULONG             free_clusters;
     ULONG             lock_count;
+    struct exfat_lock *locks;
+    struct exfat_lock *write_handle;
+    BOOL              online;
+
+    /* Validated main-boot-sector state.  A volume which arrived dirty stays
+       readable, but is not eligible for writes or for clearing that flag. */
+    UWORD             volume_flags;
+    UWORD             write_transaction_original_flags;
+    BOOL              write_transaction_active;
+    BOOL              write_transaction_failed;
+    BOOL              write_transaction_changed;
+    BOOL              allocation_changed;
+#ifdef EXFAT_TEST_FAILPOINTS
+    ULONG             test_fail_after_sync;
+#endif
 
     struct VolumeIdentity volume;
 };
@@ -131,12 +145,16 @@ struct exfat_lock
     struct MsgPort  *fl_Task;
     BPTR             fl_Volume;
 
+    struct exfat_lock *next;
     ULONG            magic;
     struct FSSuper  *sb;
     struct exfat_entry entry;
     struct exfat_stream parent;
     UQUAD            position;
     ULONG            enum_index;
+    BOOL             writable;
+    BOOL             write_transaction;
+    BOOL             contents_modified;
     UWORD            path_length;
     UBYTE            path[EXFAT_MAX_PATH + 1];
 };
@@ -148,6 +166,14 @@ struct exfat_lock
 #define EXFAT_ATTR_DIRECTORY 0x0010
 #define EXFAT_ATTR_ARCHIVE   0x0020
 
+#define EXFAT_DATE_MODIFIED  0x01U
+#define EXFAT_DATE_ACCESSED  0x02U
+
+#ifdef EXFAT_TEST_FAILPOINTS
+#define ACTION_EXFAT_ARM_FAILPOINT 0x58464650L /* 'XFFP' */
+#define EXFAT_FAILPOINT_COOKIE     0x45584654UL /* 'EXFT' */
+#endif
+
 /*
  * Handler-wide state. Only what the transport layer needs; the rest arrives
  * with the mount and packet code.
@@ -157,6 +183,7 @@ struct Globals
     struct ExecBase     *gl_SysBase;
     struct DosLibrary   *gl_DOSBase;
     struct Library      *gl_UtilityBase;
+    struct LocaleBase   *gl_LocaleBase; /* optional; timestamps still work */
 
     struct Task         *ourtask;
     struct MsgPort      *ourport;
@@ -167,7 +194,9 @@ struct Globals
 
     /* Device transport */
     struct IOExtTD      *diskioreq;
+    struct IOExtTD      *diskchgreq;
     struct MsgPort      *diskport;
+    ULONG                diskchgsig_bit;
     UWORD                readcmd;
     UWORD                writecmd;
     /*
@@ -196,6 +225,13 @@ struct Globals
     BOOL                 disk_inserted;
     BOOL                 restart_timer;
     BOOL                 quit;
+
+    struct IntData {
+        struct Interrupt Interrupt;
+        struct ExecBase *SysBase;
+        struct Task *task;
+        ULONG signal;
+    } DiskChangeIntData;
 };
 
 #define SysBase     (glob->gl_SysBase)

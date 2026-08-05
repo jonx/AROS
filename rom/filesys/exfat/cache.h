@@ -16,6 +16,10 @@ struct BlockRange
     struct MinNode node2;    /* links into free and dirty lists */
     ULONG use_count;    /* number of users of this block */
     UWORD state;
+    /* One bit per sector in this 32-sector cache range.  Writable exFAT
+       metadata has an ordering contract, so flushing an entire range would
+       accidentally publish neighbouring FAT/bitmap/boot sectors together. */
+    ULONG dirty_mask;
     UQUAD num;    /* start block number */
     UBYTE *data;    /* actual block data */
 };
@@ -45,9 +49,12 @@ struct Cache
 APTR Cache_CreateCache(APTR priv, ULONG hash_size, ULONG block_count,
     ULONG block_size, struct ExecBase *sys_base, struct DosLibrary *dos_base);
 VOID Cache_DestroyCache(APTR cache);
+VOID Cache_DiscardCache(APTR cache);
 APTR Cache_GetBlock(APTR cache, UQUAD blockNum, UBYTE **data);
 VOID Cache_FreeBlock(APTR cache, APTR block);
 VOID Cache_MarkBlockDirty(APTR cache, APTR block);
+BOOL Cache_MarkBlockDirtySector(APTR cache, APTR block, UQUAD block_num);
+BOOL Cache_IsClean(APTR cache);
 BOOL Cache_Flush(APTR cache);
 
 LONG AccessDisk(BOOL do_write, UQUAD num, ULONG nblocks, ULONG block_size,

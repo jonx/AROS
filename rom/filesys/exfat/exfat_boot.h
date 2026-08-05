@@ -47,6 +47,9 @@
 #define EXFAT_BOOT_SIGNATURE       510
 
 #define EXFAT_VOLUMEFLAG_ACTIVEFAT 0x0001
+#define EXFAT_VOLUMEFLAG_DIRTY     0x0002
+#define EXFAT_VOLUMEFLAG_MEDIAFAIL 0x0004
+#define EXFAT_VOLUMEFLAG_CLEARZERO 0x0008
 
 /* The first sector the FAT may occupy: the boot region is 24 sectors. */
 #define EXFAT_BOOT_REGION_SECTORS  24
@@ -71,6 +74,7 @@ struct exfat_geometry
     ULONG cluster_count;
     ULONG root_cluster;
     ULONG volume_serial;
+    UWORD volume_flags;
     UWORD sector_size;         /* bytes */
     UBYTE sector_shift;
     UBYTE cluster_shift;       /* sectors per cluster, as a shift */
@@ -95,6 +99,44 @@ static inline UQUAD exfat_rd64(const UBYTE *p, unsigned off)
 {
     return (UQUAD)exfat_rd32(p, off)
         | ((UQUAD)exfat_rd32(p, off + 4) << 32);
+}
+
+/* Byte-wise little-endian writers for raw on-disk metadata. */
+static inline void exfat_wr16(UBYTE *p, unsigned off, UWORD value)
+{
+    p[off] = (UBYTE)value;
+    p[off + 1] = (UBYTE)(value >> 8);
+}
+
+static inline void exfat_wr32(UBYTE *p, unsigned off, ULONG value)
+{
+    p[off] = (UBYTE)value;
+    p[off + 1] = (UBYTE)(value >> 8);
+    p[off + 2] = (UBYTE)(value >> 16);
+    p[off + 3] = (UBYTE)(value >> 24);
+}
+
+static inline void exfat_wr64(UBYTE *p, unsigned off, UQUAD value)
+{
+    exfat_wr32(p, off, (ULONG)value);
+    exfat_wr32(p, off + 4, (ULONG)(value >> 32));
+}
+
+/* Preserve status and reserved bits across a base-exFAT transaction.
+   ClearToZero must be cleared before mutation.  A dirty indication which
+   predates the mount belongs to a repair tool and must remain set. */
+static inline UWORD exfat_volume_flags_begin_write(UWORD flags)
+{
+    return (UWORD)((flags & ~EXFAT_VOLUMEFLAG_CLEARZERO)
+        | EXFAT_VOLUMEFLAG_DIRTY);
+}
+
+static inline UWORD exfat_volume_flags_finish_write(UWORD flags,
+    int was_dirty, int success)
+{
+    if (success && !was_dirty)
+        flags &= (UWORD)~EXFAT_VOLUMEFLAG_DIRTY;
+    return flags;
 }
 
 /* Sectors 0 to 10 inclusive are covered by the boot region checksum. */
@@ -258,6 +300,7 @@ static inline enum exfat_boot_result exfat_validate_boot(const UBYTE *b,
     flags = exfat_rd16(b, EXFAT_BOOT_VOLUMEFLAGS);
     if (flags & EXFAT_VOLUMEFLAG_ACTIVEFAT)
         return EXFAT_BOOT_WRONG_VERSION;   /* ActiveFat set with one FAT */
+    g->volume_flags = flags;
 
     /* Sector shift, then cluster shift: everything below is in these units. */
     g->sector_shift = b[EXFAT_BOOT_SECTORSHIFT];

@@ -54,6 +54,7 @@
 #include <clib/alib_protos.h>
 
 #include "cache.h"
+#include "exfat_cache_bits.h"
 
 #define SysBase (c->sys_base)
 #define DOSBase (c->dos_base)
@@ -124,6 +125,7 @@ APTR Cache_CreateCache(APTR priv, ULONG hash_size, ULONG block_count,
 
             b->use_count = 0;
             b->state = BS_EMPTY;
+            b->dirty_mask = 0;
             b->num = 0;
             b->data = (UBYTE *)b + sizeof(struct BlockRange);
 
@@ -142,18 +144,31 @@ APTR Cache_CreateCache(APTR priv, ULONG hash_size, ULONG block_count,
 }
 
 
-VOID Cache_DestroyCache(APTR cache)
+static VOID Cache_FreeCache(APTR cache, BOOL flush)
 {
     struct Cache *c = cache;
     ULONG i;
 
-    Cache_Flush(c);
+    if (flush)
+        Cache_Flush(c);
 
     for(i = 0; i < c->block_count; i++)
         FreeVec(c->blocks[i]);
     FreeVec(c->blocks);
     FreeVec(c->hash_table);
     FreeVec(c);
+}
+
+VOID Cache_DestroyCache(APTR cache)
+{
+    Cache_FreeCache(cache, TRUE);
+}
+
+/* A removed medium must never receive cached writes after another disk has
+   been inserted in the same device. */
+VOID Cache_DiscardCache(APTR cache)
+{
+    Cache_FreeCache(cache, FALSE);
 }
 
 
@@ -232,6 +247,7 @@ APTR Cache_GetBlock(APTR cache, UQUAD blockNum, UBYTE **data)
                     AddHead((struct List *)l, (struct Node *)&b->node1);
                     b->num = blockNum;
                     b->state = BS_VALID;
+                    b->dirty_mask = 0;
                     b->use_count = 1;
                 }
                 else
@@ -239,6 +255,7 @@ APTR Cache_GetBlock(APTR cache, UQUAD blockNum, UBYTE **data)
                     /* Read failed, so put the block back on the free list */
 
                     b->state = BS_EMPTY;
+                    b->dirty_mask = 0;
                     AddHead((struct List *)&c->free_list,
                         (struct Node *)&b->node2);
                     b = NULL;
@@ -290,7 +307,46 @@ VOID Cache_MarkBlockDirty(APTR cache, APTR block)
         AddTail((struct List *)&c->dirty_list, (struct Node *)&b->node2);
     }
 
+    b->dirty_mask = ~(ULONG)0;
+
     return;
+}
+
+
+BOOL Cache_MarkBlockDirtySector(APTR cache, APTR block, UQUAD block_num)
+{
+    struct Cache *c = cache;
+    struct BlockRange *b = block;
+    UQUAD offset;
+
+    if (block_num < b->num)
+    {
+        SetIoErr(ERROR_BAD_NUMBER);
+        return FALSE;
+    }
+    offset = block_num - b->num;
+    if (offset >= RANGE_SIZE)
+    {
+        SetIoErr(ERROR_BAD_NUMBER);
+        return FALSE;
+    }
+
+    if (b->state != BS_DIRTY)
+    {
+        b->state = BS_DIRTY;
+        AddTail((struct List *)&c->dirty_list, (struct Node *)&b->node2);
+    }
+    b->dirty_mask |= (ULONG)1 << (ULONG)offset;
+    SetIoErr(0);
+    return TRUE;
+}
+
+
+BOOL Cache_IsClean(APTR cache)
+{
+    struct Cache *c = cache;
+
+    return IsMinListEmpty(&c->dirty_list);
 }
 
 
@@ -308,8 +364,18 @@ BOOL Cache_Flush(APTR cache)
         b = NODE2(n);
         if (b)
         {
-            td_error = AccessDisk(TRUE, b->num, RANGE_SIZE, c->block_size,
-                b->data, c->priv);
+            ULONG first, count;
+
+            td_error = 0;
+            while (b->dirty_mask != 0 && td_error == 0)
+            {
+                (void)exfat_dirty_span(b->dirty_mask, &first, &count);
+
+                td_error = AccessDisk(TRUE, b->num + first, count,
+                    c->block_size, b->data + first * c->block_size, c->priv);
+                if (td_error == 0)
+                    b->dirty_mask &= ~exfat_dirty_span_mask(first, count);
+            }
 
             /* Transfer block range to free list if unused, or put back on dirty
              * list upon an error */
@@ -332,4 +398,3 @@ BOOL Cache_Flush(APTR cache)
     SetIoErr(error);
     return error == 0;
 }
-

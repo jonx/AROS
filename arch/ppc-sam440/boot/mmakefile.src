@@ -53,6 +53,7 @@ include $(SRCDIR)/config/aros.cfg
 #MM     workbench-libs-workbench \
 #MM     kernel-fs-cdvdfs \
 #MM     kernel-fs-fat \
+#MM     kernel-fs-exfat \
 #MM     kernel-fs-sfs \
 #MM     kernel-fs-ram \
 #MM     kernel-hidd-gfx \

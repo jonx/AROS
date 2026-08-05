@@ -21,6 +21,7 @@
 #include <libraries/partition.h>
 #include <utility/tagitem.h>
 #include <devices/bootblock.h>
+#include <dos/exfat.h>
 
 #include <proto/exec.h>
 #include <proto/dos.h>
@@ -44,6 +45,7 @@ static const struct _dt {
     { 0xffffff00, AROS_MAKE_ID('D','O','S','\0'), "afs.handler"   },
     { 0xffffff00, AROS_MAKE_ID('E','X','T','\0'), "ext.handler"   },
     { 0xffffff00, AROS_MAKE_ID('F','A','T','\0'), "fat.handler"   },
+    { 0xffffffff, AROS_MAKE_ID('F','A','T','X' ), EXFAT_HANDLER_NAME },
     { 0xffffff00, AROS_MAKE_ID('L','V','M','\0'), "lvm.handler"   },
     { 0xffffff00, AROS_MAKE_ID('M','N','X','\0'), "minix.handler" },
     { 0xffffffff, AROS_MAKE_ID('N','T','F','S' ), "ntfs.handler"  },
@@ -427,12 +429,26 @@ BOOL USBMSS_AddVolume(mss_unit_t *unit)
     IPTR *pp;
     TEXT dosdevname[5] = "USB0", *handler;
     UWORD len;
+    UBYTE *first_block = NULL;
+    BOOL is_exfat = FALSE;
 
     ExpansionBase = (struct ExpansionBase *)OpenLibrary("expansion.library",
                                                         40L);
 
     if (ExpansionBase)
     {
+        if (unit->msu_blockSize >= 512)
+        {
+            first_block = AllocMem(unit->msu_blockSize, MEMF_PUBLIC);
+            if (first_block != NULL)
+            {
+                if (HIDD_USBStorage_Read(unit->msu_object, unit->msu_lun,
+                        first_block, 0, 1))
+                    is_exfat = IsExfatBootSector(first_block,
+                        unit->msu_blockSize);
+                FreeMem(first_block, unit->msu_blockSize);
+            }
+        }
         pp = AllocMem(24*sizeof(IPTR), MEMF_PUBLIC | MEMF_CLEAR);
 
         if (pp)
@@ -457,7 +473,7 @@ BOOL USBMSS_AddVolume(mss_unit_t *unit)
             pp[DE_MAXTRANSFER + 4] = 0x00200000;
             pp[DE_MASK + 4] = 0x7FFFFFFE;
             pp[DE_BOOTPRI + 4] = 20;
-            pp[DE_DOSTYPE + 4] = 0x444F5301;
+            pp[DE_DOSTYPE + 4] = is_exfat ? ID_EXFAT_DISK : 0x444F5301;
             pp[DE_BOOTBLOCKS + 4] = 2;
             devnode = MakeDosNode(pp);
 
@@ -472,7 +488,7 @@ BOOL USBMSS_AddVolume(mss_unit_t *unit)
 				if ((unit->msu_inquiry[0] & 0x1f) == DG_CDROM)
 					handler = "cdrom.handler";
 				else
-					handler = "fat.handler";
+					handler = is_exfat ? EXFAT_HANDLER_NAME : "fat.handler";
 
                 len = strlen(handler);
                 if ((devnode->dn_Handler =
@@ -518,4 +534,3 @@ BOOL USBMSS_AddVolume(mss_unit_t *unit)
 
     return FALSE;
 }
-

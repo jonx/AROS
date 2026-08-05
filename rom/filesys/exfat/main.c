@@ -9,10 +9,12 @@
 
 #include <exec/types.h>
 #include <exec/execbase.h>
+#include <aros/asmcall.h>
 #include <dos/dos.h>
 #include <dos/dosextens.h>
 #include <dos/filehandler.h>
 #include <devices/trackdisk.h>
+#include <libraries/locale.h>
 
 #include <proto/exec.h>
 #include <proto/dos.h>
@@ -31,16 +33,9 @@
 #define DEBUG DEBUG_MISC
 #include "exfat_debug.h"
 
-/*
- * Phase 1 skeleton.
- *
- * This brings the handler up, mounts the volume through the validated path in
- * volume.c, and answers packets with ERROR_ACTION_NOT_KNOWN until the packet
- * layer lands. Answering that way rather than DOSFALSE with no error is
- * deliberate and is spec R4: dos64.library distinguishes "unsupported" from
- * "answered zero" solely by the secondary result, and three upstream
- * regressions have been traced to handlers that got this wrong.
- */
+/* Handler startup and packet reply plumbing. Unsupported packets use
+   ERROR_ACTION_NOT_KNOWN: dos64.library distinguishes "unsupported" from
+   "answered zero" solely by the secondary result. */
 
 static void ReplyPacket(struct DosPacket *dp, struct ExecBase *SysBase)
 {
@@ -50,6 +45,17 @@ static void ReplyPacket(struct DosPacket *dp, struct ExecBase *SysBase)
     dp->dp_Port = &((struct Process *)FindTask(NULL))->pr_MsgPort;
     mn->mn_Node.ln_Name = (char *)dp;
     PutMsg(rp, mn);
+}
+
+static AROS_INTH1(ExfatDiskChangeInt, struct IntData *, data)
+{
+    AROS_INTFUNC_INIT
+
+    struct ExecBase *SysBase = data->SysBase;
+    Signal(data->task, data->signal);
+    return 0;
+
+    AROS_INTFUNC_EXIT
 }
 
 /*
@@ -63,6 +69,7 @@ static struct Globals *exfat_init(struct Process *proc, struct DosPacket *dp,
     struct Globals *glob;
     struct FileSysStartupMsg *fssm;
     struct DosEnvec *de;
+    LONG diskbit;
     LONG why = ERROR_NO_FREE_STORE;
 
     glob = AllocMem(sizeof(struct Globals), MEMF_PUBLIC | MEMF_CLEAR);
@@ -70,10 +77,15 @@ static struct Globals *exfat_init(struct Process *proc, struct DosPacket *dp,
         return NULL;
 
     glob->gl_SysBase = SysBase;
+    glob->diskchgsig_bit = ~(ULONG)0;
     glob->gl_DOSBase = (struct DosLibrary *)
         TaggedOpenLibrary(TAGGEDOPEN_DOS);
     if (glob->gl_DOSBase == NULL)
         goto fail;
+    /* Optional on classic targets.  Without locale.library, exFAT timestamps
+       retain their stored local wall time and new offsets are marked unknown. */
+    glob->gl_LocaleBase = (struct LocaleBase *)
+        OpenLibrary("locale.library", 38);
 
     glob->ourtask = (struct Task *)proc;
     glob->ourport = &proc->pr_MsgPort;
@@ -89,6 +101,11 @@ static struct Globals *exfat_init(struct Process *proc, struct DosPacket *dp,
     }
 
     de = (struct DosEnvec *)BADDR(fssm->fssm_Environ);
+
+    diskbit = AllocSignal(-1);
+    if (diskbit < 0)
+        goto fail;
+    glob->diskchgsig_bit = (ULONG)diskbit;
 
     glob->diskport = CreateMsgPort();
     if (glob->diskport == NULL)
@@ -112,21 +129,51 @@ static struct Globals *exfat_init(struct Process *proc, struct DosPacket *dp,
      */
     Probe64BitSupport(glob);
 
+    glob->diskchgreq = AllocVec(sizeof(struct IOExtTD), MEMF_PUBLIC);
+    if (glob->diskchgreq == NULL)
+        goto fail;
+    CopyMem(glob->diskioreq, glob->diskchgreq, sizeof(struct IOExtTD));
+    glob->DiskChangeIntData.SysBase = SysBase;
+    glob->DiskChangeIntData.task = glob->ourtask;
+    glob->DiskChangeIntData.signal = 1UL << glob->diskchgsig_bit;
+    glob->DiskChangeIntData.Interrupt.is_Node.ln_Type = NT_INTERRUPT;
+    glob->DiskChangeIntData.Interrupt.is_Node.ln_Pri = 0;
+    glob->DiskChangeIntData.Interrupt.is_Node.ln_Name = "exFATFS";
+    glob->DiskChangeIntData.Interrupt.is_Data = &glob->DiskChangeIntData;
+    glob->DiskChangeIntData.Interrupt.is_Code =
+        (VOID_FUNC)AROS_ASMSYMNAME(ExfatDiskChangeInt);
+    glob->diskchgreq->iotd_Req.io_Command = TD_ADDCHANGEINT;
+    glob->diskchgreq->iotd_Req.io_Data = &glob->DiskChangeIntData.Interrupt;
+    glob->diskchgreq->iotd_Req.io_Length = sizeof(struct Interrupt);
+    glob->diskchgreq->iotd_Req.io_Flags = 0;
+    SendIO((struct IORequest *)glob->diskchgreq);
+
     NewList((struct List *)&glob->sblist);
 
     D(bug("[exfat] init: device %b unit %ld, %lu-byte blocks\n",
         fssm->fssm_Device, (long)fssm->fssm_Unit,
         (unsigned long)(de->de_SizeBlock << 2)));
+    (void)de; /* DEBUG_MISC may compile the only diagnostic use out. */
 
     return glob;
 
 fail:
+    if (glob->diskchgreq != NULL)
+        FreeVec(glob->diskchgreq);
     if (glob->diskioreq != NULL)
+    {
+        if (glob->diskioreq->iotd_Req.io_Device != NULL)
+            CloseDevice((struct IORequest *)glob->diskioreq);
         DeleteIORequest((struct IORequest *)glob->diskioreq);
+    }
     if (glob->diskport != NULL)
         DeleteMsgPort(glob->diskport);
     if (glob->gl_DOSBase != NULL)
         CloseLibrary((struct Library *)glob->gl_DOSBase);
+    if (glob->gl_LocaleBase != NULL)
+        CloseLibrary((struct Library *)glob->gl_LocaleBase);
+    if (glob->diskchgsig_bit != ~(ULONG)0)
+        FreeSignal((LONG)glob->diskchgsig_bit);
     FreeMem(glob, sizeof(struct Globals));
     *err = why;
     return NULL;
@@ -138,6 +185,13 @@ static void exfat_exit(struct Globals *glob)
 
     DoDiskRemove(glob);
 
+    glob->diskchgreq->iotd_Req.io_Command = TD_REMCHANGEINT;
+    glob->diskchgreq->iotd_Req.io_Data = &glob->DiskChangeIntData.Interrupt;
+    glob->diskchgreq->iotd_Req.io_Length = sizeof(struct Interrupt);
+    glob->diskchgreq->iotd_Req.io_Flags = 0;
+    DoIO((struct IORequest *)glob->diskchgreq);
+    FreeVec(glob->diskchgreq);
+
     if (glob->diskioreq != NULL)
     {
         CloseDevice((struct IORequest *)glob->diskioreq);
@@ -147,6 +201,9 @@ static void exfat_exit(struct Globals *glob)
         DeleteMsgPort(glob->diskport);
     if (glob->gl_DOSBase != NULL)
         CloseLibrary((struct Library *)glob->gl_DOSBase);
+    if (glob->gl_LocaleBase != NULL)
+        CloseLibrary((struct Library *)glob->gl_LocaleBase);
+    FreeSignal((LONG)glob->diskchgsig_bit);
 
     FreeMem(glob, sizeof(struct Globals));
 }
@@ -179,14 +236,17 @@ LONG handler(struct ExecBase *SysBase)
     dp->dp_Res2 = 0;
     ReplyPacket(dp, SysBase);
 
-    /* Mount whatever is already in the drive. */
-    glob->disk_inserted = TRUE;
-    DoDiskInsert(glob);
+    /* Query the device rather than assuming media is present. */
+    ProcessDiskChange(glob);
 
     while (!glob->quit)
     {
-        Wait(1UL << glob->ourport->mp_SigBit);
-        ExfatProcessPackets(glob);
+        ULONG sigs = Wait((1UL << glob->ourport->mp_SigBit)
+            | (1UL << glob->diskchgsig_bit));
+        if (sigs & (1UL << glob->diskchgsig_bit))
+            ProcessDiskChange(glob);
+        if (sigs & (1UL << glob->ourport->mp_SigBit))
+            ExfatProcessPackets(glob);
     }
 
     exfat_exit(glob);

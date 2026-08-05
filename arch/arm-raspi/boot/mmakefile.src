@@ -73,6 +73,7 @@ ARM_BSP := aros-$(AROS_TARGET_CPU)-bsp.rom
 #MM kernel-fs-afs-quick \
 #MM kernel-fs-cdvdfs-quick \
 #MM kernel-fs-fat-quick \
+#MM kernel-fs-exfat-quick \
 #MM kernel-fs-sfs-quick \
 #MM kernel-fs-ram-quick \
 #MM kernel-processor-quick \
@@ -127,6 +128,7 @@ ARM_BSP := aros-$(AROS_TARGET_CPU)-bsp.rom
 #MM kernel-fs-afs \
 #MM kernel-fs-cdvdfs \
 #MM kernel-fs-fat \
+#MM kernel-fs-exfat \
 #MM kernel-fs-sfs \
 #MM kernel-fs-ram \
 #MM kernel-processor \

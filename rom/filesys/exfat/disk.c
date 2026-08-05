@@ -70,16 +70,29 @@ void ProcessDiskChange(struct Globals *glob)
     D(bug("Done\n"));
 }
 
-void UpdateDisk(struct Globals *glob)
+BOOL SyncDisk(struct Globals *glob)
 {
-    if (glob->sb)
-        Cache_Flush(glob->sb->cache);
+    BOOL success = TRUE;
 
-    glob->diskioreq->iotd_Req.io_Command = CMD_UPDATE;
-    DoIO((struct IORequest *)glob->diskioreq);
+    if (glob->sb)
+        success = Cache_Flush(glob->sb->cache);
+
+    if (success)
+    {
+        glob->diskioreq->iotd_Req.io_Command = CMD_UPDATE;
+        success = DoIO((struct IORequest *)glob->diskioreq) == 0;
+    }
+
+    return success;
+}
+
+BOOL UpdateDisk(struct Globals *glob)
+{
+    BOOL success = SyncDisk(glob);
 
     /* Turn off motor (where applicable) if nothing has happened during the
-     * last timer period */
+     * last timer period. Transaction stage barriers use SyncDisk() so they do
+     * not stop the motor between ordered metadata writes. */
     if (!glob->restart_timer)
     {
         D(bug("Stopping drive motor\n"));
@@ -87,6 +100,8 @@ void UpdateDisk(struct Globals *glob)
         glob->diskioreq->iotd_Req.io_Length = 0;
         DoIO((struct IORequest *)glob->diskioreq);
     }
+
+    return success;
 }
 
 /* Probe the device to determine 64-bit support */

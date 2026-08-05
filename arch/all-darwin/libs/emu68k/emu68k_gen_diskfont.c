@@ -67,6 +67,21 @@ int emu68k_gen_diskfont(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
               (LONG)r->d[0],
               (LONG)r->d[1]);
         return 0;
+    case 7:  /* NewFontContents: no crossing [-42] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: diskfont.library.NewFontContents needs returns a pointer (struct FontContentsHeader *) described");
+        r->d[0] = 0;
+        return 1;
+    case 8:  /* DisposeFontContents: no crossing [-48] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: diskfont.library.DisposeFontContents needs struct FontContentsHeader * described");
+        r->d[0] = 0;
+        return 1;
+    case 9:  /* NewScaledDiskFont: no crossing [-54] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: diskfont.library.NewScaledDiskFont needs returns a pointer (struct DiskFont *) described");
+        r->d[0] = 0;
+        return 1;
     }
     return 1;   /* no safe generated crossing for this vector */
 }

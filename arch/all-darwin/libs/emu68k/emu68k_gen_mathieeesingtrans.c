@@ -31,6 +31,11 @@ int emu68k_gen_mathieeesingtrans(int lvo, struct Emu68kRegs *r, APTR guest0, APT
     case 8:  /* IEEESPTan(LONG y) -> LONG  [-48] */
         r->d[0] = (ULONG)IEEESPTan((LONG)r->d[0]);
         return 0;
+    case 9:  /* IEEESPSincos: no crossing [-54] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: mathieeesingtrans.library.IEEESPSincos needs LONG * described");
+        r->d[0] = 0;
+        return 1;
     case 10:  /* IEEESPSinh(LONG y) -> LONG  [-60] */
         r->d[0] = (ULONG)IEEESPSinh((LONG)r->d[0]);
         return 0;

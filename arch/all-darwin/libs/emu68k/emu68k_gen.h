@@ -260,6 +260,11 @@ enum
     EMU_OBJ_Window = 19,
     EMU_OBJ_Gadget = 20,
     EMU_OBJ_MenuItem = 21,
+    EMU_OBJ_Layer = 22,
+    EMU_OBJ_Layer_Info = 23,
+    EMU_OBJ_View = 24,
+    EMU_OBJ_ClipRect = 25,
+    EMU_OBJ_NamedObject = 26,
 };
 int emu68k_gen_exec(int lvo, struct Emu68kRegs *r,
                   APTR guest0, APTR base,

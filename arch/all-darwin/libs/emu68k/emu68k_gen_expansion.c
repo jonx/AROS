@@ -19,23 +19,118 @@ int emu68k_gen_expansion(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
 
     switch (lvo)
     {
+    case 1:  /* OpenLib: no crossing [-6] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: expansion.library.OpenLib needs private described");
+        r->d[0] = 0;
+        return 1;
+    case 2:  /* CloseLib: no crossing [-12] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: expansion.library.CloseLib needs private described");
+        r->d[0] = 0;
+        return 1;
+    case 5:  /* AddConfigDev: no crossing [-30] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: expansion.library.AddConfigDev needs struct ConfigDev * described");
+        r->d[0] = 0;
+        return 1;
+    case 6:  /* AddBootNode: no crossing [-36] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: expansion.library.AddBootNode needs struct ConfigDev *, struct DeviceNode * described");
+        r->d[0] = 0;
+        return 1;
     case 7:  /* AllocBoardMem(ULONG slotSpec) -> void  [-42] */
         AllocBoardMem((ULONG)r->d[0]);
         return 0;
+    case 8:  /* AllocConfigDev: no crossing [-48] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: expansion.library.AllocConfigDev needs returns a pointer (struct ConfigDev *) described");
+        r->d[0] = 0;
+        return 1;
+    case 9:  /* AllocExpansionMem: no crossing [-54] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: expansion.library.AllocExpansionMem needs returns a pointer (APTR) described");
+        r->d[0] = 0;
+        return 1;
+    case 10:  /* ConfigBoard: no crossing [-60] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: expansion.library.ConfigBoard needs APTR board, struct ConfigDev * described");
+        r->d[0] = 0;
+        return 1;
+    case 11:  /* ConfigChain: no crossing [-66] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: expansion.library.ConfigChain needs APTR baseAddr described");
+        r->d[0] = 0;
+        return 1;
+    case 12:  /* FindConfigDev: no crossing [-72] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: expansion.library.FindConfigDev needs returns a pointer (struct ConfigDev *) described");
+        r->d[0] = 0;
+        return 1;
     case 13:  /* FreeBoardMem(ULONG startSlot, ULONG slotSpec) -> void  [-78] */
         FreeBoardMem((ULONG)r->d[0],
               (ULONG)r->d[1]);
         return 0;
+    case 14:  /* FreeConfigDev: no crossing [-84] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: expansion.library.FreeConfigDev needs struct ConfigDev * described");
+        r->d[0] = 0;
+        return 1;
     case 15:  /* FreeExpansionMem(ULONG startSlot, ULONG numSlots) -> void  [-90] */
         FreeExpansionMem((ULONG)r->d[0],
               (ULONG)r->d[1]);
         return 0;
+    case 16:  /* ReadExpansionByte: no crossing [-96] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: expansion.library.ReadExpansionByte needs APTR board described");
+        r->d[0] = 0;
+        return 1;
+    case 17:  /* ReadExpansionRom: no crossing [-102] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: expansion.library.ReadExpansionRom needs APTR board, struct ConfigDev * described");
+        r->d[0] = 0;
+        return 1;
+    case 18:  /* RemConfigDev: no crossing [-108] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: expansion.library.RemConfigDev needs struct ConfigDev * described");
+        r->d[0] = 0;
+        return 1;
+    case 19:  /* WriteExpansionByte: no crossing [-114] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: expansion.library.WriteExpansionByte needs APTR board described");
+        r->d[0] = 0;
+        return 1;
     case 20:  /* ObtainConfigBinding(void) -> void  [-120] */
         ObtainConfigBinding();
         return 0;
     case 21:  /* ReleaseConfigBinding(void) -> void  [-126] */
         ReleaseConfigBinding();
         return 0;
+    case 22:  /* SetCurrentBinding: no crossing [-132] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: expansion.library.SetCurrentBinding needs struct CurrentBinding * described");
+        r->d[0] = 0;
+        return 1;
+    case 23:  /* GetCurrentBinding: no crossing [-138] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: expansion.library.GetCurrentBinding needs struct CurrentBinding * described");
+        r->d[0] = 0;
+        return 1;
+    case 24:  /* MakeDosNode: no crossing [-144] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: expansion.library.MakeDosNode needs returns a pointer (struct DeviceNode *) described");
+        r->d[0] = 0;
+        return 1;
+    case 25:  /* AddDosNode: no crossing [-150] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: expansion.library.AddDosNode needs struct DeviceNode * described");
+        r->d[0] = 0;
+        return 1;
+    case 27:  /* WriteExpansionWord: no crossing [-162] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: expansion.library.WriteExpansionWord needs APTR board described");
+        r->d[0] = 0;
+        return 1;
     }
     return 1;   /* no safe generated crossing for this vector */
 }

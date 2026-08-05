@@ -31,6 +31,11 @@ int emu68k_gen_mathtrans(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
     case 8:  /* SPTan(LONG fnum1) -> LONG  [-48] */
         r->d[0] = (ULONG)SPTan((LONG)r->d[0]);
         return 0;
+    case 9:  /* SPSincos: no crossing [-54] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: mathtrans.library.SPSincos needs IPTR * described");
+        r->d[0] = 0;
+        return 1;
     case 10:  /* SPSinh(LONG fnum1) -> LONG  [-60] */
         r->d[0] = (ULONG)SPSinh((LONG)r->d[0]);
         return 0;

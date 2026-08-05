@@ -19,12 +19,202 @@ int emu68k_gen_iffparse(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
 
     switch (lvo)
     {
+    case 5:  /* AllocIFF: no crossing [-30] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: iffparse.library.AllocIFF needs returns a pointer (struct IFFHandle *) described");
+        r->d[0] = 0;
+        return 1;
+    case 6:  /* OpenIFF: no crossing [-36] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: iffparse.library.OpenIFF needs struct IFFHandle * described");
+        r->d[0] = 0;
+        return 1;
+    case 7:  /* ParseIFF: no crossing [-42] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: iffparse.library.ParseIFF needs struct IFFHandle * described");
+        r->d[0] = 0;
+        return 1;
+    case 8:  /* CloseIFF: no crossing [-48] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: iffparse.library.CloseIFF needs struct IFFHandle * described");
+        r->d[0] = 0;
+        return 1;
+    case 9:  /* FreeIFF: no crossing [-54] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: iffparse.library.FreeIFF needs struct IFFHandle * described");
+        r->d[0] = 0;
+        return 1;
+    case 10:  /* ReadChunkBytes: no crossing [-60] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: iffparse.library.ReadChunkBytes needs APTR buf, struct IFFHandle * described");
+        r->d[0] = 0;
+        return 1;
+    case 11:  /* WriteChunkBytes: no crossing [-66] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: iffparse.library.WriteChunkBytes needs APTR buf, struct IFFHandle * described");
+        r->d[0] = 0;
+        return 1;
+    case 12:  /* ReadChunkRecords: no crossing [-72] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: iffparse.library.ReadChunkRecords needs APTR buf, struct IFFHandle * described");
+        r->d[0] = 0;
+        return 1;
+    case 13:  /* WriteChunkRecords: no crossing [-78] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: iffparse.library.WriteChunkRecords needs APTR buf, struct IFFHandle * described");
+        r->d[0] = 0;
+        return 1;
+    case 14:  /* PushChunk: no crossing [-84] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: iffparse.library.PushChunk needs struct IFFHandle * described");
+        r->d[0] = 0;
+        return 1;
+    case 15:  /* PopChunk: no crossing [-90] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: iffparse.library.PopChunk needs struct IFFHandle * described");
+        r->d[0] = 0;
+        return 1;
+    case 17:  /* EntryHandler: no crossing [-102] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: iffparse.library.EntryHandler needs APTR object, struct Hook *, struct IFFHandle * described");
+        r->d[0] = 0;
+        return 1;
+    case 18:  /* ExitHandler: no crossing [-108] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: iffparse.library.ExitHandler needs APTR object, struct Hook *, struct IFFHandle * described");
+        r->d[0] = 0;
+        return 1;
+    case 19:  /* PropChunk: no crossing [-114] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: iffparse.library.PropChunk needs struct IFFHandle * described");
+        r->d[0] = 0;
+        return 1;
+    case 20:  /* PropChunks: no crossing [-120] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: iffparse.library.PropChunks needs const LONG *, struct IFFHandle * described");
+        r->d[0] = 0;
+        return 1;
+    case 21:  /* StopChunk: no crossing [-126] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: iffparse.library.StopChunk needs struct IFFHandle * described");
+        r->d[0] = 0;
+        return 1;
+    case 22:  /* StopChunks: no crossing [-132] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: iffparse.library.StopChunks needs const LONG *, struct IFFHandle * described");
+        r->d[0] = 0;
+        return 1;
+    case 23:  /* CollectionChunk: no crossing [-138] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: iffparse.library.CollectionChunk needs struct IFFHandle * described");
+        r->d[0] = 0;
+        return 1;
+    case 24:  /* CollectionChunks: no crossing [-144] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: iffparse.library.CollectionChunks needs const LONG *, struct IFFHandle * described");
+        r->d[0] = 0;
+        return 1;
+    case 25:  /* StopOnExit: no crossing [-150] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: iffparse.library.StopOnExit needs struct IFFHandle * described");
+        r->d[0] = 0;
+        return 1;
+    case 26:  /* FindProp: no crossing [-156] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: iffparse.library.FindProp needs returns a pointer (struct StoredProperty *) described");
+        r->d[0] = 0;
+        return 1;
+    case 27:  /* FindCollection: no crossing [-162] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: iffparse.library.FindCollection needs returns a pointer (struct CollectionItem *) described");
+        r->d[0] = 0;
+        return 1;
+    case 28:  /* FindPropContext: no crossing [-168] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: iffparse.library.FindPropContext needs returns a pointer (struct ContextNode *) described");
+        r->d[0] = 0;
+        return 1;
+    case 29:  /* CurrentChunk: no crossing [-174] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: iffparse.library.CurrentChunk needs returns a pointer (struct ContextNode *) described");
+        r->d[0] = 0;
+        return 1;
+    case 30:  /* ParentChunk: no crossing [-180] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: iffparse.library.ParentChunk needs returns a pointer (struct ContextNode *) described");
+        r->d[0] = 0;
+        return 1;
+    case 31:  /* AllocLocalItem: no crossing [-186] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: iffparse.library.AllocLocalItem needs returns a pointer (struct LocalContextItem *) described");
+        r->d[0] = 0;
+        return 1;
+    case 32:  /* LocalItemData: no crossing [-192] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: iffparse.library.LocalItemData needs returns a pointer (APTR) described");
+        r->d[0] = 0;
+        return 1;
+    case 33:  /* SetLocalItemPurge: no crossing [-198] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: iffparse.library.SetLocalItemPurge needs struct Hook *, struct LocalContextItem * described");
+        r->d[0] = 0;
+        return 1;
+    case 34:  /* FreeLocalItem: no crossing [-204] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: iffparse.library.FreeLocalItem needs struct LocalContextItem * described");
+        r->d[0] = 0;
+        return 1;
+    case 35:  /* FindLocalItem: no crossing [-210] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: iffparse.library.FindLocalItem needs returns a pointer (struct LocalContextItem *) described");
+        r->d[0] = 0;
+        return 1;
+    case 36:  /* StoreLocalItem: no crossing [-216] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: iffparse.library.StoreLocalItem needs struct IFFHandle *, struct LocalContextItem * described");
+        r->d[0] = 0;
+        return 1;
+    case 37:  /* StoreItemInContext: no crossing [-222] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: iffparse.library.StoreItemInContext needs struct ContextNode *, struct IFFHandle *, struct LocalContextItem * described");
+        r->d[0] = 0;
+        return 1;
+    case 38:  /* InitIFF: no crossing [-228] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: iffparse.library.InitIFF needs struct Hook *, struct IFFHandle * described");
+        r->d[0] = 0;
+        return 1;
+    case 39:  /* InitIFFasDOS: no crossing [-234] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: iffparse.library.InitIFFasDOS needs struct IFFHandle * described");
+        r->d[0] = 0;
+        return 1;
+    case 40:  /* InitIFFasClip: no crossing [-240] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: iffparse.library.InitIFFasClip needs struct IFFHandle * described");
+        r->d[0] = 0;
+        return 1;
+    case 41:  /* OpenClipboard: no crossing [-246] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: iffparse.library.OpenClipboard needs returns a pointer (struct ClipboardHandle *) described");
+        r->d[0] = 0;
+        return 1;
+    case 42:  /* CloseClipboard: no crossing [-252] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: iffparse.library.CloseClipboard needs struct ClipboardHandle * described");
+        r->d[0] = 0;
+        return 1;
     case 43:  /* GoodID(LONG id) -> LONG  [-258] */
         r->d[0] = (ULONG)GoodID((LONG)r->d[0]);
         return 0;
     case 44:  /* GoodType(LONG type) -> LONG  [-264] */
         r->d[0] = (ULONG)GoodType((LONG)r->d[0]);
         return 0;
+    case 45:  /* IDtoStr: no crossing [-270] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: iffparse.library.IDtoStr needs returns a pointer (STRPTR) described");
+        r->d[0] = 0;
+        return 1;
     }
     return 1;   /* no safe generated crossing for this vector */
 }

@@ -67,6 +67,16 @@ int emu68k_gen_icon(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
 
     switch (lvo)
     {
+    case 9:  /* FreeFreeList: no crossing [-54] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: icon.library.FreeFreeList needs struct FreeList * described");
+        r->d[0] = 0;
+        return 1;
+    case 12:  /* AddFreeList: no crossing [-72] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: icon.library.AddFreeList needs APTR mem, struct FreeList * described");
+        r->d[0] = 0;
+        return 1;
     case 13:  /* GetDiskObject(CONST_STRPTR name) -> struct DiskObject *  [-78] */
     {
         APTR emu_result = (APTR)GetDiskObject((CONST_STRPTR)EMU_GPTR(guest0, r->a[0]));
@@ -98,10 +108,20 @@ int emu68k_gen_icon(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
         emu68k_object_consume(guest0, r->a[0], EMU_OBJ_DiskObject);
             return 0;
     }
+    case 16:  /* FindToolType: no crossing [-96] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: icon.library.FindToolType needs returns a pointer (UBYTE *) described");
+        r->d[0] = 0;
+        return 1;
     case 17:  /* MatchToolValue(UBYTE * typeString, UBYTE * value) -> BOOL  [-102] */
         r->d[0] = (ULONG)MatchToolValue((UBYTE *)EMU_GPTR(guest0, r->a[0]),
               (UBYTE *)EMU_GPTR(guest0, r->a[1]));
         return 0;
+    case 18:  /* BumpRevision: no crossing [-108] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: icon.library.BumpRevision needs returns a pointer (UBYTE *) described");
+        r->d[0] = 0;
+        return 1;
     case 20:  /* GetDefDiskObject(LONG type) -> struct DiskObject *  [-120] */
     {
         APTR emu_result = (APTR)GetDefDiskObject((LONG)r->d[0]);
@@ -155,6 +175,16 @@ int emu68k_gen_icon(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
             return 1;
             return 0;
     }
+    case 26:  /* IconControlA: no crossing [-156] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: icon.library.IconControlA needs struct DiskObject *, struct TagItem * described");
+        r->d[0] = 0;
+        return 1;
+    case 27:  /* DrawIconStateA: no crossing [-162] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: icon.library.DrawIconStateA needs struct DiskObject *, struct RastPort *, struct TagItem * described");
+        r->d[0] = 0;
+        return 1;
     case 28:  /* GetIconRectangleA(struct RastPort * rp, struct DiskObject * icon, STRPTR label, struct Rectangle * rectangle, struct TagItem * tags) -> BOOL  [-168] */
     {
         APTR emu_object_0;
@@ -201,6 +231,11 @@ int emu68k_gen_icon(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
             return 1;
             return 0;
     }
+    case 30:  /* GetIconTagList: no crossing [-180] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: icon.library.GetIconTagList needs returns a pointer (struct DiskObject *) described");
+        r->d[0] = 0;
+        return 1;
     case 31:  /* PutIconTagList(CONST_STRPTR name, struct DiskObject * icon, struct TagItem * tags) -> BOOL  [-186] */
     {
         APTR emu_object_1;
@@ -215,6 +250,16 @@ int emu68k_gen_icon(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
               (struct TagItem *)(r->a[2] ? emu_tags_2 : NULL));
             return 0;
     }
+    case 32:  /* LayoutIconA: no crossing [-192] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: icon.library.LayoutIconA needs struct DiskObject *, struct Screen *, struct TagItem * described");
+        r->d[0] = 0;
+        return 1;
+    case 33:  /* ChangeToSelectedIconColor: no crossing [-198] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: icon.library.ChangeToSelectedIconColor needs struct ColorRegister * described");
+        r->d[0] = 0;
+        return 1;
     }
     return 1;   /* no safe generated crossing for this vector */
 }

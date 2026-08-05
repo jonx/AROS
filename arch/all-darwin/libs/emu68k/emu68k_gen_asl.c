@@ -111,6 +111,21 @@ int emu68k_gen_asl(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
 
     switch (lvo)
     {
+    case 5:  /* AllocFileRequest: no crossing [-30] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: asl.library.AllocFileRequest needs returns a pointer (struct FileRequester *) described");
+        r->d[0] = 0;
+        return 1;
+    case 6:  /* FreeFileRequest: no crossing [-36] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: asl.library.FreeFileRequest needs struct FileRequester * described");
+        r->d[0] = 0;
+        return 1;
+    case 7:  /* RequestFile: no crossing [-42] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: asl.library.RequestFile needs struct FileRequester * described");
+        r->d[0] = 0;
+        return 1;
     case 8:  /* AllocAslRequest(ULONG reqType, struct TagItem * tagList) -> APTR  [-48] */
     {
         struct TagItem emu_tags_1[65];

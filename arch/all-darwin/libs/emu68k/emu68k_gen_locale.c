@@ -84,6 +84,136 @@ int emu68k_gen_locale(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
               (ULONG)r->d[0]);
             return 0;
     }
+    case 10:  /* FormatDate: no crossing [-60] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: locale.library.FormatDate needs const struct DateStamp *, const struct Hook *, const struct Locale * described");
+        r->d[0] = 0;
+        return 1;
+    case 11:  /* FormatString: no crossing [-66] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: locale.library.FormatString needs returns a pointer (APTR) described");
+        r->d[0] = 0;
+        return 1;
+    case 12:  /* GetCatalogStr: no crossing [-72] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: locale.library.GetCatalogStr needs returns a pointer (CONST_STRPTR) described");
+        r->d[0] = 0;
+        return 1;
+    case 13:  /* GetLocaleStr: no crossing [-78] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: locale.library.GetLocaleStr needs returns a pointer (CONST_STRPTR) described");
+        r->d[0] = 0;
+        return 1;
+    case 14:  /* IsAlNum(const struct Locale * locale, ULONG character) -> ULONG  [-84] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_Locale, 1,
+                                        "Locale", &emu_object_0, err, errlen) < 0)
+            return 1;
+            r->d[0] = (ULONG)IsAlNum((const struct Locale *)emu_object_0,
+              (ULONG)r->d[0]);
+            return 0;
+    }
+    case 15:  /* IsAlpha(const struct Locale * locale, ULONG character) -> ULONG  [-90] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_Locale, 1,
+                                        "Locale", &emu_object_0, err, errlen) < 0)
+            return 1;
+            r->d[0] = (ULONG)IsAlpha((const struct Locale *)emu_object_0,
+              (ULONG)r->d[0]);
+            return 0;
+    }
+    case 16:  /* IsCntrl(const struct Locale * locale, ULONG character) -> ULONG  [-96] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_Locale, 1,
+                                        "Locale", &emu_object_0, err, errlen) < 0)
+            return 1;
+            r->d[0] = (ULONG)IsCntrl((const struct Locale *)emu_object_0,
+              (ULONG)r->d[0]);
+            return 0;
+    }
+    case 17:  /* IsDigit(const struct Locale * locale, ULONG character) -> ULONG  [-102] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_Locale, 1,
+                                        "Locale", &emu_object_0, err, errlen) < 0)
+            return 1;
+            r->d[0] = (ULONG)IsDigit((const struct Locale *)emu_object_0,
+              (ULONG)r->d[0]);
+            return 0;
+    }
+    case 18:  /* IsGraph(const struct Locale * locale, ULONG character) -> ULONG  [-108] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_Locale, 1,
+                                        "Locale", &emu_object_0, err, errlen) < 0)
+            return 1;
+            r->d[0] = (ULONG)IsGraph((const struct Locale *)emu_object_0,
+              (ULONG)r->d[0]);
+            return 0;
+    }
+    case 19:  /* IsLower(const struct Locale * locale, ULONG character) -> ULONG  [-114] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_Locale, 1,
+                                        "Locale", &emu_object_0, err, errlen) < 0)
+            return 1;
+            r->d[0] = (ULONG)IsLower((const struct Locale *)emu_object_0,
+              (ULONG)r->d[0]);
+            return 0;
+    }
+    case 20:  /* IsPrint(const struct Locale * locale, ULONG character) -> ULONG  [-120] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_Locale, 1,
+                                        "Locale", &emu_object_0, err, errlen) < 0)
+            return 1;
+            r->d[0] = (ULONG)IsPrint((const struct Locale *)emu_object_0,
+              (ULONG)r->d[0]);
+            return 0;
+    }
+    case 21:  /* IsPunct(const struct Locale * locale, ULONG character) -> ULONG  [-126] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_Locale, 1,
+                                        "Locale", &emu_object_0, err, errlen) < 0)
+            return 1;
+            r->d[0] = (ULONG)IsPunct((const struct Locale *)emu_object_0,
+              (ULONG)r->d[0]);
+            return 0;
+    }
+    case 22:  /* IsSpace(const struct Locale * locale, ULONG character) -> ULONG  [-132] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_Locale, 1,
+                                        "Locale", &emu_object_0, err, errlen) < 0)
+            return 1;
+            r->d[0] = (ULONG)IsSpace((const struct Locale *)emu_object_0,
+              (ULONG)r->d[0]);
+            return 0;
+    }
+    case 23:  /* IsUpper(const struct Locale * locale, ULONG character) -> ULONG  [-138] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_Locale, 1,
+                                        "Locale", &emu_object_0, err, errlen) < 0)
+            return 1;
+            r->d[0] = (ULONG)IsUpper((const struct Locale *)emu_object_0,
+              (ULONG)r->d[0]);
+            return 0;
+    }
+    case 24:  /* IsXDigit(const struct Locale * locale, ULONG character) -> ULONG  [-144] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_Locale, 1,
+                                        "Locale", &emu_object_0, err, errlen) < 0)
+            return 1;
+            r->d[0] = (ULONG)IsXDigit((const struct Locale *)emu_object_0,
+              (ULONG)r->d[0]);
+            return 0;
+    }
     case 25:  /* OpenCatalogA(const struct Locale * locale, CONST_STRPTR name, const struct TagItem * tags) -> struct Catalog *  [-150] */
     {
         APTR emu_object_0;
@@ -111,6 +241,79 @@ int emu68k_gen_locale(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
             return 1;
             return 0;
     }
+    case 27:  /* ParseDate: no crossing [-162] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: locale.library.ParseDate needs struct DateStamp *, struct Hook *, struct Locale * described");
+        r->d[0] = 0;
+        return 1;
+    case 28:  /* LocalePrefsUpdate(struct Locale * locale) -> struct Locale *  [-168] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_Locale, 1,
+                                        "Locale", &emu_object_0, err, errlen) < 0)
+            return 1;
+        APTR emu_result = (APTR)LocalePrefsUpdate((struct Locale *)emu_object_0);
+        if (emu68k_object_to_guest(guest0, emu_result, EMU_OBJ_Locale,
+                                      base, NULL,
+                                      "Locale", &r->d[0], err, errlen) < 0)
+            return 1;
+            return 0;
+    }
+    case 29:  /* StrConvert: no crossing [-174] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: locale.library.StrConvert needs APTR buffer, const struct Locale * described");
+        r->d[0] = 0;
+        return 1;
+    case 30:  /* StrnCmp: no crossing [-180] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: locale.library.StrnCmp needs const struct Locale * described");
+        r->d[0] = 0;
+        return 1;
+    case 31:  /* LocRawDoFmt: no crossing [-186] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: locale.library.LocRawDoFmt needs private described");
+        r->d[0] = 0;
+        return 1;
+    case 32:  /* LocStrnicmp: no crossing [-192] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: locale.library.LocStrnicmp needs private described");
+        r->d[0] = 0;
+        return 1;
+    case 33:  /* LocStricmp: no crossing [-198] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: locale.library.LocStricmp needs private described");
+        r->d[0] = 0;
+        return 1;
+    case 34:  /* LocToLower: no crossing [-204] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: locale.library.LocToLower needs private described");
+        r->d[0] = 0;
+        return 1;
+    case 35:  /* LocToUpper: no crossing [-210] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: locale.library.LocToUpper needs private described");
+        r->d[0] = 0;
+        return 1;
+    case 36:  /* LocDateToStr: no crossing [-216] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: locale.library.LocDateToStr needs private described");
+        r->d[0] = 0;
+        return 1;
+    case 37:  /* LocStrToDate: no crossing [-222] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: locale.library.LocStrToDate needs private described");
+        r->d[0] = 0;
+        return 1;
+    case 38:  /* LocDosGetLocalizedString: no crossing [-228] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: locale.library.LocDosGetLocalizedString needs private described");
+        r->d[0] = 0;
+        return 1;
+    case 39:  /* LocVNewRawDoFmt: no crossing [-234] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: locale.library.LocVNewRawDoFmt needs private described");
+        r->d[0] = 0;
+        return 1;
     }
     return 1;   /* no safe generated crossing for this vector */
 }

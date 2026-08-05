@@ -576,6 +576,15 @@ struct EmuStructDesc
 #define M68K_TextFont_tf_CharSpace 44   /* native @88 - CONVERT */
 #define M68K_TextFont_tf_CharKern 48   /* native @96 - CONVERT */
 
+/* struct TextExtent: 12 bytes on m68k (TextExtent), 12 native (TextExtent) */
+#define M68K_TextExtent_SIZEOF 12
+#define M68K_TextExtent_te_Width 0
+#define M68K_TextExtent_te_Height 2
+#define M68K_TextExtent_te_Extent_MinX 4
+#define M68K_TextExtent_te_Extent_MinY 6
+#define M68K_TextExtent_te_Extent_MaxX 8
+#define M68K_TextExtent_te_Extent_MaxY 10
+
 /* struct IntuiText: 20 bytes on m68k (IntuiText), 32 native (IntuiText) */
 #define M68K_IntuiText_SIZEOF 20
 #define M68K_IntuiText_FrontPen 0
@@ -1313,6 +1322,15 @@ static const struct EmuField emu_fields_TextFont[] = {
  *   tf_CharSpace (APTR)
  *   tf_CharKern (APTR)
  */
+
+static const struct EmuField emu_fields_TextExtent[] = {
+    {    0,    0,    1, 2, 2, EMU_F_SCALAR },   /* te_Width                 UWORD */
+    {    2,    2,    1, 2, 2, EMU_F_SCALAR },   /* te_Height                UWORD */
+    {    4,    4,    1, 2, 2, EMU_F_SCALAR },   /* te_Extent_MinX           WORD */
+    {    6,    6,    1, 2, 2, EMU_F_SCALAR },   /* te_Extent_MinY           WORD */
+    {    8,    8,    1, 2, 2, EMU_F_SCALAR },   /* te_Extent_MaxX           WORD */
+    {   10,   10,    1, 2, 2, EMU_F_SCALAR },   /* te_Extent_MaxY           WORD */
+};
 
 static const struct EmuField emu_fields_IntuiText[] = {
     {    0,    0,    1, 1, 1, EMU_F_SCALAR },   /* FrontPen                 UBYTE */

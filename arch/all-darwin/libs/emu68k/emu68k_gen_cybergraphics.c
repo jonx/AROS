@@ -46,6 +46,11 @@ int emu68k_gen_cybergraphics(int lvo, struct Emu68kRegs *r, APTR guest0, APTR ba
             r->d[0] = (ULONG)BestCModeIDTagList((struct TagItem *)(r->a[0] ? emu_tags_0 : NULL));
             return 0;
     }
+    case 12:  /* AllocCModeListTagList: no crossing [-72] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: cybergraphics.library.AllocCModeListTagList needs returns a pointer (struct List *) described");
+        r->d[0] = 0;
+        return 1;
     case 13:  /* FreeCModeList(struct List * modeList) -> void  [-78] */
     {
         struct List emu_struct_0;
@@ -66,6 +71,11 @@ int emu68k_gen_cybergraphics(int lvo, struct Emu68kRegs *r, APTR guest0, APTR ba
                            emu_fields_List, EMU_NFIELDS(emu_fields_List), M68K_List_SIZEOF);
             return 0;
     }
+    case 15:  /* ScalePixelArray: no crossing [-90] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: cybergraphics.library.ScalePixelArray needs APTR srcRect, struct RastPort * described");
+        r->d[0] = 0;
+        return 1;
     case 16:  /* GetCyberMapAttr(struct BitMap * bitMap, IPTR attribute) -> IPTR  [-96] */
     {
         struct BitMap emu_struct_0;
@@ -114,6 +124,16 @@ int emu68k_gen_cybergraphics(int lvo, struct Emu68kRegs *r, APTR guest0, APTR ba
               (ULONG)r->d[2]);
             return 0;
     }
+    case 20:  /* ReadPixelArray: no crossing [-120] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: cybergraphics.library.ReadPixelArray needs APTR dst, struct RastPort * described");
+        r->d[0] = 0;
+        return 1;
+    case 21:  /* WritePixelArray: no crossing [-126] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: cybergraphics.library.WritePixelArray needs APTR src, struct RastPort * described");
+        r->d[0] = 0;
+        return 1;
     case 22:  /* MovePixelArray(UWORD SrcX, UWORD SrcY, struct RastPort * RastPort, UWORD DstX, UWORD DstY, UWORD SizeX, UWORD SizeY) -> ULONG  [-132] */
     {
         APTR emu_object_2;
@@ -156,6 +176,31 @@ int emu68k_gen_cybergraphics(int lvo, struct Emu68kRegs *r, APTR guest0, APTR ba
               (ULONG)r->d[4]);
             return 0;
     }
+    case 26:  /* DoCDrawMethodTagList: no crossing [-156] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: cybergraphics.library.DoCDrawMethodTagList needs struct Hook *, struct RastPort *, struct TagItem * described");
+        r->d[0] = 0;
+        return 1;
+    case 27:  /* CVideoCtrlTagList: no crossing [-162] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: cybergraphics.library.CVideoCtrlTagList needs struct TagItem *, struct ViewPort * described");
+        r->d[0] = 0;
+        return 1;
+    case 28:  /* LockBitMapTagList: no crossing [-168] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: cybergraphics.library.LockBitMapTagList needs returns a pointer (APTR) described");
+        r->d[0] = 0;
+        return 1;
+    case 29:  /* UnLockBitMap: no crossing [-174] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: cybergraphics.library.UnLockBitMap needs APTR Handle described");
+        r->d[0] = 0;
+        return 1;
+    case 30:  /* UnLockBitMapTagList: no crossing [-180] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: cybergraphics.library.UnLockBitMapTagList needs APTR Handle, struct TagItem * described");
+        r->d[0] = 0;
+        return 1;
     case 31:  /* ExtractColor(struct RastPort * RastPort, struct BitMap * SingleMap, ULONG Colour, ULONG sX, ULONG sY, ULONG Width, ULONG Height) -> ULONG  [-186] */
     {
         APTR emu_object_0;
@@ -186,6 +231,26 @@ int emu68k_gen_cybergraphics(int lvo, struct Emu68kRegs *r, APTR guest0, APTR ba
                            emu_fields_BitMap, EMU_NFIELDS(emu_fields_BitMap), M68K_BitMap_SIZEOF);
             return 0;
     }
+    case 33:  /* WriteLUTPixelArray: no crossing [-198] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: cybergraphics.library.WriteLUTPixelArray needs APTR CTable, APTR srcRect, struct RastPort * described");
+        r->d[0] = 0;
+        return 1;
+    case 36:  /* WritePixelArrayAlpha: no crossing [-216] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: cybergraphics.library.WritePixelArrayAlpha needs APTR src, struct RastPort * described");
+        r->d[0] = 0;
+        return 1;
+    case 37:  /* BltTemplateAlpha: no crossing [-222] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: cybergraphics.library.BltTemplateAlpha needs APTR src, struct RastPort * described");
+        r->d[0] = 0;
+        return 1;
+    case 38:  /* ProcessPixelArray: no crossing [-228] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: cybergraphics.library.ProcessPixelArray needs struct RastPort *, struct TagItem * described");
+        r->d[0] = 0;
+        return 1;
     }
     return 1;   /* no safe generated crossing for this vector */
 }

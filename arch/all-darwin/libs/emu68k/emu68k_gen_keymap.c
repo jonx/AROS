@@ -19,6 +19,26 @@ int emu68k_gen_keymap(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
 
     switch (lvo)
     {
+    case 5:  /* SetKeyMapDefault: no crossing [-30] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: keymap.library.SetKeyMapDefault needs struct KeyMap * described");
+        r->d[0] = 0;
+        return 1;
+    case 6:  /* AskKeyMapDefault: no crossing [-36] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: keymap.library.AskKeyMapDefault needs returns a pointer (struct KeyMap *) described");
+        r->d[0] = 0;
+        return 1;
+    case 7:  /* MapRawKey: no crossing [-42] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: keymap.library.MapRawKey needs struct InputEvent *, struct KeyMap * described");
+        r->d[0] = 0;
+        return 1;
+    case 8:  /* MapANSI: no crossing [-48] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: keymap.library.MapANSI needs struct KeyMap * described");
+        r->d[0] = 0;
+        return 1;
     }
     return 1;   /* no safe generated crossing for this vector */
 }

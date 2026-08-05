@@ -83,6 +83,7 @@ static inline void emu68k_double_out(double v, ULONG *hi, ULONG *lo)
 
 UQUAD emu68k_scalar_from_guest(APTR guest0, ULONG addr, UBYTE width);
 void  emu68k_scalar_to_guest(APTR guest0, ULONG addr, UBYTE width, UQUAD value);
+void  emu68k_cstr_to_guest(APTR guest0, ULONG addr, const char *s, ULONG room);
 APTR  emu68k_scratch_alloc(ULONG size, char *err, ULONG errlen);
 void  emu68k_scratch_free(APTR scratch, ULONG size);
 

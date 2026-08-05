@@ -9,6 +9,7 @@
 #include <exec/types.h>
 #include <proto/diskfont.h>
 #include <string.h>
+#include <stdio.h>
 
 #include "emu68k_gen.h"
 #include "emu68k_layouts.h"
@@ -45,10 +46,20 @@ int emu68k_gen_diskfont(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
         }
         if (emu68k_object_to_guest_facade(guest0, emu_result, EMU_OBJ_TextFont,
                                              base, NULL,
-                                             "TextFont", M68K_TextFont_SIZEOF,
+                                             "TextFont", M68K_TextFont_SIZEOF + 64,
                                              emu_fields_TextFont, EMU_NFIELDS(emu_fields_TextFont),
                                              &r->d[0], err, errlen) < 0)
             return 1;
+        if (emu_result && r->d[0])
+        {
+            struct TextFont *emu_facade_native = (struct TextFont *)emu_result;
+            ULONG emu_nested_guest_0 = r->d[0] + M68K_TextFont_SIZEOF;
+            emu68k_cstr_to_guest(guest0, emu_nested_guest_0,
+                emu_facade_native->tf_Message.mn_Node.ln_Name, 64);
+            emu68k_scalar_to_guest(guest0,
+                r->d[0] + M68K_TextFont_tf_Message_mn_Node_ln_Name, 4,
+                emu_facade_native->tf_Message.mn_Node.ln_Name ? emu_nested_guest_0 : 0);
+        }
             return 0;
     }
     case 6:  /* AvailFonts(STRPTR buffer, LONG bufBytes, LONG flags) -> LONG  [-36] */

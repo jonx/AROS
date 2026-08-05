@@ -1303,12 +1303,22 @@ int emu68k_gen_intuition(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
             ULONG emu_nested_token_6 = 0;
             if (emu68k_object_to_guest_facade(guest0,
                     emu_facade_native->IFont, EMU_OBJ_TextFont,
-                    NULL, NULL, "TextFont", M68K_TextFont_SIZEOF,
+                    NULL, NULL, "TextFont", M68K_TextFont_SIZEOF + 64,
                     emu_fields_TextFont, EMU_NFIELDS(emu_fields_TextFont),
                     &emu_nested_token_6, err, errlen) < 0)
                 return 1;
             emu68k_scalar_to_guest(guest0,
                 r->d[0] + M68K_Window_IFont, 4, emu_nested_token_6);
+            if (emu_facade_native->IFont && emu_nested_token_6)
+            {
+                ULONG emu_sub_guest_6_0 =
+                    emu_nested_token_6 + M68K_TextFont_SIZEOF;
+                emu68k_cstr_to_guest(guest0, emu_sub_guest_6_0,
+                    emu_facade_native->IFont->tf_Message.mn_Node.ln_Name, 64);
+                emu68k_scalar_to_guest(guest0,
+                    emu_nested_token_6 + M68K_TextFont_tf_Message_mn_Node_ln_Name, 4,
+                    emu_facade_native->IFont->tf_Message.mn_Node.ln_Name ? emu_sub_guest_6_0 : 0);
+            }
         }
             return 0;
     }
@@ -1533,7 +1543,7 @@ int emu68k_gen_intuition(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
                     snprintf(err, errlen, "DrawInfo.dri_Pens has invalid count/pointer");
                 return 1;
             }
-            ULONG emu_nested_guest_0 = r->d[0] + M68K_DrawInfo_SIZEOF + sizeof(UWORD) * 256;
+            ULONG emu_nested_guest_0 = r->d[0] + M68K_DrawInfo_SIZEOF;
             for (ULONG emu_nested_i_0 = 0;
                  emu_nested_i_0 < emu_nested_count_0;
                  emu_nested_i_0++)
@@ -1546,12 +1556,22 @@ int emu68k_gen_intuition(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
             ULONG emu_nested_token_1 = 0;
             if (emu68k_object_to_guest_facade(guest0,
                     emu_facade_native->dri_Font, EMU_OBJ_TextFont,
-                    NULL, NULL, "TextFont", M68K_TextFont_SIZEOF,
+                    NULL, NULL, "TextFont", M68K_TextFont_SIZEOF + 64,
                     emu_fields_TextFont, EMU_NFIELDS(emu_fields_TextFont),
                     &emu_nested_token_1, err, errlen) < 0)
                 return 1;
             emu68k_scalar_to_guest(guest0,
                 r->d[0] + M68K_DrawInfo_dri_Font, 4, emu_nested_token_1);
+            if (emu_facade_native->dri_Font && emu_nested_token_1)
+            {
+                ULONG emu_sub_guest_1_0 =
+                    emu_nested_token_1 + M68K_TextFont_SIZEOF;
+                emu68k_cstr_to_guest(guest0, emu_sub_guest_1_0,
+                    emu_facade_native->dri_Font->tf_Message.mn_Node.ln_Name, 64);
+                emu68k_scalar_to_guest(guest0,
+                    emu_nested_token_1 + M68K_TextFont_tf_Message_mn_Node_ln_Name, 4,
+                    emu_facade_native->dri_Font->tf_Message.mn_Node.ln_Name ? emu_sub_guest_1_0 : 0);
+            }
         }
             return 0;
     }

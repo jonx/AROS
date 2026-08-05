@@ -19,6 +19,66 @@ int emu68k_gen_utility(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
 
     switch (lvo)
     {
+    case 5:  /* FindTagItem: no crossing [-30] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: utility.library.FindTagItem needs returns a pointer (struct TagItem *) described");
+        r->d[0] = 0;
+        return 1;
+    case 6:  /* GetTagData: no crossing [-36] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: utility.library.GetTagData needs const struct TagItem * described");
+        r->d[0] = 0;
+        return 1;
+    case 7:  /* PackBoolTags: no crossing [-42] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: utility.library.PackBoolTags needs struct TagItem * described");
+        r->d[0] = 0;
+        return 1;
+    case 8:  /* NextTagItem: no crossing [-48] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: utility.library.NextTagItem needs returns a pointer (struct TagItem *) described");
+        r->d[0] = 0;
+        return 1;
+    case 9:  /* FilterTagChanges: no crossing [-54] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: utility.library.FilterTagChanges needs const struct TagItem *, struct TagItem * described");
+        r->d[0] = 0;
+        return 1;
+    case 10:  /* MapTags: no crossing [-60] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: utility.library.MapTags needs struct TagItem * described");
+        r->d[0] = 0;
+        return 1;
+    case 11:  /* AllocateTagItems: no crossing [-66] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: utility.library.AllocateTagItems needs returns a pointer (struct TagItem *) described");
+        r->d[0] = 0;
+        return 1;
+    case 12:  /* CloneTagItems: no crossing [-72] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: utility.library.CloneTagItems needs returns a pointer (struct TagItem *) described");
+        r->d[0] = 0;
+        return 1;
+    case 13:  /* FreeTagItems: no crossing [-78] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: utility.library.FreeTagItems needs struct TagItem * described");
+        r->d[0] = 0;
+        return 1;
+    case 14:  /* RefreshTagItemClones: no crossing [-84] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: utility.library.RefreshTagItemClones needs const struct TagItem *, struct TagItem * described");
+        r->d[0] = 0;
+        return 1;
+    case 15:  /* TagInArray: no crossing [-90] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: utility.library.TagInArray needs Tag * described");
+        r->d[0] = 0;
+        return 1;
+    case 16:  /* FilterTagItems: no crossing [-96] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: utility.library.FilterTagItems needs Tag *, struct TagItem * described");
+        r->d[0] = 0;
+        return 1;
     case 17:  /* CallHookPkt(struct Hook * hook, APTR object, APTR paramPacket) -> IPTR  [-102] */
     {
         struct Emu68kHookBridge emu_hook_0;
@@ -31,6 +91,21 @@ int emu68k_gen_utility(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
             return 1;
             return 0;
     }
+    case 20:  /* Amiga2Date: no crossing [-120] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: utility.library.Amiga2Date needs struct ClockData * described");
+        r->d[0] = 0;
+        return 1;
+    case 21:  /* Date2Amiga: no crossing [-126] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: utility.library.Date2Amiga needs struct ClockData * described");
+        r->d[0] = 0;
+        return 1;
+    case 22:  /* CheckDate: no crossing [-132] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: utility.library.CheckDate needs struct ClockData * described");
+        r->d[0] = 0;
+        return 1;
     case 23:  /* SMult32(LONG arg1, LONG arg2) -> LONG  [-138] */
         r->d[0] = (ULONG)SMult32((LONG)r->d[0],
               (LONG)r->d[1]);
@@ -39,6 +114,16 @@ int emu68k_gen_utility(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
         r->d[0] = (ULONG)UMult32((ULONG)r->d[0],
               (ULONG)r->d[1]);
         return 0;
+    case 25:  /* SDivMod32: no crossing [-150] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: utility.library.SDivMod32 needs refused: returns quotient in D0 AND remainder in D1 described");
+        r->d[0] = 0;
+        return 1;
+    case 26:  /* UDivMod32: no crossing [-156] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: utility.library.UDivMod32 needs refused: returns quotient in D0 AND remainder in D1 described");
+        r->d[0] = 0;
+        return 1;
     case 27:  /* Stricmp(CONST_STRPTR string1, CONST_STRPTR string2) -> LONG  [-162] */
         r->d[0] = (ULONG)Stricmp((CONST_STRPTR)EMU_GPTR(guest0, r->a[0]),
               (CONST_STRPTR)EMU_GPTR(guest0, r->a[1]));
@@ -54,6 +139,92 @@ int emu68k_gen_utility(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
     case 30:  /* ToLower(ULONG character) -> UBYTE  [-180] */
         r->d[0] = (ULONG)ToLower((ULONG)r->d[0]);
         return 0;
+    case 31:  /* ApplyTagChanges: no crossing [-186] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: utility.library.ApplyTagChanges needs struct TagItem * described");
+        r->d[0] = 0;
+        return 1;
+    case 33:  /* SMult64: no crossing [-198] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: utility.library.SMult64 needs returns a pointer (QUAD) described");
+        r->d[0] = 0;
+        return 1;
+    case 34:  /* UMult64: no crossing [-204] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: utility.library.UMult64 needs returns a pointer (UQUAD) described");
+        r->d[0] = 0;
+        return 1;
+    case 35:  /* PackStructureTags: no crossing [-210] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: utility.library.PackStructureTags needs APTR pack, ULONG *, struct TagItem * described");
+        r->d[0] = 0;
+        return 1;
+    case 36:  /* UnpackStructureTags: no crossing [-216] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: utility.library.UnpackStructureTags needs APTR pack, ULONG *, struct TagItem * described");
+        r->d[0] = 0;
+        return 1;
+    case 37:  /* AddNamedObject(struct NamedObject * nameSpace, struct NamedObject * object) -> BOOL  [-222] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_NamedObject, 1,
+                                        "NamedObject", &emu_object_0, err, errlen) < 0)
+            return 1;
+        APTR emu_object_1;
+        if (emu68k_object_from_guest(guest0, r->a[1], EMU_OBJ_NamedObject, 1,
+                                        "NamedObject", &emu_object_1, err, errlen) < 0)
+            return 1;
+            r->d[0] = (ULONG)AddNamedObject((struct NamedObject *)emu_object_0,
+              (struct NamedObject *)emu_object_1);
+            return 0;
+    }
+    case 38:  /* AllocNamedObjectA: no crossing [-228] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: utility.library.AllocNamedObjectA needs returns a pointer (struct NamedObject *) described");
+        r->d[0] = 0;
+        return 1;
+    case 39:  /* AttemptRemNamedObject(struct NamedObject * object) -> LONG  [-234] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_NamedObject, 1,
+                                        "NamedObject", &emu_object_0, err, errlen) < 0)
+            return 1;
+            r->d[0] = (ULONG)AttemptRemNamedObject((struct NamedObject *)emu_object_0);
+            return 0;
+    }
+    case 40:  /* FindNamedObject: no crossing [-240] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: utility.library.FindNamedObject needs returns a pointer (struct NamedObject *) described");
+        r->d[0] = 0;
+        return 1;
+    case 41:  /* FreeNamedObject(struct NamedObject * object) -> void  [-246] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_NamedObject, 1,
+                                        "NamedObject", &emu_object_0, err, errlen) < 0)
+            return 1;
+            FreeNamedObject((struct NamedObject *)emu_object_0);
+            return 0;
+    }
+    case 42:  /* NamedObjectName: no crossing [-252] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: utility.library.NamedObjectName needs returns a pointer (STRPTR) described");
+        r->d[0] = 0;
+        return 1;
+    case 43:  /* ReleaseNamedObject(struct NamedObject * object) -> void  [-258] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_NamedObject, 1,
+                                        "NamedObject", &emu_object_0, err, errlen) < 0)
+            return 1;
+            ReleaseNamedObject((struct NamedObject *)emu_object_0);
+            return 0;
+    }
+    case 44:  /* RemNamedObject: no crossing [-264] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: utility.library.RemNamedObject needs struct Message *, struct NamedObject * described");
+        r->d[0] = 0;
+        return 1;
     case 45:  /* GetUniqueID(void) -> ULONG  [-270] */
         r->d[0] = (ULONG)GetUniqueID();
         return 0;
@@ -67,6 +238,16 @@ int emu68k_gen_utility(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
               (CONST_STRPTR)EMU_GPTR(guest0, r->a[1]),
               (LONG)r->d[0]);
         return 0;
+    case 52:  /* VSNPrintf: no crossing [-312] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: utility.library.VSNPrintf needs RAWARG args described");
+        r->d[0] = 0;
+        return 1;
+    case 66:  /* SetMem: no crossing [-396] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: utility.library.SetMem needs returns a pointer (APTR) described");
+        r->d[0] = 0;
+        return 1;
     }
     return 1;   /* no safe generated crossing for this vector */
 }

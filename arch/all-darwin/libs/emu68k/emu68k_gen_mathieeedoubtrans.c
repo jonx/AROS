@@ -31,6 +31,11 @@ int emu68k_gen_mathieeedoubtrans(int lvo, struct Emu68kRegs *r, APTR guest0, APT
     case 8:  /* IEEEDPTan(double y) -> double  [-48] */
         emu68k_double_out(IEEEDPTan(emu68k_double_in(r->d[0], r->d[1])), &r->d[0], &r->d[1]);
         return 0;
+    case 9:  /* IEEEDPSincos: no crossing [-54] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: mathieeedoubtrans.library.IEEEDPSincos needs double * described");
+        r->d[0] = 0;
+        return 1;
     case 10:  /* IEEEDPSinh(double y) -> double  [-60] */
         emu68k_double_out(IEEEDPSinh(emu68k_double_in(r->d[0], r->d[1])), &r->d[0], &r->d[1]);
         return 0;

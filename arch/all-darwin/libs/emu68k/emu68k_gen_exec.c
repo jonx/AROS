@@ -19,9 +19,471 @@ int emu68k_gen_exec(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
 
     switch (lvo)
     {
+    case 1:  /* open: no crossing [-6] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: exec.library.open needs private described");
+        r->d[0] = 0;
+        return 1;
+    case 2:  /* close: no crossing [-12] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: exec.library.close needs private described");
+        r->d[0] = 0;
+        return 1;
+    case 5:  /* Supervisor: no crossing [-30] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: exec.library.Supervisor needs not on the exec allowlist described");
+        r->d[0] = 0;
+        return 1;
+    case 6:  /* ExitIntr: no crossing [-36] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: exec.library.ExitIntr needs private described");
+        r->d[0] = 0;
+        return 1;
+    case 7:  /* Schedule: no crossing [-42] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: exec.library.Schedule needs private described");
+        r->d[0] = 0;
+        return 1;
+    case 8:  /* Reschedule: no crossing [-48] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: exec.library.Reschedule needs not on the exec allowlist described");
+        r->d[0] = 0;
+        return 1;
+    case 9:  /* Switch: no crossing [-54] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: exec.library.Switch needs private described");
+        r->d[0] = 0;
+        return 1;
+    case 10:  /* Dispatch: no crossing [-60] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: exec.library.Dispatch needs private described");
+        r->d[0] = 0;
+        return 1;
+    case 11:  /* Exception: no crossing [-66] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: exec.library.Exception needs not on the exec allowlist described");
+        r->d[0] = 0;
+        return 1;
+    case 12:  /* InitCode: no crossing [-72] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: exec.library.InitCode needs not on the exec allowlist described");
+        r->d[0] = 0;
+        return 1;
+    case 13:  /* InitStruct: no crossing [-78] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: exec.library.InitStruct needs not on the exec allowlist described");
+        r->d[0] = 0;
+        return 1;
+    case 14:  /* MakeLibrary: no crossing [-84] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: exec.library.MakeLibrary needs not on the exec allowlist described");
+        r->d[0] = 0;
+        return 1;
+    case 15:  /* MakeFunctions: no crossing [-90] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: exec.library.MakeFunctions needs not on the exec allowlist described");
+        r->d[0] = 0;
+        return 1;
+    case 16:  /* FindResident: no crossing [-96] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: exec.library.FindResident needs not on the exec allowlist described");
+        r->d[0] = 0;
+        return 1;
+    case 17:  /* InitResident: no crossing [-102] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: exec.library.InitResident needs not on the exec allowlist described");
+        r->d[0] = 0;
+        return 1;
+    case 18:  /* Alert: no crossing [-108] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: exec.library.Alert needs not on the exec allowlist described");
+        r->d[0] = 0;
+        return 1;
+    case 19:  /* Debug: no crossing [-114] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: exec.library.Debug needs not on the exec allowlist described");
+        r->d[0] = 0;
+        return 1;
+    case 20:  /* Disable: no crossing [-120] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: exec.library.Disable needs not on the exec allowlist described");
+        r->d[0] = 0;
+        return 1;
+    case 21:  /* Enable: no crossing [-126] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: exec.library.Enable needs not on the exec allowlist described");
+        r->d[0] = 0;
+        return 1;
+    case 22:  /* Forbid: no crossing [-132] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: exec.library.Forbid needs not on the exec allowlist described");
+        r->d[0] = 0;
+        return 1;
+    case 23:  /* Permit: no crossing [-138] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: exec.library.Permit needs not on the exec allowlist described");
+        r->d[0] = 0;
+        return 1;
+    case 24:  /* SetSR: no crossing [-144] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: exec.library.SetSR needs not on the exec allowlist described");
+        r->d[0] = 0;
+        return 1;
+    case 25:  /* SuperState: no crossing [-150] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: exec.library.SuperState needs not on the exec allowlist described");
+        r->d[0] = 0;
+        return 1;
+    case 26:  /* UserState: no crossing [-156] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: exec.library.UserState needs not on the exec allowlist described");
+        r->d[0] = 0;
+        return 1;
+    case 27:  /* SetIntVector: no crossing [-162] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: exec.library.SetIntVector needs not on the exec allowlist described");
+        r->d[0] = 0;
+        return 1;
+    case 28:  /* AddIntServer: no crossing [-168] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: exec.library.AddIntServer needs not on the exec allowlist described");
+        r->d[0] = 0;
+        return 1;
+    case 29:  /* RemIntServer: no crossing [-174] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: exec.library.RemIntServer needs not on the exec allowlist described");
+        r->d[0] = 0;
+        return 1;
+    case 30:  /* Cause: no crossing [-180] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: exec.library.Cause needs not on the exec allowlist described");
+        r->d[0] = 0;
+        return 1;
+    case 31:  /* Allocate: no crossing [-186] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: exec.library.Allocate needs not on the exec allowlist described");
+        r->d[0] = 0;
+        return 1;
+    case 32:  /* Deallocate: no crossing [-192] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: exec.library.Deallocate needs not on the exec allowlist described");
+        r->d[0] = 0;
+        return 1;
+    case 33:  /* AllocMem: no crossing [-198] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: exec.library.AllocMem needs not on the exec allowlist described");
+        r->d[0] = 0;
+        return 1;
+    case 34:  /* AllocAbs: no crossing [-204] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: exec.library.AllocAbs needs not on the exec allowlist described");
+        r->d[0] = 0;
+        return 1;
+    case 35:  /* FreeMem: no crossing [-210] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: exec.library.FreeMem needs not on the exec allowlist described");
+        r->d[0] = 0;
+        return 1;
     case 36:  /* AvailMem(ULONG attributes) -> IPTR  [-216] */
         r->d[0] = (ULONG)AvailMem((ULONG)r->d[1]);   /* narrowed: an integer, never an address */
         return 0;
+    case 37:  /* AllocEntry: no crossing [-222] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: exec.library.AllocEntry needs not on the exec allowlist described");
+        r->d[0] = 0;
+        return 1;
+    case 38:  /* FreeEntry: no crossing [-228] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: exec.library.FreeEntry needs not on the exec allowlist described");
+        r->d[0] = 0;
+        return 1;
+    case 39:  /* Insert: no crossing [-234] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: exec.library.Insert needs not on the exec allowlist described");
+        r->d[0] = 0;
+        return 1;
+    case 40:  /* AddHead: no crossing [-240] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: exec.library.AddHead needs not on the exec allowlist described");
+        r->d[0] = 0;
+        return 1;
+    case 41:  /* AddTail: no crossing [-246] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: exec.library.AddTail needs not on the exec allowlist described");
+        r->d[0] = 0;
+        return 1;
+    case 42:  /* Remove: no crossing [-252] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: exec.library.Remove needs not on the exec allowlist described");
+        r->d[0] = 0;
+        return 1;
+    case 43:  /* RemHead: no crossing [-258] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: exec.library.RemHead needs not on the exec allowlist described");
+        r->d[0] = 0;
+        return 1;
+    case 44:  /* RemTail: no crossing [-264] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: exec.library.RemTail needs not on the exec allowlist described");
+        r->d[0] = 0;
+        return 1;
+    case 45:  /* Enqueue: no crossing [-270] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: exec.library.Enqueue needs not on the exec allowlist described");
+        r->d[0] = 0;
+        return 1;
+    case 46:  /* FindName: no crossing [-276] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: exec.library.FindName needs not on the exec allowlist described");
+        r->d[0] = 0;
+        return 1;
+    case 47:  /* AddTask: no crossing [-282] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: exec.library.AddTask needs not on the exec allowlist described");
+        r->d[0] = 0;
+        return 1;
+    case 48:  /* RemTask: no crossing [-288] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: exec.library.RemTask needs not on the exec allowlist described");
+        r->d[0] = 0;
+        return 1;
+    case 49:  /* FindTask: no crossing [-294] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: exec.library.FindTask needs not on the exec allowlist described");
+        r->d[0] = 0;
+        return 1;
+    case 50:  /* SetTaskPri: no crossing [-300] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: exec.library.SetTaskPri needs not on the exec allowlist described");
+        r->d[0] = 0;
+        return 1;
+    case 51:  /* SetSignal: no crossing [-306] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: exec.library.SetSignal needs not on the exec allowlist described");
+        r->d[0] = 0;
+        return 1;
+    case 52:  /* SetExcept: no crossing [-312] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: exec.library.SetExcept needs not on the exec allowlist described");
+        r->d[0] = 0;
+        return 1;
+    case 53:  /* Wait: no crossing [-318] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: exec.library.Wait needs not on the exec allowlist described");
+        r->d[0] = 0;
+        return 1;
+    case 54:  /* Signal: no crossing [-324] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: exec.library.Signal needs not on the exec allowlist described");
+        r->d[0] = 0;
+        return 1;
+    case 55:  /* AllocSignal: no crossing [-330] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: exec.library.AllocSignal needs not on the exec allowlist described");
+        r->d[0] = 0;
+        return 1;
+    case 56:  /* FreeSignal: no crossing [-336] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: exec.library.FreeSignal needs not on the exec allowlist described");
+        r->d[0] = 0;
+        return 1;
+    case 57:  /* AllocTrap: no crossing [-342] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: exec.library.AllocTrap needs not on the exec allowlist described");
+        r->d[0] = 0;
+        return 1;
+    case 58:  /* FreeTrap: no crossing [-348] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: exec.library.FreeTrap needs not on the exec allowlist described");
+        r->d[0] = 0;
+        return 1;
+    case 59:  /* AddPort(struct MsgPort * port) -> void  [-354] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[1], EMU_OBJ_MsgPort, 1,
+                                        "MsgPort", &emu_object_0, err, errlen) < 0)
+            return 1;
+            AddPort((struct MsgPort *)emu_object_0);
+            return 0;
+    }
+    case 60:  /* RemPort(struct MsgPort * port) -> void  [-360] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[1], EMU_OBJ_MsgPort, 1,
+                                        "MsgPort", &emu_object_0, err, errlen) < 0)
+            return 1;
+            RemPort((struct MsgPort *)emu_object_0);
+            return 0;
+    }
+    case 61:  /* PutMsg: no crossing [-366] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: exec.library.PutMsg needs not on the exec allowlist described");
+        r->d[0] = 0;
+        return 1;
+    case 62:  /* GetMsg: no crossing [-372] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: exec.library.GetMsg needs not on the exec allowlist described");
+        r->d[0] = 0;
+        return 1;
+    case 63:  /* ReplyMsg: no crossing [-378] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: exec.library.ReplyMsg needs not on the exec allowlist described");
+        r->d[0] = 0;
+        return 1;
+    case 64:  /* WaitPort: no crossing [-384] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: exec.library.WaitPort needs not on the exec allowlist described");
+        r->d[0] = 0;
+        return 1;
+    case 65:  /* FindPort: no crossing [-390] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: exec.library.FindPort needs not on the exec allowlist described");
+        r->d[0] = 0;
+        return 1;
+    case 66:  /* AddLibrary: no crossing [-396] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: exec.library.AddLibrary needs not on the exec allowlist described");
+        r->d[0] = 0;
+        return 1;
+    case 67:  /* RemLibrary: no crossing [-402] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: exec.library.RemLibrary needs not on the exec allowlist described");
+        r->d[0] = 0;
+        return 1;
+    case 68:  /* OldOpenLibrary: no crossing [-408] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: exec.library.OldOpenLibrary needs not on the exec allowlist described");
+        r->d[0] = 0;
+        return 1;
+    case 69:  /* CloseLibrary: no crossing [-414] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: exec.library.CloseLibrary needs not on the exec allowlist described");
+        r->d[0] = 0;
+        return 1;
+    case 70:  /* SetFunction: no crossing [-420] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: exec.library.SetFunction needs not on the exec allowlist described");
+        r->d[0] = 0;
+        return 1;
+    case 71:  /* SumLibrary: no crossing [-426] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: exec.library.SumLibrary needs not on the exec allowlist described");
+        r->d[0] = 0;
+        return 1;
+    case 72:  /* AddDevice: no crossing [-432] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: exec.library.AddDevice needs not on the exec allowlist described");
+        r->d[0] = 0;
+        return 1;
+    case 73:  /* RemDevice: no crossing [-438] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: exec.library.RemDevice needs not on the exec allowlist described");
+        r->d[0] = 0;
+        return 1;
+    case 74:  /* OpenDevice: no crossing [-444] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: exec.library.OpenDevice needs not on the exec allowlist described");
+        r->d[0] = 0;
+        return 1;
+    case 75:  /* CloseDevice: no crossing [-450] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: exec.library.CloseDevice needs not on the exec allowlist described");
+        r->d[0] = 0;
+        return 1;
+    case 76:  /* DoIO: no crossing [-456] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: exec.library.DoIO needs not on the exec allowlist described");
+        r->d[0] = 0;
+        return 1;
+    case 77:  /* SendIO: no crossing [-462] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: exec.library.SendIO needs not on the exec allowlist described");
+        r->d[0] = 0;
+        return 1;
+    case 78:  /* CheckIO: no crossing [-468] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: exec.library.CheckIO needs not on the exec allowlist described");
+        r->d[0] = 0;
+        return 1;
+    case 79:  /* WaitIO: no crossing [-474] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: exec.library.WaitIO needs not on the exec allowlist described");
+        r->d[0] = 0;
+        return 1;
+    case 80:  /* AbortIO: no crossing [-480] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: exec.library.AbortIO needs not on the exec allowlist described");
+        r->d[0] = 0;
+        return 1;
+    case 81:  /* AddResource: no crossing [-486] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: exec.library.AddResource needs not on the exec allowlist described");
+        r->d[0] = 0;
+        return 1;
+    case 82:  /* RemResource: no crossing [-492] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: exec.library.RemResource needs not on the exec allowlist described");
+        r->d[0] = 0;
+        return 1;
+    case 83:  /* OpenResource: no crossing [-498] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: exec.library.OpenResource needs not on the exec allowlist described");
+        r->d[0] = 0;
+        return 1;
+    case 84:  /* RawIOInit: no crossing [-504] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: exec.library.RawIOInit needs not on the exec allowlist described");
+        r->d[0] = 0;
+        return 1;
+    case 85:  /* RawMayGetChar: no crossing [-510] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: exec.library.RawMayGetChar needs not on the exec allowlist described");
+        r->d[0] = 0;
+        return 1;
+    case 86:  /* RawPutChar: no crossing [-516] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: exec.library.RawPutChar needs not on the exec allowlist described");
+        r->d[0] = 0;
+        return 1;
+    case 87:  /* RawDoFmt: no crossing [-522] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: exec.library.RawDoFmt needs not on the exec allowlist described");
+        r->d[0] = 0;
+        return 1;
+    case 88:  /* GetCC: no crossing [-528] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: exec.library.GetCC needs not on the exec allowlist described");
+        r->d[0] = 0;
+        return 1;
+    case 89:  /* TypeOfMem: no crossing [-534] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: exec.library.TypeOfMem needs not on the exec allowlist described");
+        r->d[0] = 0;
+        return 1;
+    case 90:  /* Procure: no crossing [-540] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: exec.library.Procure needs not on the exec allowlist described");
+        r->d[0] = 0;
+        return 1;
+    case 91:  /* Vacate: no crossing [-546] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: exec.library.Vacate needs not on the exec allowlist described");
+        r->d[0] = 0;
+        return 1;
+    case 92:  /* OpenLibrary: no crossing [-552] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: exec.library.OpenLibrary needs not on the exec allowlist described");
+        r->d[0] = 0;
+        return 1;
+    case 93:  /* InitSemaphore(struct SignalSemaphore * sigSem) -> void  [-558] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_SignalSemaphore, 1,
+                                        "SignalSemaphore", &emu_object_0, err, errlen) < 0)
+            return 1;
+            InitSemaphore((struct SignalSemaphore *)emu_object_0);
+            return 0;
+    }
     case 94:  /* ObtainSemaphore(struct SignalSemaphore * sigSem) -> void  [-564] */
     {
         APTR emu_object_0;
@@ -49,6 +511,16 @@ int emu68k_gen_exec(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
             r->d[0] = (ULONG)AttemptSemaphore((struct SignalSemaphore *)emu_object_0);
             return 0;
     }
+    case 97:  /* ObtainSemaphoreList: no crossing [-582] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: exec.library.ObtainSemaphoreList needs not on the exec allowlist described");
+        r->d[0] = 0;
+        return 1;
+    case 98:  /* ReleaseSemaphoreList: no crossing [-588] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: exec.library.ReleaseSemaphoreList needs not on the exec allowlist described");
+        r->d[0] = 0;
+        return 1;
     case 99:  /* FindSemaphore(CONST_STRPTR name) -> struct SignalSemaphore *  [-594] */
     {
         APTR emu_result = (APTR)FindSemaphore((CONST_STRPTR)EMU_GPTR(guest0, r->a[1]));
@@ -56,6 +528,83 @@ int emu68k_gen_exec(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
                                       base, NULL,
                                       "SignalSemaphore", &r->d[0], err, errlen) < 0)
             return 1;
+            return 0;
+    }
+    case 100:  /* AddSemaphore(struct SignalSemaphore * sigSem) -> void  [-600] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[1], EMU_OBJ_SignalSemaphore, 1,
+                                        "SignalSemaphore", &emu_object_0, err, errlen) < 0)
+            return 1;
+            AddSemaphore((struct SignalSemaphore *)emu_object_0);
+            return 0;
+    }
+    case 101:  /* RemSemaphore(struct SignalSemaphore * sigSem) -> void  [-606] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[1], EMU_OBJ_SignalSemaphore, 1,
+                                        "SignalSemaphore", &emu_object_0, err, errlen) < 0)
+            return 1;
+            RemSemaphore((struct SignalSemaphore *)emu_object_0);
+            return 0;
+    }
+    case 102:  /* SumKickData: no crossing [-612] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: exec.library.SumKickData needs not on the exec allowlist described");
+        r->d[0] = 0;
+        return 1;
+    case 103:  /* AddMemList: no crossing [-618] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: exec.library.AddMemList needs not on the exec allowlist described");
+        r->d[0] = 0;
+        return 1;
+    case 104:  /* CopyMem: no crossing [-624] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: exec.library.CopyMem needs not on the exec allowlist described");
+        r->d[0] = 0;
+        return 1;
+    case 105:  /* CopyMemQuick: no crossing [-630] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: exec.library.CopyMemQuick needs not on the exec allowlist described");
+        r->d[0] = 0;
+        return 1;
+    case 106:  /* CacheClearU: no crossing [-636] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: exec.library.CacheClearU needs not on the exec allowlist described");
+        r->d[0] = 0;
+        return 1;
+    case 107:  /* CacheClearE: no crossing [-642] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: exec.library.CacheClearE needs not on the exec allowlist described");
+        r->d[0] = 0;
+        return 1;
+    case 108:  /* CacheControl: no crossing [-648] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: exec.library.CacheControl needs not on the exec allowlist described");
+        r->d[0] = 0;
+        return 1;
+    case 109:  /* CreateIORequest: no crossing [-654] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: exec.library.CreateIORequest needs not on the exec allowlist described");
+        r->d[0] = 0;
+        return 1;
+    case 110:  /* DeleteIORequest: no crossing [-660] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: exec.library.DeleteIORequest needs not on the exec allowlist described");
+        r->d[0] = 0;
+        return 1;
+    case 111:  /* CreateMsgPort: no crossing [-666] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: exec.library.CreateMsgPort needs not on the exec allowlist described");
+        r->d[0] = 0;
+        return 1;
+    case 112:  /* DeleteMsgPort(struct MsgPort * port) -> void  [-672] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_MsgPort, 1,
+                                        "MsgPort", &emu_object_0, err, errlen) < 0)
+            return 1;
+            DeleteMsgPort((struct MsgPort *)emu_object_0);
             return 0;
     }
     case 113:  /* ObtainSemaphoreShared(struct SignalSemaphore * sigSem) -> void  [-678] */
@@ -67,6 +616,36 @@ int emu68k_gen_exec(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
             ObtainSemaphoreShared((struct SignalSemaphore *)emu_object_0);
             return 0;
     }
+    case 114:  /* AllocVec: no crossing [-684] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: exec.library.AllocVec needs not on the exec allowlist described");
+        r->d[0] = 0;
+        return 1;
+    case 115:  /* FreeVec: no crossing [-690] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: exec.library.FreeVec needs not on the exec allowlist described");
+        r->d[0] = 0;
+        return 1;
+    case 116:  /* CreatePool: no crossing [-696] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: exec.library.CreatePool needs not on the exec allowlist described");
+        r->d[0] = 0;
+        return 1;
+    case 117:  /* DeletePool: no crossing [-702] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: exec.library.DeletePool needs not on the exec allowlist described");
+        r->d[0] = 0;
+        return 1;
+    case 118:  /* AllocPooled: no crossing [-708] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: exec.library.AllocPooled needs not on the exec allowlist described");
+        r->d[0] = 0;
+        return 1;
+    case 119:  /* FreePooled: no crossing [-714] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: exec.library.FreePooled needs not on the exec allowlist described");
+        r->d[0] = 0;
+        return 1;
     case 120:  /* AttemptSemaphoreShared(struct SignalSemaphore * sigSem) -> ULONG  [-720] */
     {
         APTR emu_object_0;
@@ -76,6 +655,181 @@ int emu68k_gen_exec(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
             r->d[0] = (ULONG)AttemptSemaphoreShared((struct SignalSemaphore *)emu_object_0);
             return 0;
     }
+    case 121:  /* ColdReboot: no crossing [-726] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: exec.library.ColdReboot needs not on the exec allowlist described");
+        r->d[0] = 0;
+        return 1;
+    case 122:  /* StackSwap: no crossing [-732] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: exec.library.StackSwap needs private described");
+        r->d[0] = 0;
+        return 1;
+    case 123:  /* ChildFree: no crossing [-738] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: exec.library.ChildFree needs not on the exec allowlist described");
+        r->d[0] = 0;
+        return 1;
+    case 124:  /* ChildOrphan: no crossing [-744] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: exec.library.ChildOrphan needs not on the exec allowlist described");
+        r->d[0] = 0;
+        return 1;
+    case 125:  /* ChildStatus: no crossing [-750] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: exec.library.ChildStatus needs not on the exec allowlist described");
+        r->d[0] = 0;
+        return 1;
+    case 126:  /* ChildWait: no crossing [-756] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: exec.library.ChildWait needs not on the exec allowlist described");
+        r->d[0] = 0;
+        return 1;
+    case 127:  /* CachePreDMA: no crossing [-762] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: exec.library.CachePreDMA needs not on the exec allowlist described");
+        r->d[0] = 0;
+        return 1;
+    case 128:  /* CachePostDMA: no crossing [-768] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: exec.library.CachePostDMA needs not on the exec allowlist described");
+        r->d[0] = 0;
+        return 1;
+    case 129:  /* AddMemHandler: no crossing [-774] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: exec.library.AddMemHandler needs not on the exec allowlist described");
+        r->d[0] = 0;
+        return 1;
+    case 130:  /* RemMemHandler: no crossing [-780] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: exec.library.RemMemHandler needs not on the exec allowlist described");
+        r->d[0] = 0;
+        return 1;
+    case 131:  /* ObtainQuickVector: no crossing [-786] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: exec.library.ObtainQuickVector needs not on the exec allowlist described");
+        r->d[0] = 0;
+        return 1;
+    case 134:  /* NewStackSwap: no crossing [-804] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: exec.library.NewStackSwap needs not on the exec allowlist described");
+        r->d[0] = 0;
+        return 1;
+    case 135:  /* TaggedOpenLibrary: no crossing [-810] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: exec.library.TaggedOpenLibrary needs not on the exec allowlist described");
+        r->d[0] = 0;
+        return 1;
+    case 136:  /* ReadGayle: no crossing [-816] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: exec.library.ReadGayle needs not on the exec allowlist described");
+        r->d[0] = 0;
+        return 1;
+    case 137:  /* VNewRawDoFmt: no crossing [-822] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: exec.library.VNewRawDoFmt needs not on the exec allowlist described");
+        r->d[0] = 0;
+        return 1;
+    case 138:  /* NewMinList: no crossing [-828] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: exec.library.NewMinList needs not on the exec allowlist described");
+        r->d[0] = 0;
+        return 1;
+    case 142:  /* AVL_AddNode: no crossing [-852] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: exec.library.AVL_AddNode needs not on the exec allowlist described");
+        r->d[0] = 0;
+        return 1;
+    case 143:  /* AVL_RemNodeByAddress: no crossing [-858] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: exec.library.AVL_RemNodeByAddress needs not on the exec allowlist described");
+        r->d[0] = 0;
+        return 1;
+    case 144:  /* AVL_RemNodeByKey: no crossing [-864] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: exec.library.AVL_RemNodeByKey needs not on the exec allowlist described");
+        r->d[0] = 0;
+        return 1;
+    case 145:  /* AVL_FindNode: no crossing [-870] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: exec.library.AVL_FindNode needs not on the exec allowlist described");
+        r->d[0] = 0;
+        return 1;
+    case 146:  /* AVL_FindPrevNodeByAddress: no crossing [-876] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: exec.library.AVL_FindPrevNodeByAddress needs not on the exec allowlist described");
+        r->d[0] = 0;
+        return 1;
+    case 147:  /* AVL_FindPrevNodeByKey: no crossing [-882] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: exec.library.AVL_FindPrevNodeByKey needs not on the exec allowlist described");
+        r->d[0] = 0;
+        return 1;
+    case 148:  /* AVL_FindNextNodeByAddress: no crossing [-888] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: exec.library.AVL_FindNextNodeByAddress needs not on the exec allowlist described");
+        r->d[0] = 0;
+        return 1;
+    case 149:  /* AVL_FindNextNodeByKey: no crossing [-894] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: exec.library.AVL_FindNextNodeByKey needs not on the exec allowlist described");
+        r->d[0] = 0;
+        return 1;
+    case 150:  /* AVL_FindFirstNode: no crossing [-900] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: exec.library.AVL_FindFirstNode needs not on the exec allowlist described");
+        r->d[0] = 0;
+        return 1;
+    case 151:  /* AVL_FindLastNode: no crossing [-906] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: exec.library.AVL_FindLastNode needs not on the exec allowlist described");
+        r->d[0] = 0;
+        return 1;
+    case 153:  /* NewCreateTaskA: no crossing [-918] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: exec.library.NewCreateTaskA needs not on the exec allowlist described");
+        r->d[0] = 0;
+        return 1;
+    case 166:  /* FindTaskByPID: no crossing [-996] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: exec.library.FindTaskByPID needs not on the exec allowlist described");
+        r->d[0] = 0;
+        return 1;
+    case 167:  /* AddResetCallback: no crossing [-1002] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: exec.library.AddResetCallback needs not on the exec allowlist described");
+        r->d[0] = 0;
+        return 1;
+    case 168:  /* RemResetCallback: no crossing [-1008] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: exec.library.RemResetCallback needs not on the exec allowlist described");
+        r->d[0] = 0;
+        return 1;
+    case 169:  /* AllocVecPooled: no crossing [-1014] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: exec.library.AllocVecPooled needs not on the exec allowlist described");
+        r->d[0] = 0;
+        return 1;
+    case 170:  /* FreeVecPooled: no crossing [-1020] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: exec.library.FreeVecPooled needs not on the exec allowlist described");
+        r->d[0] = 0;
+        return 1;
+    case 173:  /* ShutdownA: no crossing [-1038] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: exec.library.ShutdownA needs not on the exec allowlist described");
+        r->d[0] = 0;
+        return 1;
+    case 174:  /* NewAllocEntry: no crossing [-1044] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: exec.library.NewAllocEntry needs not on the exec allowlist described");
+        r->d[0] = 0;
+        return 1;
+    case 176:  /* NewAddTask: no crossing [-1056] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: exec.library.NewAddTask needs not on the exec allowlist described");
+        r->d[0] = 0;
+        return 1;
     }
     return 1;   /* no safe generated crossing for this vector */
 }

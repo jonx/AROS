@@ -19,9 +19,154 @@ int emu68k_gen_datatypes(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
 
     switch (lvo)
     {
+    case 6:  /* ObtainDataTypeA: no crossing [-36] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: datatypes.library.ObtainDataTypeA needs returns a pointer (struct DataType *) described");
+        r->d[0] = 0;
+        return 1;
+    case 7:  /* ReleaseDataType: no crossing [-42] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: datatypes.library.ReleaseDataType needs struct DataType * described");
+        r->d[0] = 0;
+        return 1;
+    case 8:  /* NewDTObjectA: no crossing [-48] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: datatypes.library.NewDTObjectA needs returns a pointer (Object *) described");
+        r->d[0] = 0;
+        return 1;
+    case 9:  /* DisposeDTObject: no crossing [-54] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: datatypes.library.DisposeDTObject needs Object * described");
+        r->d[0] = 0;
+        return 1;
+    case 10:  /* SetDTAttrsA: no crossing [-60] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: datatypes.library.SetDTAttrsA needs Object *, struct Requester *, struct TagItem *, struct Window * described");
+        r->d[0] = 0;
+        return 1;
+    case 11:  /* GetDTAttrsA: no crossing [-66] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: datatypes.library.GetDTAttrsA needs Object *, struct TagItem * described");
+        r->d[0] = 0;
+        return 1;
+    case 12:  /* AddDTObject: no crossing [-72] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: datatypes.library.AddDTObject needs Object *, struct Requester *, struct Window * described");
+        r->d[0] = 0;
+        return 1;
+    case 13:  /* RefreshDTObjectA: no crossing [-78] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: datatypes.library.RefreshDTObjectA needs Object *, struct Requester *, struct TagItem *, struct Window * described");
+        r->d[0] = 0;
+        return 1;
+    case 14:  /* DoAsyncLayout: no crossing [-84] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: datatypes.library.DoAsyncLayout needs Object *, struct gpLayout * described");
+        r->d[0] = 0;
+        return 1;
+    case 15:  /* DoDTMethodA: no crossing [-90] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: datatypes.library.DoDTMethodA needs Msg msg, Object *, struct Requester *, struct Window * described");
+        r->d[0] = 0;
+        return 1;
+    case 16:  /* RemoveDTObject: no crossing [-96] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: datatypes.library.RemoveDTObject needs Object *, struct Window * described");
+        r->d[0] = 0;
+        return 1;
+    case 17:  /* GetDTMethods: no crossing [-102] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: datatypes.library.GetDTMethods needs returns a pointer (ULONG *) described");
+        r->d[0] = 0;
+        return 1;
+    case 18:  /* GetDTTriggerMethods: no crossing [-108] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: datatypes.library.GetDTTriggerMethods needs returns a pointer (struct DTMethod *) described");
+        r->d[0] = 0;
+        return 1;
+    case 19:  /* PrintDTObjectA: no crossing [-114] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: datatypes.library.PrintDTObjectA needs Object *, struct Requester *, struct Window *, struct dtPrint * described");
+        r->d[0] = 0;
+        return 1;
+    case 20:  /* ObtainDTDrawInfoA: no crossing [-120] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: datatypes.library.ObtainDTDrawInfoA needs returns a pointer (APTR) described");
+        r->d[0] = 0;
+        return 1;
+    case 21:  /* DrawDTObjectA: no crossing [-126] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: datatypes.library.DrawDTObjectA needs Object *, struct RastPort *, struct TagItem * described");
+        r->d[0] = 0;
+        return 1;
+    case 22:  /* ReleaseDTDrawInfo: no crossing [-132] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: datatypes.library.ReleaseDTDrawInfo needs APTR handle, Object * described");
+        r->d[0] = 0;
+        return 1;
+    case 23:  /* GetDTString: no crossing [-138] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: datatypes.library.GetDTString needs returns a pointer (CONST_STRPTR) described");
+        r->d[0] = 0;
+        return 1;
+    case 40:  /* LockDataType: no crossing [-240] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: datatypes.library.LockDataType needs struct DataType * described");
+        r->d[0] = 0;
+        return 1;
+    case 41:  /* FindToolNodeA: no crossing [-246] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: datatypes.library.FindToolNodeA needs returns a pointer (struct ToolNode *) described");
+        r->d[0] = 0;
+        return 1;
+    case 42:  /* LaunchToolA: no crossing [-252] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: datatypes.library.LaunchToolA needs struct TagItem *, struct Tool * described");
+        r->d[0] = 0;
+        return 1;
+    case 43:  /* FindMethod: no crossing [-258] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: datatypes.library.FindMethod needs returns a pointer (ULONG *) described");
+        r->d[0] = 0;
+        return 1;
+    case 44:  /* FindTriggerMethod: no crossing [-264] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: datatypes.library.FindTriggerMethod needs returns a pointer (struct DTMethod *) described");
+        r->d[0] = 0;
+        return 1;
+    case 45:  /* CopyDTMethods: no crossing [-270] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: datatypes.library.CopyDTMethods needs returns a pointer (ULONG *) described");
+        r->d[0] = 0;
+        return 1;
+    case 46:  /* CopyDTTriggerMethods: no crossing [-276] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: datatypes.library.CopyDTTriggerMethods needs returns a pointer (struct DTMethod *) described");
+        r->d[0] = 0;
+        return 1;
+    case 47:  /* FreeDTMethods: no crossing [-282] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: datatypes.library.FreeDTMethods needs APTR methods described");
+        r->d[0] = 0;
+        return 1;
     case 48:  /* GetDTTriggerMethodDataFlags(ULONG method) -> ULONG  [-288] */
         r->d[0] = (ULONG)GetDTTriggerMethodDataFlags((ULONG)r->a[0]);
         return 0;
+    case 49:  /* SaveDTObjectA: no crossing [-294] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: datatypes.library.SaveDTObjectA needs Object *, struct Requester *, struct TagItem *, struct Window * described");
+        r->d[0] = 0;
+        return 1;
+    case 50:  /* StartDragSelect: no crossing [-300] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: datatypes.library.StartDragSelect needs Object * described");
+        r->d[0] = 0;
+        return 1;
+    case 51:  /* DoDTDomainA: no crossing [-306] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: datatypes.library.DoDTDomainA needs Object *, struct IBox *, struct RastPort *, struct Requester *, struct TagItem *, struct Window * described");
+        r->d[0] = 0;
+        return 1;
     }
     return 1;   /* no safe generated crossing for this vector */
 }

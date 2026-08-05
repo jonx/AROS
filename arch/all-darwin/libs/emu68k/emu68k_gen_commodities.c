@@ -19,10 +19,150 @@ int emu68k_gen_commodities(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base
 
     switch (lvo)
     {
+    case 5:  /* CreateCxObj: no crossing [-30] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: commodities.library.CreateCxObj needs returns a pointer (CxObj *) described");
+        r->d[0] = 0;
+        return 1;
+    case 6:  /* CxBroker: no crossing [-36] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: commodities.library.CxBroker needs returns a pointer (CxObj *) described");
+        r->d[0] = 0;
+        return 1;
+    case 7:  /* ActivateCxObj: no crossing [-42] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: commodities.library.ActivateCxObj needs CxObj * described");
+        r->d[0] = 0;
+        return 1;
+    case 8:  /* DeleteCxObj: no crossing [-48] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: commodities.library.DeleteCxObj needs CxObj * described");
+        r->d[0] = 0;
+        return 1;
+    case 9:  /* DeleteCxObjAll: no crossing [-54] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: commodities.library.DeleteCxObjAll needs CxObj * described");
+        r->d[0] = 0;
+        return 1;
+    case 10:  /* CxObjType: no crossing [-60] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: commodities.library.CxObjType needs CxObj * described");
+        r->d[0] = 0;
+        return 1;
+    case 11:  /* CxObjError: no crossing [-66] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: commodities.library.CxObjError needs CxObj * described");
+        r->d[0] = 0;
+        return 1;
+    case 12:  /* ClearCxObjError: no crossing [-72] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: commodities.library.ClearCxObjError needs CxObj * described");
+        r->d[0] = 0;
+        return 1;
+    case 13:  /* SetCxObjPri: no crossing [-78] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: commodities.library.SetCxObjPri needs CxObj * described");
+        r->d[0] = 0;
+        return 1;
+    case 14:  /* AttachCxObj: no crossing [-84] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: commodities.library.AttachCxObj needs CxObj * described");
+        r->d[0] = 0;
+        return 1;
+    case 15:  /* EnqueueCxObj: no crossing [-90] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: commodities.library.EnqueueCxObj needs CxObj * described");
+        r->d[0] = 0;
+        return 1;
+    case 16:  /* InsertCxObj: no crossing [-96] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: commodities.library.InsertCxObj needs CxObj * described");
+        r->d[0] = 0;
+        return 1;
+    case 17:  /* RemoveCxObj: no crossing [-102] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: commodities.library.RemoveCxObj needs CxObj * described");
+        r->d[0] = 0;
+        return 1;
+    case 19:  /* SetTranslate: no crossing [-114] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: commodities.library.SetTranslate needs CxObj *, struct InputEvent * described");
+        r->d[0] = 0;
+        return 1;
+    case 20:  /* SetFilter: no crossing [-120] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: commodities.library.SetFilter needs CxObj * described");
+        r->d[0] = 0;
+        return 1;
+    case 21:  /* SetFilterIX: no crossing [-126] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: commodities.library.SetFilterIX needs CxObj *, IX * described");
+        r->d[0] = 0;
+        return 1;
+    case 22:  /* ParseIX: no crossing [-132] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: commodities.library.ParseIX needs IX * described");
+        r->d[0] = 0;
+        return 1;
+    case 23:  /* CxMsgType: no crossing [-138] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: commodities.library.CxMsgType needs CxMsg * described");
+        r->d[0] = 0;
+        return 1;
+    case 24:  /* CxMsgData: no crossing [-144] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: commodities.library.CxMsgData needs returns a pointer (APTR) described");
+        r->d[0] = 0;
+        return 1;
+    case 25:  /* CxMsgID: no crossing [-150] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: commodities.library.CxMsgID needs CxMsg * described");
+        r->d[0] = 0;
+        return 1;
+    case 26:  /* DivertCxMsg: no crossing [-156] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: commodities.library.DivertCxMsg needs CxMsg *, CxObj * described");
+        r->d[0] = 0;
+        return 1;
+    case 27:  /* RouteCxMsg: no crossing [-162] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: commodities.library.RouteCxMsg needs CxMsg *, CxObj * described");
+        r->d[0] = 0;
+        return 1;
+    case 28:  /* DisposeCxMsg: no crossing [-168] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: commodities.library.DisposeCxMsg needs CxMsg * described");
+        r->d[0] = 0;
+        return 1;
+    case 29:  /* InvertKeyMap: no crossing [-174] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: commodities.library.InvertKeyMap needs struct InputEvent *, struct KeyMap * described");
+        r->d[0] = 0;
+        return 1;
+    case 30:  /* AddIEvents: no crossing [-180] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: commodities.library.AddIEvents needs struct InputEvent * described");
+        r->d[0] = 0;
+        return 1;
+    case 31:  /* CopyBrokerList: no crossing [-186] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: commodities.library.CopyBrokerList needs struct List * described");
+        r->d[0] = 0;
+        return 1;
+    case 32:  /* FreeBrokerList: no crossing [-192] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: commodities.library.FreeBrokerList needs struct List * described");
+        r->d[0] = 0;
+        return 1;
     case 33:  /* BrokerCommand(STRPTR name, ULONG command) -> ULONG  [-198] */
         r->d[0] = (ULONG)BrokerCommand((STRPTR)EMU_GPTR(guest0, r->a[0]),
               (ULONG)r->d[0]);
         return 0;
+    case 34:  /* MatchIX: no crossing [-204] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: commodities.library.MatchIX needs IX *, struct InputEvent * described");
+        r->d[0] = 0;
+        return 1;
     }
     return 1;   /* no safe generated crossing for this vector */
 }

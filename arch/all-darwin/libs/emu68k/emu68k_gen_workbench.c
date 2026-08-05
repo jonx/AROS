@@ -35,10 +35,94 @@ int emu68k_gen_workbench(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
     case 6:  /* QuoteWorkbench(ULONG stringNum) -> BOOL  [-36] */
         r->d[0] = (ULONG)QuoteWorkbench((ULONG)r->d[0]);
         return 0;
+    case 7:  /* StartWorkbench: no crossing [-42] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: workbench.library.StartWorkbench needs APTR ptr described");
+        r->d[0] = 0;
+        return 1;
+    case 8:  /* AddAppWindowA: no crossing [-48] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: workbench.library.AddAppWindowA needs returns a pointer (struct AppWindow *) described");
+        r->d[0] = 0;
+        return 1;
+    case 9:  /* RemoveAppWindow: no crossing [-54] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: workbench.library.RemoveAppWindow needs struct AppWindow * described");
+        r->d[0] = 0;
+        return 1;
+    case 10:  /* AddAppIconA: no crossing [-60] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: workbench.library.AddAppIconA needs returns a pointer (struct AppIcon *) described");
+        r->d[0] = 0;
+        return 1;
+    case 11:  /* RemoveAppIcon: no crossing [-66] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: workbench.library.RemoveAppIcon needs struct AppIcon * described");
+        r->d[0] = 0;
+        return 1;
+    case 12:  /* AddAppMenuItemA: no crossing [-72] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: workbench.library.AddAppMenuItemA needs returns a pointer (struct AppMenuItem *) described");
+        r->d[0] = 0;
+        return 1;
+    case 13:  /* RemoveAppMenuItem: no crossing [-78] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: workbench.library.RemoveAppMenuItem needs struct AppMenuItem * described");
+        r->d[0] = 0;
+        return 1;
     case 14:  /* WBConfig(ULONG unk1, ULONG unk2) -> BOOL  [-84] */
         r->d[0] = (ULONG)WBConfig((ULONG)r->d[0],
               (ULONG)r->d[1]);
         return 0;
+    case 15:  /* WBInfo: no crossing [-90] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: workbench.library.WBInfo needs BPTR lock, struct Screen * described");
+        r->d[0] = 0;
+        return 1;
+    case 16:  /* OpenWorkbenchObjectA: no crossing [-96] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: workbench.library.OpenWorkbenchObjectA needs struct TagItem * described");
+        r->d[0] = 0;
+        return 1;
+    case 17:  /* CloseWorkbenchObjectA: no crossing [-102] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: workbench.library.CloseWorkbenchObjectA needs struct TagItem * described");
+        r->d[0] = 0;
+        return 1;
+    case 18:  /* WorkbenchControlA: no crossing [-108] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: workbench.library.WorkbenchControlA needs struct TagItem * described");
+        r->d[0] = 0;
+        return 1;
+    case 19:  /* AddAppWindowDropZoneA: no crossing [-114] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: workbench.library.AddAppWindowDropZoneA needs returns a pointer (struct AppWindowDropZone *) described");
+        r->d[0] = 0;
+        return 1;
+    case 20:  /* RemoveAppWindowDropZone: no crossing [-120] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: workbench.library.RemoveAppWindowDropZone needs struct AppWindow *, struct AppWindowDropZone * described");
+        r->d[0] = 0;
+        return 1;
+    case 21:  /* ChangeWorkbenchSelectionA: no crossing [-126] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: workbench.library.ChangeWorkbenchSelectionA needs struct Hook *, struct TagItem * described");
+        r->d[0] = 0;
+        return 1;
+    case 22:  /* MakeWorkbenchObjectVisibleA: no crossing [-132] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: workbench.library.MakeWorkbenchObjectVisibleA needs struct TagItem * described");
+        r->d[0] = 0;
+        return 1;
+    case 23:  /* RegisterWorkbench(struct MsgPort * messageport) -> BOOL  [-138] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_MsgPort, 1,
+                                        "MsgPort", &emu_object_0, err, errlen) < 0)
+            return 1;
+            r->d[0] = (ULONG)RegisterWorkbench((struct MsgPort *)emu_object_0);
+            return 0;
+    }
     case 24:  /* UnregisterWorkbench(struct MsgPort * messageport) -> BOOL  [-144] */
     {
         APTR emu_object_0;
@@ -48,6 +132,21 @@ int emu68k_gen_workbench(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
             r->d[0] = (ULONG)UnregisterWorkbench((struct MsgPort *)emu_object_0);
             return 0;
     }
+    case 25:  /* UpdateWorkbenchObjectA: no crossing [-150] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: workbench.library.UpdateWorkbenchObjectA needs struct TagItem * described");
+        r->d[0] = 0;
+        return 1;
+    case 26:  /* SendAppWindowMessage: no crossing [-156] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: workbench.library.SendAppWindowMessage needs char **, struct Window * described");
+        r->d[0] = 0;
+        return 1;
+    case 27:  /* GetNextAppIcon: no crossing [-162] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: workbench.library.GetNextAppIcon needs returns a pointer (struct DiskObject *) described");
+        r->d[0] = 0;
+        return 1;
     }
     return 1;   /* no safe generated crossing for this vector */
 }

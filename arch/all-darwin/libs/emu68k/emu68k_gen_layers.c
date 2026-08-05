@@ -19,6 +19,361 @@ int emu68k_gen_layers(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
 
     switch (lvo)
     {
+    case 5:  /* InitLayers(struct Layer_Info * li) -> void  [-30] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_Layer_Info, 1,
+                                        "Layer_Info", &emu_object_0, err, errlen) < 0)
+            return 1;
+            InitLayers((struct Layer_Info *)emu_object_0);
+            return 0;
+    }
+    case 6:  /* CreateUpfrontLayer: no crossing [-36] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: layers.library.CreateUpfrontLayer needs returns a pointer (struct Layer *) described");
+        r->d[0] = 0;
+        return 1;
+    case 7:  /* CreateBehindLayer: no crossing [-42] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: layers.library.CreateBehindLayer needs returns a pointer (struct Layer *) described");
+        r->d[0] = 0;
+        return 1;
+    case 8:  /* UpfrontLayer(LONG dummy, struct Layer * l) -> LONG  [-48] */
+    {
+        APTR emu_object_1;
+        if (emu68k_object_from_guest(guest0, r->a[1], EMU_OBJ_Layer, 1,
+                                        "Layer", &emu_object_1, err, errlen) < 0)
+            return 1;
+            r->d[0] = (ULONG)UpfrontLayer((LONG)r->a[0],
+              (struct Layer *)emu_object_1);
+            return 0;
+    }
+    case 9:  /* BehindLayer(LONG dummy, struct Layer * l) -> LONG  [-54] */
+    {
+        APTR emu_object_1;
+        if (emu68k_object_from_guest(guest0, r->a[1], EMU_OBJ_Layer, 1,
+                                        "Layer", &emu_object_1, err, errlen) < 0)
+            return 1;
+            r->d[0] = (ULONG)BehindLayer((LONG)r->a[0],
+              (struct Layer *)emu_object_1);
+            return 0;
+    }
+    case 10:  /* MoveLayer(LONG dummy, struct Layer * l, LONG dx, LONG dy) -> LONG  [-60] */
+    {
+        APTR emu_object_1;
+        if (emu68k_object_from_guest(guest0, r->a[1], EMU_OBJ_Layer, 1,
+                                        "Layer", &emu_object_1, err, errlen) < 0)
+            return 1;
+            r->d[0] = (ULONG)MoveLayer((LONG)r->a[0],
+              (struct Layer *)emu_object_1,
+              (LONG)r->d[0],
+              (LONG)r->d[1]);
+            return 0;
+    }
+    case 11:  /* SizeLayer(LONG dummy, struct Layer * l, LONG dw, LONG dh) -> LONG  [-66] */
+    {
+        APTR emu_object_1;
+        if (emu68k_object_from_guest(guest0, r->a[1], EMU_OBJ_Layer, 1,
+                                        "Layer", &emu_object_1, err, errlen) < 0)
+            return 1;
+            r->d[0] = (ULONG)SizeLayer((LONG)r->a[0],
+              (struct Layer *)emu_object_1,
+              (LONG)r->d[0],
+              (LONG)r->d[1]);
+            return 0;
+    }
+    case 12:  /* ScrollLayer(LONG dummy, struct Layer * l, LONG dx, LONG dy) -> void  [-72] */
+    {
+        APTR emu_object_1;
+        if (emu68k_object_from_guest(guest0, r->a[1], EMU_OBJ_Layer, 1,
+                                        "Layer", &emu_object_1, err, errlen) < 0)
+            return 1;
+            ScrollLayer((LONG)r->a[0],
+              (struct Layer *)emu_object_1,
+              (LONG)r->d[0],
+              (LONG)r->d[1]);
+            return 0;
+    }
+    case 13:  /* BeginUpdate(struct Layer * l) -> LONG  [-78] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_Layer, 1,
+                                        "Layer", &emu_object_0, err, errlen) < 0)
+            return 1;
+            r->d[0] = (ULONG)BeginUpdate((struct Layer *)emu_object_0);
+            return 0;
+    }
+    case 14:  /* EndUpdate(struct Layer * l, UWORD flag) -> void  [-84] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_Layer, 1,
+                                        "Layer", &emu_object_0, err, errlen) < 0)
+            return 1;
+            EndUpdate((struct Layer *)emu_object_0,
+              (UWORD)r->d[0]);
+            return 0;
+    }
+    case 15:  /* DeleteLayer(LONG dummy, struct Layer * l) -> LONG  [-90] */
+    {
+        APTR emu_object_1;
+        if (emu68k_object_from_guest(guest0, r->a[1], EMU_OBJ_Layer, 1,
+                                        "Layer", &emu_object_1, err, errlen) < 0)
+            return 1;
+            r->d[0] = (ULONG)DeleteLayer((LONG)r->a[0],
+              (struct Layer *)emu_object_1);
+            return 0;
+    }
+    case 16:  /* LockLayer(LONG dummy, struct Layer * layer) -> void  [-96] */
+    {
+        APTR emu_object_1;
+        if (emu68k_object_from_guest(guest0, r->a[1], EMU_OBJ_Layer, 1,
+                                        "Layer", &emu_object_1, err, errlen) < 0)
+            return 1;
+            LockLayer((LONG)r->a[0],
+              (struct Layer *)emu_object_1);
+            return 0;
+    }
+    case 17:  /* UnlockLayer(struct Layer * layer) -> void  [-102] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_Layer, 1,
+                                        "Layer", &emu_object_0, err, errlen) < 0)
+            return 1;
+            UnlockLayer((struct Layer *)emu_object_0);
+            return 0;
+    }
+    case 18:  /* LockLayers(struct Layer_Info * li) -> void  [-108] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_Layer_Info, 1,
+                                        "Layer_Info", &emu_object_0, err, errlen) < 0)
+            return 1;
+            LockLayers((struct Layer_Info *)emu_object_0);
+            return 0;
+    }
+    case 19:  /* UnlockLayers(struct Layer_Info * li) -> void  [-114] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_Layer_Info, 1,
+                                        "Layer_Info", &emu_object_0, err, errlen) < 0)
+            return 1;
+            UnlockLayers((struct Layer_Info *)emu_object_0);
+            return 0;
+    }
+    case 20:  /* LockLayerInfo(struct Layer_Info * li) -> void  [-120] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_Layer_Info, 1,
+                                        "Layer_Info", &emu_object_0, err, errlen) < 0)
+            return 1;
+            LockLayerInfo((struct Layer_Info *)emu_object_0);
+            return 0;
+    }
+    case 21:  /* SwapBitsRastPortClipRect(struct RastPort * rp, struct ClipRect * cr) -> void  [-126] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_RastPort, 1,
+                                        "RastPort", &emu_object_0, err, errlen) < 0)
+            return 1;
+        APTR emu_object_1;
+        if (emu68k_object_from_guest(guest0, r->a[1], EMU_OBJ_ClipRect, 1,
+                                        "ClipRect", &emu_object_1, err, errlen) < 0)
+            return 1;
+            SwapBitsRastPortClipRect((struct RastPort *)emu_object_0,
+              (struct ClipRect *)emu_object_1);
+            return 0;
+    }
+    case 22:  /* WhichLayer(struct Layer_Info * li, LONG x, LONG y) -> struct Layer *  [-132] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_Layer_Info, 1,
+                                        "Layer_Info", &emu_object_0, err, errlen) < 0)
+            return 1;
+        APTR emu_result = (APTR)WhichLayer((struct Layer_Info *)emu_object_0,
+              (LONG)r->d[0],
+              (LONG)r->d[1]);
+        if (emu68k_object_to_guest(guest0, emu_result, EMU_OBJ_Layer,
+                                      base, NULL,
+                                      "Layer", &r->d[0], err, errlen) < 0)
+            return 1;
+            return 0;
+    }
+    case 23:  /* UnlockLayerInfo(struct Layer_Info * li) -> void  [-138] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_Layer_Info, 1,
+                                        "Layer_Info", &emu_object_0, err, errlen) < 0)
+            return 1;
+            UnlockLayerInfo((struct Layer_Info *)emu_object_0);
+            return 0;
+    }
+    case 24:  /* NewLayerInfo: no crossing [-144] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: layers.library.NewLayerInfo needs returns a pointer (struct Layer_Info *) described");
+        r->d[0] = 0;
+        return 1;
+    case 25:  /* DisposeLayerInfo(struct Layer_Info * li) -> void  [-150] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_Layer_Info, 1,
+                                        "Layer_Info", &emu_object_0, err, errlen) < 0)
+            return 1;
+            DisposeLayerInfo((struct Layer_Info *)emu_object_0);
+            return 0;
+    }
+    case 26:  /* FattenLayerInfo(struct Layer_Info * li) -> LONG  [-156] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_Layer_Info, 1,
+                                        "Layer_Info", &emu_object_0, err, errlen) < 0)
+            return 1;
+            r->d[0] = (ULONG)FattenLayerInfo((struct Layer_Info *)emu_object_0);
+            return 0;
+    }
+    case 27:  /* ThinLayerInfo(struct Layer_Info * li) -> void  [-162] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_Layer_Info, 1,
+                                        "Layer_Info", &emu_object_0, err, errlen) < 0)
+            return 1;
+            ThinLayerInfo((struct Layer_Info *)emu_object_0);
+            return 0;
+    }
+    case 28:  /* MoveLayerInFrontOf(struct Layer * layer_to_move, struct Layer * other_layer) -> LONG  [-168] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_Layer, 1,
+                                        "Layer", &emu_object_0, err, errlen) < 0)
+            return 1;
+        APTR emu_object_1;
+        if (emu68k_object_from_guest(guest0, r->a[1], EMU_OBJ_Layer, 1,
+                                        "Layer", &emu_object_1, err, errlen) < 0)
+            return 1;
+            r->d[0] = (ULONG)MoveLayerInFrontOf((struct Layer *)emu_object_0,
+              (struct Layer *)emu_object_1);
+            return 0;
+    }
+    case 29:  /* InstallClipRegion(struct Layer * l, struct Region * region) -> struct Region *  [-174] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_Layer, 1,
+                                        "Layer", &emu_object_0, err, errlen) < 0)
+            return 1;
+        APTR emu_object_1;
+        if (emu68k_object_from_guest(guest0, r->a[1], EMU_OBJ_Region, 1,
+                                        "Region", &emu_object_1, err, errlen) < 0)
+            return 1;
+        APTR emu_result = (APTR)InstallClipRegion((struct Layer *)emu_object_0,
+              (struct Region *)emu_object_1);
+        if (emu68k_object_to_guest(guest0, emu_result, EMU_OBJ_Region,
+                                      base, NULL,
+                                      "Region", &r->d[0], err, errlen) < 0)
+            return 1;
+            return 0;
+    }
+    case 30:  /* MoveSizeLayer(struct Layer * l, LONG dx, LONG dy, LONG dw, LONG dh) -> LONG  [-180] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_Layer, 1,
+                                        "Layer", &emu_object_0, err, errlen) < 0)
+            return 1;
+            r->d[0] = (ULONG)MoveSizeLayer((struct Layer *)emu_object_0,
+              (LONG)r->d[0],
+              (LONG)r->d[1],
+              (LONG)r->d[2],
+              (LONG)r->d[3]);
+            return 0;
+    }
+    case 31:  /* CreateUpfrontHookLayer: no crossing [-186] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: layers.library.CreateUpfrontHookLayer needs returns a pointer (struct Layer *) described");
+        r->d[0] = 0;
+        return 1;
+    case 32:  /* CreateBehindHookLayer: no crossing [-192] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: layers.library.CreateBehindHookLayer needs returns a pointer (struct Layer *) described");
+        r->d[0] = 0;
+        return 1;
+    case 33:  /* InstallLayerHook: no crossing [-198] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: layers.library.InstallLayerHook needs returns a pointer (struct Hook *) described");
+        r->d[0] = 0;
+        return 1;
+    case 34:  /* InstallLayerInfoHook: no crossing [-204] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: layers.library.InstallLayerInfoHook needs returns a pointer (struct Hook *) described");
+        r->d[0] = 0;
+        return 1;
+    case 35:  /* SortLayerCR(struct Layer * layer, LONG dx, LONG dy) -> void  [-210] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_Layer, 1,
+                                        "Layer", &emu_object_0, err, errlen) < 0)
+            return 1;
+            SortLayerCR((struct Layer *)emu_object_0,
+              (LONG)r->d[0],
+              (LONG)r->d[1]);
+            return 0;
+    }
+    case 36:  /* DoHookClipRects: no crossing [-216] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: layers.library.DoHookClipRects needs struct Hook *, struct RastPort *, struct Rectangle * described");
+        r->d[0] = 0;
+        return 1;
+    case 37:  /* ChangeLayerShape: no crossing [-222] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: layers.library.ChangeLayerShape needs returns a pointer (struct Region *) described");
+        r->d[0] = 0;
+        return 1;
+    case 38:  /* ScaleLayer: no crossing [-228] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: layers.library.ScaleLayer needs struct Layer *, struct TagItem * described");
+        r->d[0] = 0;
+        return 1;
+    case 39:  /* CreateUpfrontLayerTagList: no crossing [-234] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: layers.library.CreateUpfrontLayerTagList needs returns a pointer (struct Layer *) described");
+        r->d[0] = 0;
+        return 1;
+    case 40:  /* CreateBehindLayerTagList: no crossing [-240] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: layers.library.CreateBehindLayerTagList needs returns a pointer (struct Layer *) described");
+        r->d[0] = 0;
+        return 1;
+    case 41:  /* ChangeLayerVisibility(struct Layer * l, int visible) -> LONG  [-246] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_Layer, 1,
+                                        "Layer", &emu_object_0, err, errlen) < 0)
+            return 1;
+            r->d[0] = (ULONG)ChangeLayerVisibility((struct Layer *)emu_object_0,
+              (int)r->d[0]);
+            return 0;
+    }
+    case 43:  /* IsLayerVisible(struct Layer * l) -> LONG  [-258] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_Layer, 1,
+                                        "Layer", &emu_object_0, err, errlen) < 0)
+            return 1;
+            r->d[0] = (ULONG)IsLayerVisible((struct Layer *)emu_object_0);
+            return 0;
+    }
+    case 44:  /* IsLayerHiddenBySibling(struct Layer * l, BOOL check_invisible) -> BOOL  [-264] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_Layer, 1,
+                                        "Layer", &emu_object_0, err, errlen) < 0)
+            return 1;
+            r->d[0] = (ULONG)IsLayerHiddenBySibling((struct Layer *)emu_object_0,
+              (BOOL)r->d[0]);
+            return 0;
+    }
+    case 45:  /* CollectPixelsLayer: no crossing [-270] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: layers.library.CollectPixelsLayer needs struct Hook *, struct Layer *, struct Region * described");
+        r->d[0] = 0;
+        return 1;
     }
     return 1;   /* no safe generated crossing for this vector */
 }

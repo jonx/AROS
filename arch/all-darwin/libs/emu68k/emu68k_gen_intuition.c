@@ -365,6 +365,16 @@ int emu68k_gen_intuition(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
               (ULONG)r->d[2],
               (ULONG)r->d[3]);
         return 0;
+    case 18:  /* DrawBorder: no crossing [-108] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: intuition.library.DrawBorder needs struct Border *, struct RastPort * described");
+        r->d[0] = 0;
+        return 1;
+    case 19:  /* DrawImage: no crossing [-114] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: intuition.library.DrawImage needs struct Image *, struct RastPort * described");
+        r->d[0] = 0;
+        return 1;
     case 20:  /* EndRequest(struct Requester * requester, struct Window * window) -> void  [-120] */
     {
         struct Requester emu_struct_0;
@@ -455,6 +465,22 @@ int emu68k_gen_intuition(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
         memset(EMU_GPTR(guest0, r->a[0]), 0, M68K_Requester_SIZEOF);
         emu68k_to_guest_sized(guest0, r->a[0], &emu_struct_0,
                            emu_fields_Requester, EMU_NFIELDS(emu_fields_Requester), M68K_Requester_SIZEOF);
+            return 0;
+    }
+    case 24:  /* ItemAddress(struct Menu * menustrip, UWORD menunumber) -> struct MenuItem *  [-144] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_Menu, 1,
+                                        "Menu", &emu_object_0, err, errlen) < 0)
+            return 1;
+        APTR emu_result = (APTR)ItemAddress((struct Menu *)emu_object_0,
+              (UWORD)r->d[0]);
+        if (emu68k_object_to_guest_facade(guest0, emu_result, EMU_OBJ_MenuItem,
+                                             base, NULL,
+                                             "MenuItem", M68K_MenuItem_SIZEOF,
+                                             emu_fields_MenuItem, EMU_NFIELDS(emu_fields_MenuItem),
+                                             &r->d[0], err, errlen) < 0)
+            return 1;
             return 0;
     }
     case 25:  /* ModifyIDCMP(struct Window * window, ULONG flags) -> BOOL  [-150] */
@@ -617,9 +643,24 @@ int emu68k_gen_intuition(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
               (UWORD)r->d[0]);
             return 0;
     }
+    case 33:  /* OpenScreen: no crossing [-198] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: intuition.library.OpenScreen needs returns a pointer (struct Screen *) described");
+        r->d[0] = 0;
+        return 1;
+    case 34:  /* OpenWindow: no crossing [-204] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: intuition.library.OpenWindow needs returns a pointer (struct Window *) described");
+        r->d[0] = 0;
+        return 1;
     case 35:  /* OpenWorkBench(void) -> IPTR  [-210] */
         r->d[0] = (ULONG)OpenWorkBench();   /* narrowed: an integer, never an address */
         return 0;
+    case 36:  /* PrintIText: no crossing [-216] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: intuition.library.PrintIText needs struct IntuiText *, struct RastPort * described");
+        r->d[0] = 0;
+        return 1;
     case 37:  /* RefreshGadgets(struct Gadget * gadgets, struct Window * window, struct Requester * requester) -> void  [-222] */
     {
         APTR emu_object_0;
@@ -766,6 +807,11 @@ int emu68k_gen_intuition(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
               (struct Menu *)emu_object_1);
             return 0;
     }
+    case 45:  /* SetPointer: no crossing [-270] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: intuition.library.SetPointer needs const UWORD *, struct Window * described");
+        r->d[0] = 0;
+        return 1;
     case 46:  /* SetWindowTitles(struct Window * window, CONST_STRPTR windowTitle, CONST_STRPTR screenTitle) -> void  [-276] */
     {
         APTR emu_object_0;
@@ -796,6 +842,24 @@ int emu68k_gen_intuition(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
             SizeWindow((struct Window *)emu_object_0,
               (LONG)r->d[0],
               (LONG)r->d[1]);
+            return 0;
+    }
+    case 49:  /* ViewAddress: no crossing [-294] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: intuition.library.ViewAddress needs returns a pointer (struct View *) described");
+        r->d[0] = 0;
+        return 1;
+    case 50:  /* ViewPortAddress(struct Window * Window) -> struct ViewPort *  [-300] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_Window, 1,
+                                        "Window", &emu_object_0, err, errlen) < 0)
+            return 1;
+        APTR emu_result = (APTR)ViewPortAddress((struct Window *)emu_object_0);
+        if (emu68k_object_to_guest(guest0, emu_result, EMU_OBJ_ViewPort,
+                                      base, NULL,
+                                      "ViewPort", &r->d[0], err, errlen) < 0)
+            return 1;
             return 0;
     }
     case 51:  /* WindowToBack(struct Window * window) -> void  [-306] */
@@ -829,12 +893,27 @@ int emu68k_gen_intuition(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
               (UWORD)r->d[3]);
             return 0;
     }
+    case 54:  /* SetPrefs: no crossing [-324] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: intuition.library.SetPrefs needs returns a pointer (struct Preferences *) described");
+        r->d[0] = 0;
+        return 1;
+    case 55:  /* IntuiTextLength: no crossing [-330] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: intuition.library.IntuiTextLength needs struct IntuiText * described");
+        r->d[0] = 0;
+        return 1;
     case 56:  /* WBenchToBack(void) -> BOOL  [-336] */
         r->d[0] = (ULONG)WBenchToBack();
         return 0;
     case 57:  /* WBenchToFront(void) -> BOOL  [-342] */
         r->d[0] = (ULONG)WBenchToFront();
         return 0;
+    case 58:  /* AutoRequest: no crossing [-348] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: intuition.library.AutoRequest needs struct IntuiText *, struct Window * described");
+        r->d[0] = 0;
+        return 1;
     case 59:  /* BeginRefresh(struct Window * window) -> void  [-354] */
     {
         APTR emu_object_0;
@@ -844,6 +923,11 @@ int emu68k_gen_intuition(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
             BeginRefresh((struct Window *)emu_object_0);
             return 0;
     }
+    case 60:  /* BuildSysRequest: no crossing [-360] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: intuition.library.BuildSysRequest needs returns a pointer (struct Window *) described");
+        r->d[0] = 0;
+        return 1;
     case 61:  /* EndRefresh(struct Window * window, BOOL complete) -> void  [-366] */
     {
         APTR emu_object_0;
@@ -878,12 +962,36 @@ int emu68k_gen_intuition(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
     case 65:  /* RethinkDisplay(void) -> LONG  [-390] */
         r->d[0] = (ULONG)RethinkDisplay();
         return 0;
+    case 66:  /* AllocRemember: no crossing [-396] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: intuition.library.AllocRemember needs returns a pointer (APTR) described");
+        r->d[0] = 0;
+        return 1;
+    case 67:  /* AlohaWorkbench(struct MsgPort * wbmsgport) -> void  [-402] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_MsgPort, 1,
+                                        "MsgPort", &emu_object_0, err, errlen) < 0)
+            return 1;
+            AlohaWorkbench((struct MsgPort *)emu_object_0);
+            return 0;
+    }
+    case 68:  /* FreeRemember: no crossing [-408] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: intuition.library.FreeRemember needs struct Remember ** described");
+        r->d[0] = 0;
+        return 1;
     case 69:  /* LockIBase(ULONG What) -> ULONG  [-414] */
         r->d[0] = (ULONG)LockIBase((ULONG)r->d[0]);
         return 0;
     case 70:  /* UnlockIBase(ULONG ibLock) -> void  [-420] */
         UnlockIBase((ULONG)r->a[0]);
         return 0;
+    case 71:  /* GetScreenData: no crossing [-426] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: intuition.library.GetScreenData needs APTR buffer, struct Screen * described");
+        r->d[0] = 0;
+        return 1;
     case 72:  /* RefreshGList(struct Gadget * gadgets, struct Window * window, struct Requester * requester, LONG numGad) -> void  [-432] */
     {
         APTR emu_object_0;
@@ -1118,6 +1226,11 @@ int emu68k_gen_intuition(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
               (LONG)r->d[3]);
             return 0;
     }
+    case 82:  /* SetEditHook: no crossing [-492] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: intuition.library.SetEditHook needs returns a pointer (struct Hook *) described");
+        r->d[0] = 0;
+        return 1;
     case 83:  /* SetMouseQueue(struct Window * window, UWORD queuelength) -> LONG  [-498] */
     {
         APTR emu_object_0;
@@ -1196,9 +1309,19 @@ int emu68k_gen_intuition(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
         emu68k_object_release(guest0, r->a[1], EMU_OBJ_Screen);
             return 0;
     }
+    case 87:  /* LockPubScreenList: no crossing [-522] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: intuition.library.LockPubScreenList needs returns a pointer (struct List *) described");
+        r->d[0] = 0;
+        return 1;
     case 88:  /* UnlockPubScreenList(void) -> void  [-528] */
         UnlockPubScreenList();
         return 0;
+    case 89:  /* NextPubScreen: no crossing [-534] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: intuition.library.NextPubScreen needs returns a pointer (UBYTE *) described");
+        r->d[0] = 0;
+        return 1;
     case 90:  /* SetDefaultPubScreen(UBYTE * name) -> void  [-540] */
         SetDefaultPubScreen((UBYTE *)EMU_GPTR(guest0, r->a[0]));
         return 0;
@@ -1215,6 +1338,11 @@ int emu68k_gen_intuition(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
               (UWORD)r->d[0]);
             return 0;
     }
+    case 93:  /* ObtainGIRPort: no crossing [-558] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: intuition.library.ObtainGIRPort needs returns a pointer (struct RastPort *) described");
+        r->d[0] = 0;
+        return 1;
     case 94:  /* ReleaseGIRPort(struct RastPort * rp) -> void  [-564] */
     {
         APTR emu_object_0;
@@ -1224,6 +1352,36 @@ int emu68k_gen_intuition(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
             ReleaseGIRPort((struct RastPort *)emu_object_0);
             return 0;
     }
+    case 95:  /* GadgetMouse: no crossing [-570] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: intuition.library.GadgetMouse needs WORD *, struct Gadget *, struct GadgetInfo * described");
+        r->d[0] = 0;
+        return 1;
+    case 96:  /* SetIPrefs: no crossing [-576] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: intuition.library.SetIPrefs needs APTR data described");
+        r->d[0] = 0;
+        return 1;
+    case 97:  /* GetDefaultPubScreen: no crossing [-582] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: intuition.library.GetDefaultPubScreen needs returns a pointer (struct Screen *) described");
+        r->d[0] = 0;
+        return 1;
+    case 98:  /* EasyRequestArgs: no crossing [-588] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: intuition.library.EasyRequestArgs needs RAWARG argList, ULONG *, struct EasyStruct *, struct Window * described");
+        r->d[0] = 0;
+        return 1;
+    case 99:  /* BuildEasyRequestArgs: no crossing [-594] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: intuition.library.BuildEasyRequestArgs needs returns a pointer (struct Window *) described");
+        r->d[0] = 0;
+        return 1;
+    case 100:  /* SysReqHandler: no crossing [-600] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: intuition.library.SysReqHandler needs ULONG *, struct Window * described");
+        r->d[0] = 0;
+        return 1;
     case 101:  /* OpenWindowTagList(struct NewWindow * newWindow, struct TagItem * tagList) -> struct Window *  [-606] */
     {
         if (r->a[0])
@@ -1414,6 +1572,21 @@ int emu68k_gen_intuition(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
         }
             return 0;
     }
+    case 103:  /* DrawImageState: no crossing [-618] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: intuition.library.DrawImageState needs struct DrawInfo *, struct Image *, struct RastPort * described");
+        r->d[0] = 0;
+        return 1;
+    case 104:  /* PointInImage: no crossing [-624] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: intuition.library.PointInImage needs struct Image * described");
+        r->d[0] = 0;
+        return 1;
+    case 105:  /* EraseImage: no crossing [-630] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: intuition.library.EraseImage needs struct Image *, struct RastPort * described");
+        r->d[0] = 0;
+        return 1;
     case 106:  /* NewObjectA(struct IClass * classPtr, UBYTE * classID, struct TagItem * tagList) -> APTR  [-636] */
     {
         APTR emu_object_0;
@@ -1491,6 +1664,21 @@ int emu68k_gen_intuition(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
         }
         return 0;
     }
+    case 110:  /* SetGadgetAttrsA: no crossing [-660] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: intuition.library.SetGadgetAttrsA needs struct Gadget *, struct Requester *, struct TagItem *, struct Window * described");
+        r->d[0] = 0;
+        return 1;
+    case 111:  /* NextObject: no crossing [-666] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: intuition.library.NextObject needs returns a pointer (APTR) described");
+        r->d[0] = 0;
+        return 1;
+    case 112:  /* FindClass: no crossing [-672] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: intuition.library.FindClass needs returns a pointer (struct IClass *) described");
+        r->d[0] = 0;
+        return 1;
     case 113:  /* MakeClass(ClassID classID, ClassID superClassID, struct IClass * superClassPtr, ULONG instanceSize, ULONG flags) -> struct IClass *  [-678] */
     {
         APTR emu_object_2;
@@ -1626,6 +1814,26 @@ int emu68k_gen_intuition(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
         emu68k_object_consume(guest0, r->a[0], EMU_OBJ_Class);
             return 0;
     }
+    case 128:  /* AllocScreenBuffer: no crossing [-768] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: intuition.library.AllocScreenBuffer needs returns a pointer (struct ScreenBuffer *) described");
+        r->d[0] = 0;
+        return 1;
+    case 129:  /* FreeScreenBuffer: no crossing [-774] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: intuition.library.FreeScreenBuffer needs struct Screen *, struct ScreenBuffer * described");
+        r->d[0] = 0;
+        return 1;
+    case 130:  /* ChangeScreenBuffer: no crossing [-780] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: intuition.library.ChangeScreenBuffer needs struct Screen *, struct ScreenBuffer * described");
+        r->d[0] = 0;
+        return 1;
+    case 131:  /* ScreenDepth: no crossing [-786] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: intuition.library.ScreenDepth needs APTR reserved, struct Screen * described");
+        r->d[0] = 0;
+        return 1;
     case 132:  /* ScreenPosition(struct Screen * screen, ULONG flags, LONG x1, LONG y1, LONG x2, LONG y2) -> void  [-792] */
     {
         APTR emu_object_0;
@@ -1655,6 +1863,30 @@ int emu68k_gen_intuition(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
               (WORD)r->d[5]);
             return 0;
     }
+    case 134:  /* LendMenus(struct Window * fromwindow, struct Window * towindow) -> void  [-804] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_Window, 1,
+                                        "Window", &emu_object_0, err, errlen) < 0)
+            return 1;
+        APTR emu_object_1;
+        if (emu68k_object_from_guest(guest0, r->a[1], EMU_OBJ_Window, 1,
+                                        "Window", &emu_object_1, err, errlen) < 0)
+            return 1;
+            LendMenus((struct Window *)emu_object_0,
+              (struct Window *)emu_object_1);
+            return 0;
+    }
+    case 135:  /* DoGadgetMethodA: no crossing [-810] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: intuition.library.DoGadgetMethodA needs Msg msg, struct Gadget *, struct Requester *, struct Window * described");
+        r->d[0] = 0;
+        return 1;
+    case 136:  /* SetWindowPointerA: no crossing [-816] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: intuition.library.SetWindowPointerA needs struct TagItem *, struct Window * described");
+        r->d[0] = 0;
+        return 1;
     case 137:  /* TimedDisplayAlert(ULONG alertnumber, UBYTE * string, UWORD height, ULONG time) -> BOOL  [-822] */
         r->d[0] = (ULONG)TimedDisplayAlert((ULONG)r->d[0],
               (UBYTE *)EMU_GPTR(guest0, r->a[0]),
@@ -1703,6 +1935,70 @@ int emu68k_gen_intuition(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
             r->d[0] = (ULONG)HideWindow((struct Window *)emu_object_0);
             return 0;
     }
+    case 143:  /* ChangeWindowShape: no crossing [-858] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: intuition.library.ChangeWindowShape needs returns a pointer (struct Region *) described");
+        r->d[0] = 0;
+        return 1;
+    case 144:  /* SetDefaultScreenFont(struct TextFont * textfont) -> void  [-864] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_TextFont, 1,
+                                        "TextFont", &emu_object_0, err, errlen) < 0)
+            return 1;
+            SetDefaultScreenFont((struct TextFont *)emu_object_0);
+            return 0;
+    }
+    case 145:  /* DoNotify: no crossing [-870] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: intuition.library.DoNotify needs Class *, Object *, struct ICData *, struct opUpdate * described");
+        r->d[0] = 0;
+        return 1;
+    case 146:  /* FreeICData: no crossing [-876] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: intuition.library.FreeICData needs struct ICData * described");
+        r->d[0] = 0;
+        return 1;
+    case 148:  /* AllocIntuiMessage: no crossing [-888] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: intuition.library.AllocIntuiMessage needs returns a pointer (struct IntuiMessage *) described");
+        r->d[0] = 0;
+        return 1;
+    case 149:  /* FreeIntuiMessage: no crossing [-894] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: intuition.library.FreeIntuiMessage needs struct IntuiMessage * described");
+        r->d[0] = 0;
+        return 1;
+    case 151:  /* SendIntuiMessage: no crossing [-906] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: intuition.library.SendIntuiMessage needs struct IntuiMessage *, struct Window * described");
+        r->d[0] = 0;
+        return 1;
+    case 152:  /* ChangeDecoration: no crossing [-912] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: intuition.library.ChangeDecoration needs struct NewDecorator * described");
+        r->d[0] = 0;
+        return 1;
+    case 154:  /* StartScreenNotifyTagList: no crossing [-924] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: intuition.library.StartScreenNotifyTagList needs returns a pointer (APTR) described");
+        r->d[0] = 0;
+        return 1;
+    case 155:  /* EndScreenNotify: no crossing [-930] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: intuition.library.EndScreenNotify needs APTR notify described");
+        r->d[0] = 0;
+        return 1;
+    case 156:  /* GetDrawInfoAttr: no crossing [-936] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: intuition.library.GetDrawInfoAttr needs IPTR *, struct DrawInfo * described");
+        r->d[0] = 0;
+        return 1;
+    case 157:  /* WindowAction: no crossing [-942] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: intuition.library.WindowAction needs struct TagItem *, struct Window * described");
+        r->d[0] = 0;
+        return 1;
     case 159:  /* ScrollWindowRasterNoFill(struct Window * win, WORD dx, WORD dy, WORD xmin, WORD ymin, WORD xmax, WORD ymax) -> void  [-954] */
     {
         APTR emu_object_0;
@@ -1718,6 +2014,21 @@ int emu68k_gen_intuition(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
               (WORD)r->d[5]);
             return 0;
     }
+    case 160:  /* SetPointerBounds: no crossing [-960] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: intuition.library.SetPointerBounds needs struct Rectangle *, struct Screen *, struct TagItem * described");
+        r->d[0] = 0;
+        return 1;
+    case 161:  /* GetMonitorList: no crossing [-966] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: intuition.library.GetMonitorList needs returns a pointer (Object **) described");
+        r->d[0] = 0;
+        return 1;
+    case 162:  /* FreeMonitorList: no crossing [-972] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: intuition.library.FreeMonitorList needs Object ** described");
+        r->d[0] = 0;
+        return 1;
     }
     return 1;   /* no safe generated crossing for this vector */
 }

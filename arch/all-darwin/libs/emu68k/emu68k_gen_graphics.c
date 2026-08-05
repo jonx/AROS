@@ -140,10 +140,20 @@ int emu68k_gen_graphics(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
         APTR emu_result = (APTR)OpenFont((const struct TextAttr *)&emu_struct_0);
         if (emu68k_object_to_guest_facade(guest0, emu_result, EMU_OBJ_TextFont,
                                              base, emu_object_cleanup_TextFont,
-                                             "TextFont", M68K_TextFont_SIZEOF,
+                                             "TextFont", M68K_TextFont_SIZEOF + 64,
                                              emu_fields_TextFont, EMU_NFIELDS(emu_fields_TextFont),
                                              &r->d[0], err, errlen) < 0)
             return 1;
+        if (emu_result && r->d[0])
+        {
+            struct TextFont *emu_facade_native = (struct TextFont *)emu_result;
+            ULONG emu_nested_guest_0 = r->d[0] + M68K_TextFont_SIZEOF;
+            emu68k_cstr_to_guest(guest0, emu_nested_guest_0,
+                emu_facade_native->tf_Message.mn_Node.ln_Name, 64);
+            emu68k_scalar_to_guest(guest0,
+                r->d[0] + M68K_TextFont_tf_Message_mn_Node_ln_Name, 4,
+                emu_facade_native->tf_Message.mn_Node.ln_Name ? emu_nested_guest_0 : 0);
+        }
             return 0;
     }
     case 13:  /* CloseFont(struct TextFont * textFont) -> void  [-78] */

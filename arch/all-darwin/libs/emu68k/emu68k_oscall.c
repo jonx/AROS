@@ -164,6 +164,21 @@ void emu68k_scalar_to_guest(APTR guest0, ULONG addr, UBYTE width, UQUAD value)
     }
 }
 
+/* A string a guest library reads out of a facade. Always terminated within
+ * the reserved room, and a NULL source leaves an empty string rather than
+ * whatever the previous occupant of that memory was. */
+void emu68k_cstr_to_guest(APTR guest0, ULONG addr, const char *s, ULONG room)
+{
+    UBYTE *p = (UBYTE *)guest0 + addr;
+    ULONG i = 0;
+
+    if (!room) return;
+    if (s)
+        for (; i < room - 1 && s[i]; i++)
+            p[i] = (UBYTE)s[i];
+    p[i] = 0;
+}
+
 /* ---- OPAQUE HANDLES -------------------------------------------------------
  * A 68k register is 32 bits; a native AROS BPTR is a 64-bit pointer. A file
  * handle therefore CANNOT be handed to the program as itself - truncating it

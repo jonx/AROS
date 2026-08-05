@@ -7,6 +7,7 @@
 */
 
 #include <exec/types.h>
+#include <exec/lists.h>
 #include <exec/memory.h>
 #include <proto/exec.h>
 #include <utility/tagitem.h>
@@ -213,14 +214,200 @@ static APTR emu68k_deep_convert(APTR guest0, ULONG gaddr,
     return node;
 }
 
+/* Expose the descriptor-driven walk to generated direct arguments as well as
+ * TagItem values.  The generated layout table remains the only description of
+ * what may be followed, and the same range/depth checks apply. */
+APTR emu68k_struct_graph_to_native(APTR guest0, ULONG guest_addr,
+                                    const struct EmuStructDesc *descs,
+                                    UWORD desc_index, const char *what,
+                                    char *err, ULONG errlen)
+{
+    if (!descs)
+    {
+        if (err && errlen)
+            snprintf(err, errlen, "%s: no structure descriptors", what);
+        return NULL;
+    }
+    return emu68k_deep_convert(guest0, guest_addr, descs,
+                               &descs[desc_index], 33, what, err, errlen);
+}
+
+/* GadTools listviews retain a struct List and walk the Node headers and their
+ * ln_Name strings during later renders.  A classic List is circular through
+ * its embedded tail sentinel, so the ordinary acyclic structure-graph walker
+ * is deliberately the wrong representation.  Validate that exact invariant,
+ * then rebuild one retained native allocation containing the List, Nodes and
+ * copied strings. */
+static struct List *guest_node_list_to_native(APTR guest0, ULONG guest_list,
+                                              ULONG max_nodes,
+                                              const char *what,
+                                              char *err, ULONG errlen)
+{
+    ULONG tail = guest_list + M68K_List_lh_Tail;
+    ULONG walk, count = 0, names_size = 0;
+    UQUAD total;
+    UBYTE *storage, *names;
+    struct List *list;
+    struct Node *nodes;
+
+    if (emu68k_require_guest_range(guest_list, M68K_List_SIZEOF,
+                                   what, err, errlen) < 0)
+        return NULL;
+    walk = guest_be32(guest0, guest_list + M68K_List_lh_Head);
+    while (walk != tail)
+    {
+        ULONG name, n = 0;
+
+        if (!walk || count >= max_nodes ||
+            emu68k_require_guest_range(walk, M68K_Node_SIZEOF,
+                                       what, err, errlen) < 0)
+            goto malformed;
+        name = guest_be32(guest0, walk + M68K_Node_ln_Name);
+        if (name)
+        {
+            while (n < 65536)
+            {
+                if (emu68k_require_guest_range(name + n, 1,
+                                               what, err, errlen) < 0)
+                    return NULL;
+                n++;
+                if (!((const UBYTE *)guest0)[name + n - 1])
+                    break;
+            }
+            if (n == 65536 || names_size > 1024 * 1024 - n)
+                goto malformed;
+            names_size += n;
+        }
+        count++;
+        walk = guest_be32(guest0, walk + M68K_Node_ln_Succ);
+    }
+
+    total = (UQUAD)sizeof(struct List) +
+            (UQUAD)count * sizeof(struct Node) + names_size;
+    if (total > 1024 * 1024 || !emu68k_persist_alloc)
+    {
+        if (err && errlen)
+            snprintf(err, errlen, "%s has no retained-list allocator or is too large",
+                     what);
+        return NULL;
+    }
+    storage = emu68k_persist_alloc((ULONG)total);
+    if (!storage)
+    {
+        if (err && errlen)
+            snprintf(err, errlen, "no memory for retained %s", what);
+        return NULL;
+    }
+    memset(storage, 0, (ULONG)total);
+    list = (struct List *)(void *)storage;
+    nodes = (struct Node *)(void *)(storage + sizeof(struct List));
+    names = storage + sizeof(struct List) + count * sizeof(struct Node);
+    NewList(list);
+
+    walk = guest_be32(guest0, guest_list + M68K_List_lh_Head);
+    for (ULONG i = 0; i < count; i++)
+    {
+        ULONG name = guest_be32(guest0, walk + M68K_Node_ln_Name);
+        nodes[i].ln_Type = ((const UBYTE *)guest0)[walk + M68K_Node_ln_Type];
+        nodes[i].ln_Pri = (BYTE)((const UBYTE *)guest0)[walk + M68K_Node_ln_Pri];
+        if (name)
+        {
+            ULONG n = 0;
+            do { names[n] = ((const UBYTE *)guest0)[name + n]; } while (names[n++]);
+            nodes[i].ln_Name = (STRPTR)names;
+            names += n;
+        }
+        AddTail(list, &nodes[i]);
+        walk = guest_be32(guest0, walk + M68K_Node_ln_Succ);
+    }
+    return list;
+
+malformed:
+    if (err && errlen)
+        snprintf(err, errlen, "%s is malformed, cyclic, unterminated, or exceeds %lu nodes",
+                 what, (unsigned long)max_nodes);
+    return NULL;
+}
+
+/* MX and Cycle gadgets retain a NULL-terminated STRPTR array.  Rebuild both
+ * pointer widths and the pointed-to strings in one run-lifetime allocation. */
+static STRPTR *guest_cstr_array_to_native(APTR guest0, ULONG guest_array,
+                                          ULONG max_count, const char *what,
+                                          char *err, ULONG errlen)
+{
+    ULONG count = 0, strings_size = 0;
+    UQUAD total;
+    STRPTR *array;
+    UBYTE *strings;
+
+    while (count < max_count)
+    {
+        ULONG gp, n = 0;
+        if (emu68k_require_guest_range(guest_array + count * 4, 4,
+                                       what, err, errlen) < 0)
+            return NULL;
+        gp = guest_be32(guest0, guest_array + count * 4);
+        if (!gp)
+            break;
+        while (n < 65536)
+        {
+            if (emu68k_require_guest_range(gp + n, 1, what, err, errlen) < 0)
+                return NULL;
+            n++;
+            if (!((const UBYTE *)guest0)[gp + n - 1])
+                break;
+        }
+        if (n == 65536 || strings_size > 1024 * 1024 - n)
+            goto malformed;
+        strings_size += n;
+        count++;
+    }
+    if (count == max_count)
+        goto malformed;
+
+    total = (UQUAD)(count + 1) * sizeof(STRPTR) + strings_size;
+    if (total > 1024 * 1024 || !emu68k_persist_alloc)
+    {
+        if (err && errlen)
+            snprintf(err, errlen, "%s has no retained-array allocator or is too large",
+                     what);
+        return NULL;
+    }
+    array = emu68k_persist_alloc((ULONG)total);
+    if (!array)
+    {
+        if (err && errlen)
+            snprintf(err, errlen, "no memory for retained %s", what);
+        return NULL;
+    }
+    memset(array, 0, (ULONG)total);
+    strings = (UBYTE *)(void *)(array + count + 1);
+    for (ULONG i = 0; i < count; i++)
+    {
+        ULONG gp = guest_be32(guest0, guest_array + i * 4);
+        ULONG n = 0;
+        do { strings[n] = ((const UBYTE *)guest0)[gp + n]; } while (strings[n++]);
+        array[i] = (STRPTR)strings;
+        strings += n;
+    }
+    return array;
+
+malformed:
+    if (err && errlen)
+        snprintf(err, errlen, "%s is unterminated or exceeds %lu strings",
+                 what, (unsigned long)max_count);
+    return NULL;
+}
+
 /* Convert a guest's packed, big-endian 8-byte TagItems into native 16-byte
  * TagItems. TAG_MORE is flattened; IGNORE/SKIP are interpreted while walking.
  * The semantic policy determines ti_Data's type. Unknown/refused tags fail the
  * crossing with their domain and name instead of being guessed as scalars. */
-LONG emu68k_tags_to_native(APTR guest0, ULONG guest_tags,
+static LONG tags_to_native(APTR guest0, ULONG guest_tags,
                            const struct EmuTagDomain *domain,
                            struct TagItem *native_tags, ULONG capacity,
                            APTR scratch, ULONG scratch_size,
+                           BOOL omit_unknown,
                            char *err, ULONG errlen)
 {
     ULONG p = guest_tags, out = 0, steps = 0, used = 0;
@@ -276,9 +463,20 @@ LONG emu68k_tags_to_native(APTR guest0, ULONG guest_tags,
         desc = tag_desc(domain, tag);
         if (!desc)
         {
+            /* A guest-defined BOOPSI subclass sees its original guest taglist
+             * in the callback.  When it subsequently calls its native system
+             * superclass, private subclass tags are unknown by definition and
+             * must be omitted; all public/system crossings keep the strict
+             * fail-closed behaviour below. */
+            if (omit_unknown)
+            {
+                p += 8;
+                continue;
+            }
             if (err && errlen)
-                snprintf(err, errlen, "capability gap: unknown tag %08lx in %s",
-                         (unsigned long)tag, domain->name);
+                snprintf(err, errlen, "capability gap: unknown tag %08lx "
+                         "value %08lx in %s", (unsigned long)tag,
+                         (unsigned long)data, domain->name);
             return -1;
         }
         if (desc->kind == EMU_TAG_REFUSE)
@@ -304,9 +502,16 @@ LONG emu68k_tags_to_native(APTR guest0, ULONG guest_tags,
         }
 
         native_tags[out].ti_Tag = desc->tag;
-        if (desc->kind == EMU_TAG_OBJECT)
+        if (desc->kind == EMU_TAG_OBJECT ||
+            desc->kind == EMU_TAG_OBJECT_OR_FFFF)
         {
             APTR object;
+            if (desc->kind == EMU_TAG_OBJECT_OR_FFFF && data == 0xffffffffUL)
+            {
+                native_tags[out].ti_Data = (IPTR)-1;
+                out++; p += 8;
+                continue;
+            }
             if (desc->mirror)
             {
                 /* An adoptable type: the value may be a structure the program
@@ -352,7 +557,8 @@ LONG emu68k_tags_to_native(APTR guest0, ULONG guest_tags,
             slot->guest_addr = data;
             native_tags[out].ti_Data = (IPTR)&slot->value;
         }
-        else if (desc->kind == EMU_TAG_STRUCT && desc->sdesc1)
+        else if ((desc->kind == EMU_TAG_STRUCT ||
+                  desc->kind == EMU_TAG_STRUCT_INOUT) && desc->sdesc1)
         {
             /* A structure with followed pointer fields: rebuilt whole,
              * run-lifetime, because the callee retains it. */
@@ -371,7 +577,8 @@ LONG emu68k_tags_to_native(APTR guest0, ULONG guest_tags,
                 return -1;
             native_tags[out].ti_Data = (IPTR)node;
         }
-        else if (desc->kind == EMU_TAG_STRUCT)
+        else if (desc->kind == EMU_TAG_STRUCT ||
+                 desc->kind == EMU_TAG_STRUCT_INOUT)
         {
             /* The value is a guest pointer to a structure, so the callee is
              * given a native one built from it, living in the caller's scratch
@@ -464,6 +671,38 @@ LONG emu68k_tags_to_native(APTR guest0, ULONG guest_tags,
                 return -1;
             native_tags[out].ti_Data = (IPTR)slot;
         }
+        else if (desc->kind == EMU_TAG_NODELIST)
+        {
+            struct List *list;
+
+            if (!data || data == 0xffffffffUL)
+                native_tags[out].ti_Data = data ? (IPTR)-1 : 0;
+            else
+            {
+                list = guest_node_list_to_native(guest0, data,
+                                                 desc->guest_size,
+                                                 desc->name, err, errlen);
+                if (!list)
+                    return -1;
+                native_tags[out].ti_Data = (IPTR)list;
+            }
+        }
+        else if (desc->kind == EMU_TAG_CSTR_ARRAY)
+        {
+            STRPTR *array;
+
+            if (!data)
+                native_tags[out].ti_Data = 0;
+            else
+            {
+                array = guest_cstr_array_to_native(guest0, data,
+                                                  desc->guest_size,
+                                                  desc->name, err, errlen);
+                if (!array)
+                    return -1;
+                native_tags[out].ti_Data = (IPTR)array;
+            }
+        }
         else if (desc->kind == EMU_TAG_CSTR)
         {
             ULONG n;
@@ -509,6 +748,26 @@ LONG emu68k_tags_to_native(APTR guest0, ULONG guest_tags,
     native_tags[out].ti_Tag = TAG_DONE;
     native_tags[out].ti_Data = 0;
     return (LONG)out;
+}
+
+LONG emu68k_tags_to_native(APTR guest0, ULONG guest_tags,
+                           const struct EmuTagDomain *domain,
+                           struct TagItem *native_tags, ULONG capacity,
+                           APTR scratch, ULONG scratch_size,
+                           char *err, ULONG errlen)
+{
+    return tags_to_native(guest0, guest_tags, domain, native_tags, capacity,
+                          scratch, scratch_size, FALSE, err, errlen);
+}
+
+LONG emu68k_tags_to_native_known(APTR guest0, ULONG guest_tags,
+                                 const struct EmuTagDomain *domain,
+                                 struct TagItem *native_tags, ULONG capacity,
+                                 APTR scratch, ULONG scratch_size,
+                                 char *err, ULONG errlen)
+{
+    return tags_to_native(guest0, guest_tags, domain, native_tags, capacity,
+                          scratch, scratch_size, TRUE, err, errlen);
 }
 
 /* Copy proven scalar output attributes back after the native call. Slots are

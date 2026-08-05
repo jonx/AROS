@@ -8,6 +8,7 @@
 
 #include <exec/types.h>
 #include <proto/exec.h>
+#include <stdio.h>
 
 #include "emu68k_gen.h"
 
@@ -184,9 +185,11 @@ int emu68k_gen_exec(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
             snprintf(err, errlen, "capability gap: exec.library.FreeMem needs not on the exec allowlist described");
         r->d[0] = 0;
         return 1;
-    case 36:  /* AvailMem(ULONG attributes) -> IPTR  [-216] */
-        r->d[0] = (ULONG)AvailMem((ULONG)r->d[1]);   /* narrowed: an integer, never an address */
-        return 0;
+    case 36:  /* AvailMem: explicit reviewed refusal [-216] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: exec.library.AvailMem refused: served in the guest by the hand-written bridge: the structure lives in guest memory, so a native call would receive an address it cannot dereference (validated against the hand-written exec dispatch)");
+        r->d[0] = 0;
+        return 1;
     case 37:  /* AllocEntry: no crossing [-222] */
         if (err && errlen)
             snprintf(err, errlen, "capability gap: exec.library.AllocEntry needs not on the exec allowlist described");
@@ -297,42 +300,34 @@ int emu68k_gen_exec(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
             snprintf(err, errlen, "capability gap: exec.library.FreeTrap needs not on the exec allowlist described");
         r->d[0] = 0;
         return 1;
-    case 59:  /* AddPort(struct MsgPort * port) -> void  [-354] */
-    {
-        APTR emu_object_0;
-        if (emu68k_object_from_guest(guest0, r->a[1], EMU_OBJ_MsgPort, 1,
-                                        "MsgPort", &emu_object_0, err, errlen) < 0)
-            return 1;
-            AddPort((struct MsgPort *)emu_object_0);
-            return 0;
-    }
-    case 60:  /* RemPort(struct MsgPort * port) -> void  [-360] */
-    {
-        APTR emu_object_0;
-        if (emu68k_object_from_guest(guest0, r->a[1], EMU_OBJ_MsgPort, 1,
-                                        "MsgPort", &emu_object_0, err, errlen) < 0)
-            return 1;
-            RemPort((struct MsgPort *)emu_object_0);
-            return 0;
-    }
-    case 61:  /* PutMsg: no crossing [-366] */
+    case 59:  /* AddPort: explicit reviewed refusal [-354] */
         if (err && errlen)
-            snprintf(err, errlen, "capability gap: exec.library.PutMsg needs not on the exec allowlist described");
+            snprintf(err, errlen, "capability gap: exec.library.AddPort refused: served in the guest by the hand-written bridge: the structure lives in guest memory, so a native call would receive an address it cannot dereference (validated against the hand-written exec dispatch)");
         r->d[0] = 0;
         return 1;
-    case 62:  /* GetMsg: no crossing [-372] */
+    case 60:  /* RemPort: explicit reviewed refusal [-360] */
         if (err && errlen)
-            snprintf(err, errlen, "capability gap: exec.library.GetMsg needs not on the exec allowlist described");
+            snprintf(err, errlen, "capability gap: exec.library.RemPort refused: served in the guest by the hand-written bridge: the structure lives in guest memory, so a native call would receive an address it cannot dereference (validated against the hand-written exec dispatch)");
         r->d[0] = 0;
         return 1;
-    case 63:  /* ReplyMsg: no crossing [-378] */
+    case 61:  /* PutMsg: explicit reviewed refusal [-366] */
         if (err && errlen)
-            snprintf(err, errlen, "capability gap: exec.library.ReplyMsg needs not on the exec allowlist described");
+            snprintf(err, errlen, "capability gap: exec.library.PutMsg refused: served in the guest by the hand-written bridge: MsgPort and Message are guest-owned structures, and queueing must update their guest-memory links and signal the guest task");
         r->d[0] = 0;
         return 1;
-    case 64:  /* WaitPort: no crossing [-384] */
+    case 62:  /* GetMsg: explicit reviewed refusal [-372] */
         if (err && errlen)
-            snprintf(err, errlen, "capability gap: exec.library.WaitPort needs not on the exec allowlist described");
+            snprintf(err, errlen, "capability gap: exec.library.GetMsg refused: served in the guest by the hand-written bridge: the message queue and returned Message address both live in guest memory");
+        r->d[0] = 0;
+        return 1;
+    case 63:  /* ReplyMsg: explicit reviewed refusal [-378] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: exec.library.ReplyMsg refused: served in the guest by the hand-written bridge: guest messages must be returned through their guest-owned reply ports, while native Intuition messages retain the existing OS-side path");
+        r->d[0] = 0;
+        return 1;
+    case 64:  /* WaitPort: explicit reviewed refusal [-384] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: exec.library.WaitPort refused: served in the guest by the hand-written bridge: it waits on and inspects a guest-owned MsgPort queue and cooperatively yields the guest context");
         r->d[0] = 0;
         return 1;
     case 65:  /* FindPort: no crossing [-390] */
@@ -475,42 +470,26 @@ int emu68k_gen_exec(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
             snprintf(err, errlen, "capability gap: exec.library.OpenLibrary needs not on the exec allowlist described");
         r->d[0] = 0;
         return 1;
-    case 93:  /* InitSemaphore(struct SignalSemaphore * sigSem) -> void  [-558] */
-    {
-        APTR emu_object_0;
-        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_SignalSemaphore, 1,
-                                        "SignalSemaphore", &emu_object_0, err, errlen) < 0)
-            return 1;
-            InitSemaphore((struct SignalSemaphore *)emu_object_0);
-            return 0;
-    }
-    case 94:  /* ObtainSemaphore(struct SignalSemaphore * sigSem) -> void  [-564] */
-    {
-        APTR emu_object_0;
-        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_SignalSemaphore, 0,
-                                        "SignalSemaphore", &emu_object_0, err, errlen) < 0)
-            return 1;
-            ObtainSemaphore((struct SignalSemaphore *)emu_object_0);
-            return 0;
-    }
-    case 95:  /* ReleaseSemaphore(struct SignalSemaphore * sigSem) -> void  [-570] */
-    {
-        APTR emu_object_0;
-        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_SignalSemaphore, 0,
-                                        "SignalSemaphore", &emu_object_0, err, errlen) < 0)
-            return 1;
-            ReleaseSemaphore((struct SignalSemaphore *)emu_object_0);
-            return 0;
-    }
-    case 96:  /* AttemptSemaphore(struct SignalSemaphore * sigSem) -> ULONG  [-576] */
-    {
-        APTR emu_object_0;
-        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_SignalSemaphore, 0,
-                                        "SignalSemaphore", &emu_object_0, err, errlen) < 0)
-            return 1;
-            r->d[0] = (ULONG)AttemptSemaphore((struct SignalSemaphore *)emu_object_0);
-            return 0;
-    }
+    case 93:  /* InitSemaphore: explicit reviewed refusal [-558] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: exec.library.InitSemaphore refused: served in the guest by the hand-written bridge: SignalSemaphore is a guest-owned structure whose big-endian list and bookkeeping fields must be initialized in guest memory");
+        r->d[0] = 0;
+        return 1;
+    case 94:  /* ObtainSemaphore: explicit reviewed refusal [-564] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: exec.library.ObtainSemaphore refused: served in the guest by the hand-written bridge: a SignalSemaphore is guest memory and one cooperative context never contends, so obtaining is bookkeeping the native call cannot do on the guest's structure");
+        r->d[0] = 0;
+        return 1;
+    case 95:  /* ReleaseSemaphore: explicit reviewed refusal [-570] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: exec.library.ReleaseSemaphore refused: served in the guest by the hand-written bridge: a SignalSemaphore is guest memory and one cooperative context never contends, so releasing is bookkeeping the native call cannot do on the guest's structure");
+        r->d[0] = 0;
+        return 1;
+    case 96:  /* AttemptSemaphore: explicit reviewed refusal [-576] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: exec.library.AttemptSemaphore refused: served in the guest by the hand-written bridge: a SignalSemaphore is guest memory and an attempt always succeeds while one cooperative context runs");
+        r->d[0] = 0;
+        return 1;
     case 97:  /* ObtainSemaphoreList: no crossing [-582] */
         if (err && errlen)
             snprintf(err, errlen, "capability gap: exec.library.ObtainSemaphoreList needs not on the exec allowlist described");
@@ -521,33 +500,21 @@ int emu68k_gen_exec(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
             snprintf(err, errlen, "capability gap: exec.library.ReleaseSemaphoreList needs not on the exec allowlist described");
         r->d[0] = 0;
         return 1;
-    case 99:  /* FindSemaphore(CONST_STRPTR name) -> struct SignalSemaphore *  [-594] */
-    {
-        APTR emu_result = (APTR)FindSemaphore((CONST_STRPTR)EMU_GPTR(guest0, r->a[1]));
-        if (emu68k_object_to_guest(guest0, emu_result, EMU_OBJ_SignalSemaphore,
-                                      base, NULL,
-                                      "SignalSemaphore", &r->d[0], err, errlen) < 0)
-            return 1;
-            return 0;
-    }
-    case 100:  /* AddSemaphore(struct SignalSemaphore * sigSem) -> void  [-600] */
-    {
-        APTR emu_object_0;
-        if (emu68k_object_from_guest(guest0, r->a[1], EMU_OBJ_SignalSemaphore, 1,
-                                        "SignalSemaphore", &emu_object_0, err, errlen) < 0)
-            return 1;
-            AddSemaphore((struct SignalSemaphore *)emu_object_0);
-            return 0;
-    }
-    case 101:  /* RemSemaphore(struct SignalSemaphore * sigSem) -> void  [-606] */
-    {
-        APTR emu_object_0;
-        if (emu68k_object_from_guest(guest0, r->a[1], EMU_OBJ_SignalSemaphore, 1,
-                                        "SignalSemaphore", &emu_object_0, err, errlen) < 0)
-            return 1;
-            RemSemaphore((struct SignalSemaphore *)emu_object_0);
-            return 0;
-    }
+    case 99:  /* FindSemaphore: explicit reviewed refusal [-594] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: exec.library.FindSemaphore refused: served in the guest by the hand-written bridge: the guest has no public native semaphore namespace, so a native SignalSemaphore token would describe the wrong world");
+        r->d[0] = 0;
+        return 1;
+    case 100:  /* AddSemaphore: explicit reviewed refusal [-600] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: exec.library.AddSemaphore refused: served in the guest by the hand-written bridge: the guest has no public semaphore list and the SignalSemaphore structure lives in guest memory");
+        r->d[0] = 0;
+        return 1;
+    case 101:  /* RemSemaphore: explicit reviewed refusal [-606] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: exec.library.RemSemaphore refused: served in the guest by the hand-written bridge: the guest has no public semaphore list and the SignalSemaphore structure lives in guest memory");
+        r->d[0] = 0;
+        return 1;
     case 102:  /* SumKickData: no crossing [-612] */
         if (err && errlen)
             snprintf(err, errlen, "capability gap: exec.library.SumKickData needs not on the exec allowlist described");
@@ -598,24 +565,16 @@ int emu68k_gen_exec(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
             snprintf(err, errlen, "capability gap: exec.library.CreateMsgPort needs not on the exec allowlist described");
         r->d[0] = 0;
         return 1;
-    case 112:  /* DeleteMsgPort(struct MsgPort * port) -> void  [-672] */
-    {
-        APTR emu_object_0;
-        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_MsgPort, 1,
-                                        "MsgPort", &emu_object_0, err, errlen) < 0)
-            return 1;
-            DeleteMsgPort((struct MsgPort *)emu_object_0);
-            return 0;
-    }
-    case 113:  /* ObtainSemaphoreShared(struct SignalSemaphore * sigSem) -> void  [-678] */
-    {
-        APTR emu_object_0;
-        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_SignalSemaphore, 0,
-                                        "SignalSemaphore", &emu_object_0, err, errlen) < 0)
-            return 1;
-            ObtainSemaphoreShared((struct SignalSemaphore *)emu_object_0);
-            return 0;
-    }
+    case 112:  /* DeleteMsgPort: explicit reviewed refusal [-672] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: exec.library.DeleteMsgPort refused: served in the guest by the hand-written bridge: the structure lives in guest memory, so a native call would receive an address it cannot dereference (validated against the hand-written exec dispatch)");
+        r->d[0] = 0;
+        return 1;
+    case 113:  /* ObtainSemaphoreShared: explicit reviewed refusal [-678] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: exec.library.ObtainSemaphoreShared refused: served in the guest by the hand-written bridge: a SignalSemaphore is guest memory and one cooperative context never contends, so obtaining is bookkeeping the native call cannot do on the guest's structure");
+        r->d[0] = 0;
+        return 1;
     case 114:  /* AllocVec: no crossing [-684] */
         if (err && errlen)
             snprintf(err, errlen, "capability gap: exec.library.AllocVec needs not on the exec allowlist described");
@@ -646,18 +605,14 @@ int emu68k_gen_exec(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
             snprintf(err, errlen, "capability gap: exec.library.FreePooled needs not on the exec allowlist described");
         r->d[0] = 0;
         return 1;
-    case 120:  /* AttemptSemaphoreShared(struct SignalSemaphore * sigSem) -> ULONG  [-720] */
-    {
-        APTR emu_object_0;
-        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_SignalSemaphore, 0,
-                                        "SignalSemaphore", &emu_object_0, err, errlen) < 0)
-            return 1;
-            r->d[0] = (ULONG)AttemptSemaphoreShared((struct SignalSemaphore *)emu_object_0);
-            return 0;
-    }
-    case 121:  /* ColdReboot: no crossing [-726] */
+    case 120:  /* AttemptSemaphoreShared: explicit reviewed refusal [-720] */
         if (err && errlen)
-            snprintf(err, errlen, "capability gap: exec.library.ColdReboot needs not on the exec allowlist described");
+            snprintf(err, errlen, "capability gap: exec.library.AttemptSemaphoreShared refused: served in the guest by the hand-written bridge: a SignalSemaphore is guest memory and one cooperative context never contends, so obtaining is bookkeeping the native call cannot do on the guest's structure");
+        r->d[0] = 0;
+        return 1;
+    case 121:  /* ColdReboot: explicit reviewed refusal [-726] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: exec.library.ColdReboot refused: routing verdict: a hosted guest cannot reboot the macOS process or the native AROS instance on behalf of one classic program");
         r->d[0] = 0;
         return 1;
     case 122:  /* StackSwap: no crossing [-732] */
@@ -815,9 +770,9 @@ int emu68k_gen_exec(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
             snprintf(err, errlen, "capability gap: exec.library.FreeVecPooled needs not on the exec allowlist described");
         r->d[0] = 0;
         return 1;
-    case 173:  /* ShutdownA: no crossing [-1038] */
+    case 173:  /* ShutdownA: explicit reviewed refusal [-1038] */
         if (err && errlen)
-            snprintf(err, errlen, "capability gap: exec.library.ShutdownA needs not on the exec allowlist described");
+            snprintf(err, errlen, "capability gap: exec.library.ShutdownA refused: routing verdict: power-off and system reboot are machine-level operations outside an isolated hosted guest run");
         r->d[0] = 0;
         return 1;
     case 174:  /* NewAllocEntry: no crossing [-1044] */

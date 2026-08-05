@@ -8,8 +8,68 @@
 
 #include <exec/types.h>
 #include <proto/layers.h>
+#include <string.h>
+#include <stdio.h>
+#include <graphics/clip.h>
+#include <graphics/layersext.h>
 
 #include "emu68k_gen.h"
+#include "emu68k_layouts.h"
+
+/* A BitMap the program allocated itself: mirrored natively under its
+ * guest address, converted in and back out around every call. */
+static const struct EmuMirror emu_mirror_BitMap =
+{
+    emu_fields_BitMap, EMU_NFIELDS(emu_fields_BitMap),
+    sizeof(struct BitMap), M68K_BitMap_SIZEOF,
+    0, -1, 0,
+    -1, -1, 1
+};
+
+static const struct EmuTagDesc emu_tagdesc_layers_scale[] =
+{
+    { LA_SRCX, EMU_TAG_U32, "LA_SRCX", NULL, 0, 0, 0, 0, 0 },
+    { LA_SRCY, EMU_TAG_U32, "LA_SRCY", NULL, 0, 0, 0, 0, 0 },
+    { LA_DESTX, EMU_TAG_U32, "LA_DESTX", NULL, 0, 0, 0, 0, 0 },
+    { LA_DESTY, EMU_TAG_U32, "LA_DESTY", NULL, 0, 0, 0, 0, 0 },
+    { LA_SRCWIDTH, EMU_TAG_U32, "LA_SRCWIDTH", NULL, 0, 0, 0, 0, 0 },
+    { LA_SRCHEIGHT, EMU_TAG_U32, "LA_SRCHEIGHT", NULL, 0, 0, 0, 0, 0 },
+    { LA_DESTWIDTH, EMU_TAG_U32, "LA_DESTWIDTH", NULL, 0, 0, 0, 0, 0 },
+    { LA_DESTHEIGHT, EMU_TAG_U32, "LA_DESTHEIGHT", NULL, 0, 0, 0, 0, 0 },
+};
+static const struct EmuTagDomain emu_tagdomain_layers_scale =
+{
+    emu_tagdesc_layers_scale, 8, "layers.scale"
+};
+
+static const struct EmuTagDesc emu_tagdesc_layers_create[] =
+{
+    { LA_BackfillHook, EMU_TAG_REFUSE, "LA_BackfillHook", NULL, 0, 0, 0, 0, 0 },
+    { LA_SuperBitMap, EMU_TAG_OBJECT, "LA_SuperBitMap", NULL, 0, 0, 0, EMU_OBJ_BitMap, 1 },
+    { LA_ChildOf, EMU_TAG_OBJECT, "LA_ChildOf", NULL, 0, 0, 0, EMU_OBJ_Layer, 1 },
+    { LA_InFrontOf, EMU_TAG_OBJECT, "LA_InFrontOf", NULL, 0, 0, 0, EMU_OBJ_Layer, 1 },
+    { LA_Behind, EMU_TAG_OBJECT, "LA_Behind", NULL, 0, 0, 0, EMU_OBJ_Layer, 1 },
+    { LA_Hidden, EMU_TAG_U32, "LA_Hidden", NULL, 0, 0, 0, 0, 0 },
+    { LA_ShapeRegion, EMU_TAG_OBJECT, "LA_ShapeRegion", NULL, 0, 0, 0, EMU_OBJ_Region, 1 },
+    { LA_ShapeHook, EMU_TAG_REFUSE, "LA_ShapeHook", NULL, 0, 0, 0, 0, 0 },
+    { LA_WindowPtr, EMU_TAG_U32, "LA_WindowPtr", NULL, 0, 0, 0, 0, 0 },
+};
+static const struct EmuTagDomain emu_tagdomain_layers_create =
+{
+    emu_tagdesc_layers_create, 9, "layers.create"
+};
+
+static void emu_object_cleanup_Layer_Info(APTR emu_base, APTR emu_object)
+{
+    struct Library *LayersBase = emu_base;
+    DisposeLayerInfo((struct Layer_Info *)emu_object);
+}
+
+static void emu_object_cleanup_Layer(APTR emu_base, APTR emu_object)
+{
+    struct Library *LayersBase = emu_base;
+    DeleteLayer(0, (struct Layer *)emu_object);
+}
 
 int emu68k_gen_layers(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
                   char *err, ULONG errlen)
@@ -28,16 +88,74 @@ int emu68k_gen_layers(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
             InitLayers((struct Layer_Info *)emu_object_0);
             return 0;
     }
-    case 6:  /* CreateUpfrontLayer: no crossing [-36] */
-        if (err && errlen)
-            snprintf(err, errlen, "capability gap: layers.library.CreateUpfrontLayer needs returns a pointer (struct Layer *) described");
-        r->d[0] = 0;
-        return 1;
-    case 7:  /* CreateBehindLayer: no crossing [-42] */
-        if (err && errlen)
-            snprintf(err, errlen, "capability gap: layers.library.CreateBehindLayer needs returns a pointer (struct Layer *) described");
-        r->d[0] = 0;
-        return 1;
+    case 6:  /* CreateUpfrontLayer(struct Layer_Info * li, struct BitMap * bm, LONG x0, LONG y0, LONG x1, LONG y1, LONG flags, struct BitMap * bm2) -> struct Layer *  [-36] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_Layer_Info, 0,
+                                        "Layer_Info", &emu_object_0, err, errlen) < 0)
+            return 1;
+        APTR emu_object_1;
+        if (emu68k_object_adopt_guest(guest0, r->a[1], EMU_OBJ_BitMap,
+                        "BitMap", &emu_mirror_BitMap, &emu_object_1, err, errlen) < 0)
+            return 1;
+        APTR emu_object_7;
+        if (emu68k_object_adopt_guest(guest0, r->a[2], EMU_OBJ_BitMap,
+                        "BitMap", &emu_mirror_BitMap, &emu_object_7, err, errlen) < 0)
+            return 1;
+        APTR emu_result = (APTR)CreateUpfrontLayer((struct Layer_Info *)emu_object_0,
+              (struct BitMap *)emu_object_1,
+              (LONG)r->d[0],
+              (LONG)r->d[1],
+              (LONG)r->d[2],
+              (LONG)r->d[3],
+              (LONG)r->d[4],
+              (struct BitMap *)emu_object_7);
+        if (emu68k_object_sync_guest(guest0, r->a[1], EMU_OBJ_BitMap,
+                                     "BitMap", &emu_mirror_BitMap, err, errlen) < 0)
+            return 1;
+        if (emu68k_object_sync_guest(guest0, r->a[2], EMU_OBJ_BitMap,
+                                     "BitMap", &emu_mirror_BitMap, err, errlen) < 0)
+            return 1;
+        if (emu68k_object_to_guest(guest0, emu_result, EMU_OBJ_Layer,
+                                      base, emu_object_cleanup_Layer,
+                                      "Layer", &r->d[0], err, errlen) < 0)
+            return 1;
+            return 0;
+    }
+    case 7:  /* CreateBehindLayer(struct Layer_Info * li, struct BitMap * bm, LONG x0, LONG y0, LONG x1, LONG y1, LONG flags, struct BitMap * bm2) -> struct Layer *  [-42] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_Layer_Info, 0,
+                                        "Layer_Info", &emu_object_0, err, errlen) < 0)
+            return 1;
+        APTR emu_object_1;
+        if (emu68k_object_adopt_guest(guest0, r->a[1], EMU_OBJ_BitMap,
+                        "BitMap", &emu_mirror_BitMap, &emu_object_1, err, errlen) < 0)
+            return 1;
+        APTR emu_object_7;
+        if (emu68k_object_adopt_guest(guest0, r->a[2], EMU_OBJ_BitMap,
+                        "BitMap", &emu_mirror_BitMap, &emu_object_7, err, errlen) < 0)
+            return 1;
+        APTR emu_result = (APTR)CreateBehindLayer((struct Layer_Info *)emu_object_0,
+              (struct BitMap *)emu_object_1,
+              (LONG)r->d[0],
+              (LONG)r->d[1],
+              (LONG)r->d[2],
+              (LONG)r->d[3],
+              (LONG)r->d[4],
+              (struct BitMap *)emu_object_7);
+        if (emu68k_object_sync_guest(guest0, r->a[1], EMU_OBJ_BitMap,
+                                     "BitMap", &emu_mirror_BitMap, err, errlen) < 0)
+            return 1;
+        if (emu68k_object_sync_guest(guest0, r->a[2], EMU_OBJ_BitMap,
+                                     "BitMap", &emu_mirror_BitMap, err, errlen) < 0)
+            return 1;
+        if (emu68k_object_to_guest(guest0, emu_result, EMU_OBJ_Layer,
+                                      base, emu_object_cleanup_Layer,
+                                      "Layer", &r->d[0], err, errlen) < 0)
+            return 1;
+            return 0;
+    }
     case 8:  /* UpfrontLayer(LONG dummy, struct Layer * l) -> LONG  [-48] */
     {
         APTR emu_object_1;
@@ -207,11 +325,15 @@ int emu68k_gen_layers(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
             UnlockLayerInfo((struct Layer_Info *)emu_object_0);
             return 0;
     }
-    case 24:  /* NewLayerInfo: no crossing [-144] */
-        if (err && errlen)
-            snprintf(err, errlen, "capability gap: layers.library.NewLayerInfo needs returns a pointer (struct Layer_Info *) described");
-        r->d[0] = 0;
-        return 1;
+    case 24:  /* NewLayerInfo(void) -> struct Layer_Info *  [-144] */
+    {
+        APTR emu_result = (APTR)NewLayerInfo();
+        if (emu68k_object_to_guest(guest0, emu_result, EMU_OBJ_Layer_Info,
+                                      base, emu_object_cleanup_Layer_Info,
+                                      "Layer_Info", &r->d[0], err, errlen) < 0)
+            return 1;
+            return 0;
+    }
     case 25:  /* DisposeLayerInfo(struct Layer_Info * li) -> void  [-150] */
     {
         APTR emu_object_0;
@@ -284,24 +406,96 @@ int emu68k_gen_layers(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
               (LONG)r->d[3]);
             return 0;
     }
-    case 31:  /* CreateUpfrontHookLayer: no crossing [-186] */
+    case 31:  /* CreateUpfrontHookLayer(struct Layer_Info * li, struct BitMap * bm, LONG x0, LONG y0, LONG x1, LONG y1, LONG flags, struct Hook * hook, struct BitMap * bm2) -> struct Layer *  [-186] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_Layer_Info, 0,
+                                        "Layer_Info", &emu_object_0, err, errlen) < 0)
+            return 1;
+        APTR emu_object_1;
+        if (emu68k_object_adopt_guest(guest0, r->a[1], EMU_OBJ_BitMap,
+                        "BitMap", &emu_mirror_BitMap, &emu_object_1, err, errlen) < 0)
+            return 1;
+        if (r->a[3])
+        {
+            if (err && errlen)
+                snprintf(err, errlen, "CreateUpfrontHookLayer.hook currently requires NULL");
+            return 1;
+        }
+        APTR emu_object_8;
+        if (emu68k_object_adopt_guest(guest0, r->a[2], EMU_OBJ_BitMap,
+                        "BitMap", &emu_mirror_BitMap, &emu_object_8, err, errlen) < 0)
+            return 1;
+        APTR emu_result = (APTR)CreateUpfrontHookLayer((struct Layer_Info *)emu_object_0,
+              (struct BitMap *)emu_object_1,
+              (LONG)r->d[0],
+              (LONG)r->d[1],
+              (LONG)r->d[2],
+              (LONG)r->d[3],
+              (LONG)r->d[4],
+              (struct Hook *)NULL,
+              (struct BitMap *)emu_object_8);
+        if (emu68k_object_sync_guest(guest0, r->a[1], EMU_OBJ_BitMap,
+                                     "BitMap", &emu_mirror_BitMap, err, errlen) < 0)
+            return 1;
+        if (emu68k_object_sync_guest(guest0, r->a[2], EMU_OBJ_BitMap,
+                                     "BitMap", &emu_mirror_BitMap, err, errlen) < 0)
+            return 1;
+        if (emu68k_object_to_guest(guest0, emu_result, EMU_OBJ_Layer,
+                                      base, emu_object_cleanup_Layer,
+                                      "Layer", &r->d[0], err, errlen) < 0)
+            return 1;
+            return 0;
+    }
+    case 32:  /* CreateBehindHookLayer(struct Layer_Info * li, struct BitMap * bm, LONG x0, LONG y0, LONG x1, LONG y1, LONG flags, struct Hook * hook, struct BitMap * bm2) -> struct Layer *  [-192] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_Layer_Info, 0,
+                                        "Layer_Info", &emu_object_0, err, errlen) < 0)
+            return 1;
+        APTR emu_object_1;
+        if (emu68k_object_adopt_guest(guest0, r->a[1], EMU_OBJ_BitMap,
+                        "BitMap", &emu_mirror_BitMap, &emu_object_1, err, errlen) < 0)
+            return 1;
+        if (r->a[3])
+        {
+            if (err && errlen)
+                snprintf(err, errlen, "CreateBehindHookLayer.hook currently requires NULL");
+            return 1;
+        }
+        APTR emu_object_8;
+        if (emu68k_object_adopt_guest(guest0, r->a[2], EMU_OBJ_BitMap,
+                        "BitMap", &emu_mirror_BitMap, &emu_object_8, err, errlen) < 0)
+            return 1;
+        APTR emu_result = (APTR)CreateBehindHookLayer((struct Layer_Info *)emu_object_0,
+              (struct BitMap *)emu_object_1,
+              (LONG)r->d[0],
+              (LONG)r->d[1],
+              (LONG)r->d[2],
+              (LONG)r->d[3],
+              (LONG)r->d[4],
+              (struct Hook *)NULL,
+              (struct BitMap *)emu_object_8);
+        if (emu68k_object_sync_guest(guest0, r->a[1], EMU_OBJ_BitMap,
+                                     "BitMap", &emu_mirror_BitMap, err, errlen) < 0)
+            return 1;
+        if (emu68k_object_sync_guest(guest0, r->a[2], EMU_OBJ_BitMap,
+                                     "BitMap", &emu_mirror_BitMap, err, errlen) < 0)
+            return 1;
+        if (emu68k_object_to_guest(guest0, emu_result, EMU_OBJ_Layer,
+                                      base, emu_object_cleanup_Layer,
+                                      "Layer", &r->d[0], err, errlen) < 0)
+            return 1;
+            return 0;
+    }
+    case 33:  /* InstallLayerHook: explicit reviewed refusal [-198] */
         if (err && errlen)
-            snprintf(err, errlen, "capability gap: layers.library.CreateUpfrontHookLayer needs returns a pointer (struct Layer *) described");
+            snprintf(err, errlen, "capability gap: layers.library.InstallLayerHook refused: requires a run-lifetime native-to-68k backfill hook adapter and preservation of the previous guest hook identity");
         r->d[0] = 0;
         return 1;
-    case 32:  /* CreateBehindHookLayer: no crossing [-192] */
+    case 34:  /* InstallLayerInfoHook: explicit reviewed refusal [-204] */
         if (err && errlen)
-            snprintf(err, errlen, "capability gap: layers.library.CreateBehindHookLayer needs returns a pointer (struct Layer *) described");
-        r->d[0] = 0;
-        return 1;
-    case 33:  /* InstallLayerHook: no crossing [-198] */
-        if (err && errlen)
-            snprintf(err, errlen, "capability gap: layers.library.InstallLayerHook needs returns a pointer (struct Hook *) described");
-        r->d[0] = 0;
-        return 1;
-    case 34:  /* InstallLayerInfoHook: no crossing [-204] */
-        if (err && errlen)
-            snprintf(err, errlen, "capability gap: layers.library.InstallLayerInfoHook needs returns a pointer (struct Hook *) described");
+            snprintf(err, errlen, "capability gap: layers.library.InstallLayerInfoHook refused: requires a run-lifetime native-to-68k blank hook adapter and preservation of the previous guest hook identity");
         r->d[0] = 0;
         return 1;
     case 35:  /* SortLayerCR(struct Layer * layer, LONG dx, LONG dy) -> void  [-210] */
@@ -315,31 +509,109 @@ int emu68k_gen_layers(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
               (LONG)r->d[1]);
             return 0;
     }
-    case 36:  /* DoHookClipRects: no crossing [-216] */
+    case 36:  /* DoHookClipRects: explicit reviewed refusal [-216] */
         if (err && errlen)
-            snprintf(err, errlen, "capability gap: layers.library.DoHookClipRects needs struct Hook *, struct RastPort *, struct Rectangle * described");
+            snprintf(err, errlen, "capability gap: layers.library.DoHookClipRects refused: calls the guest hook from native Layers with native RastPort, Layer and Rectangle message pointers that require callback-specific facades");
         r->d[0] = 0;
         return 1;
-    case 37:  /* ChangeLayerShape: no crossing [-222] */
-        if (err && errlen)
-            snprintf(err, errlen, "capability gap: layers.library.ChangeLayerShape needs returns a pointer (struct Region *) described");
-        r->d[0] = 0;
-        return 1;
-    case 38:  /* ScaleLayer: no crossing [-228] */
-        if (err && errlen)
-            snprintf(err, errlen, "capability gap: layers.library.ScaleLayer needs struct Layer *, struct TagItem * described");
-        r->d[0] = 0;
-        return 1;
-    case 39:  /* CreateUpfrontLayerTagList: no crossing [-234] */
-        if (err && errlen)
-            snprintf(err, errlen, "capability gap: layers.library.CreateUpfrontLayerTagList needs returns a pointer (struct Layer *) described");
-        r->d[0] = 0;
-        return 1;
-    case 40:  /* CreateBehindLayerTagList: no crossing [-240] */
-        if (err && errlen)
-            snprintf(err, errlen, "capability gap: layers.library.CreateBehindLayerTagList needs returns a pointer (struct Layer *) described");
-        r->d[0] = 0;
-        return 1;
+    case 37:  /* ChangeLayerShape(struct Layer * l, struct Region * newshape, struct Hook * callback) -> struct Region *  [-222] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_Layer, 0,
+                                        "Layer", &emu_object_0, err, errlen) < 0)
+            return 1;
+        APTR emu_object_1;
+        if (emu68k_object_from_guest(guest0, r->a[1], EMU_OBJ_Region, 1,
+                                        "Region", &emu_object_1, err, errlen) < 0)
+            return 1;
+        if (r->a[2])
+        {
+            if (err && errlen)
+                snprintf(err, errlen, "ChangeLayerShape.callback currently requires NULL");
+            return 1;
+        }
+        APTR emu_result = (APTR)ChangeLayerShape((struct Layer *)emu_object_0,
+              (struct Region *)emu_object_1,
+              (struct Hook *)NULL);
+        if (emu68k_object_to_guest(guest0, emu_result, EMU_OBJ_Region,
+                                      base, NULL,
+                                      "Region", &r->d[0], err, errlen) < 0)
+            return 1;
+            return 0;
+    }
+    case 38:  /* ScaleLayer(struct Layer * l, struct TagItem * taglist) -> ULONG  [-228] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_Layer, 0,
+                                        "Layer", &emu_object_0, err, errlen) < 0)
+            return 1;
+        struct TagItem emu_tags_1[13];
+        if (emu68k_tags_to_native(guest0, r->a[1], &emu_tagdomain_layers_scale, emu_tags_1, 13, NULL, 0, err, errlen) < 0)
+            return 1;
+            r->d[0] = (ULONG)ScaleLayer((struct Layer *)emu_object_0,
+              (struct TagItem *)(r->a[1] ? emu_tags_1 : NULL));
+            return 0;
+    }
+    case 39:  /* CreateUpfrontLayerTagList(struct Layer_Info * li, struct BitMap * bm, LONG x0, LONG y0, LONG x1, LONG y1, LONG flags, struct TagItem * tagList) -> struct Layer *  [-234] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_Layer_Info, 0,
+                                        "Layer_Info", &emu_object_0, err, errlen) < 0)
+            return 1;
+        APTR emu_object_1;
+        if (emu68k_object_adopt_guest(guest0, r->a[1], EMU_OBJ_BitMap,
+                        "BitMap", &emu_mirror_BitMap, &emu_object_1, err, errlen) < 0)
+            return 1;
+        struct TagItem emu_tags_7[17];
+        if (emu68k_tags_to_native(guest0, r->a[2], &emu_tagdomain_layers_create, emu_tags_7, 17, NULL, 0, err, errlen) < 0)
+            return 1;
+        APTR emu_result = (APTR)CreateUpfrontLayerTagList((struct Layer_Info *)emu_object_0,
+              (struct BitMap *)emu_object_1,
+              (LONG)r->d[0],
+              (LONG)r->d[1],
+              (LONG)r->d[2],
+              (LONG)r->d[3],
+              (LONG)r->d[4],
+              (struct TagItem *)(r->a[2] ? emu_tags_7 : NULL));
+        if (emu68k_object_sync_guest(guest0, r->a[1], EMU_OBJ_BitMap,
+                                     "BitMap", &emu_mirror_BitMap, err, errlen) < 0)
+            return 1;
+        if (emu68k_object_to_guest(guest0, emu_result, EMU_OBJ_Layer,
+                                      base, emu_object_cleanup_Layer,
+                                      "Layer", &r->d[0], err, errlen) < 0)
+            return 1;
+            return 0;
+    }
+    case 40:  /* CreateBehindLayerTagList(struct Layer_Info * li, struct BitMap * bm, LONG x0, LONG y0, LONG x1, LONG y1, LONG flags, struct TagItem * tagList) -> struct Layer *  [-240] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_Layer_Info, 0,
+                                        "Layer_Info", &emu_object_0, err, errlen) < 0)
+            return 1;
+        APTR emu_object_1;
+        if (emu68k_object_adopt_guest(guest0, r->a[1], EMU_OBJ_BitMap,
+                        "BitMap", &emu_mirror_BitMap, &emu_object_1, err, errlen) < 0)
+            return 1;
+        struct TagItem emu_tags_7[17];
+        if (emu68k_tags_to_native(guest0, r->a[2], &emu_tagdomain_layers_create, emu_tags_7, 17, NULL, 0, err, errlen) < 0)
+            return 1;
+        APTR emu_result = (APTR)CreateBehindLayerTagList((struct Layer_Info *)emu_object_0,
+              (struct BitMap *)emu_object_1,
+              (LONG)r->d[0],
+              (LONG)r->d[1],
+              (LONG)r->d[2],
+              (LONG)r->d[3],
+              (LONG)r->d[4],
+              (struct TagItem *)(r->a[2] ? emu_tags_7 : NULL));
+        if (emu68k_object_sync_guest(guest0, r->a[1], EMU_OBJ_BitMap,
+                                     "BitMap", &emu_mirror_BitMap, err, errlen) < 0)
+            return 1;
+        if (emu68k_object_to_guest(guest0, emu_result, EMU_OBJ_Layer,
+                                      base, emu_object_cleanup_Layer,
+                                      "Layer", &r->d[0], err, errlen) < 0)
+            return 1;
+            return 0;
+    }
     case 41:  /* ChangeLayerVisibility(struct Layer * l, int visible) -> LONG  [-246] */
     {
         APTR emu_object_0;
@@ -369,9 +641,9 @@ int emu68k_gen_layers(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
               (BOOL)r->d[0]);
             return 0;
     }
-    case 45:  /* CollectPixelsLayer: no crossing [-270] */
+    case 45:  /* CollectPixelsLayer: explicit reviewed refusal [-270] */
         if (err && errlen)
-            snprintf(err, errlen, "capability gap: layers.library.CollectPixelsLayer needs struct Hook *, struct Layer *, struct Region * described");
+            snprintf(err, errlen, "capability gap: layers.library.CollectPixelsLayer refused: calls the guest hook repeatedly with native Layer and CollectPixelsLayerMsg data that requires a callback-specific mirror");
         r->d[0] = 0;
         return 1;
     }

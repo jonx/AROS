@@ -264,11 +264,19 @@ int emu68k_gen_locale(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
             snprintf(err, errlen, "capability gap: locale.library.StrConvert needs APTR buffer, const struct Locale * described");
         r->d[0] = 0;
         return 1;
-    case 30:  /* StrnCmp: no crossing [-180] */
-        if (err && errlen)
-            snprintf(err, errlen, "capability gap: locale.library.StrnCmp needs const struct Locale * described");
-        r->d[0] = 0;
-        return 1;
+    case 30:  /* StrnCmp(const struct Locale * locale, CONST_STRPTR string1, CONST_STRPTR string2, LONG length, ULONG type) -> LONG  [-180] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_Locale, 1,
+                                        "Locale", &emu_object_0, err, errlen) < 0)
+            return 1;
+            r->d[0] = (ULONG)StrnCmp((const struct Locale *)emu_object_0,
+              (CONST_STRPTR)EMU_GPTR(guest0, r->a[1]),
+              (CONST_STRPTR)EMU_GPTR(guest0, r->a[2]),
+              (LONG)r->d[0],
+              (ULONG)r->d[1]);
+            return 0;
+    }
     case 31:  /* LocRawDoFmt: no crossing [-186] */
         if (err && errlen)
             snprintf(err, errlen, "capability gap: locale.library.LocRawDoFmt needs private described");

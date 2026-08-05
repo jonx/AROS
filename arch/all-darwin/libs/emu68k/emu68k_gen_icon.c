@@ -9,6 +9,7 @@
 #include <exec/types.h>
 #include <proto/icon.h>
 #include <string.h>
+#include <stdio.h>
 #include <workbench/icon.h>
 
 #include "emu68k_gen.h"

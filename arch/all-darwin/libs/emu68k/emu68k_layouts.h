@@ -118,6 +118,23 @@ struct EmuStructDesc
 #define M68K_DateStamp_ds_Minute 4
 #define M68K_DateStamp_ds_Tick 8
 
+/* struct DateTime: 26 bytes on m68k (DateTime), 40 native (DateTime) */
+#define M68K_DateTime_SIZEOF 26
+#define M68K_DateTime_dat_Stamp_ds_Days 0
+#define M68K_DateTime_dat_Stamp_ds_Minute 4
+#define M68K_DateTime_dat_Stamp_ds_Tick 8
+#define M68K_DateTime_dat_Format 12
+#define M68K_DateTime_dat_Flags 13
+#define M68K_DateTime_dat_StrDay 14   /* native @16 - CONVERT */
+#define M68K_DateTime_dat_StrDate 18   /* native @24 - CONVERT */
+#define M68K_DateTime_dat_StrTime 22   /* native @32 - CONVERT */
+
+/* struct CSource: 12 bytes on m68k (CSource), 16 native (CSource) */
+#define M68K_CSource_SIZEOF 12
+#define M68K_CSource_CS_Buffer 0
+#define M68K_CSource_CS_Length 4   /* native @8 - CONVERT */
+#define M68K_CSource_CS_CurChr 8   /* native @12 - CONVERT */
+
 /* struct InfoData: 36 bytes on m68k (InfoData32), 48 native (InfoData32) */
 #define M68K_InfoData_SIZEOF 36
 #define M68K_InfoData_id_NumSoftErrors 0
@@ -129,6 +146,39 @@ struct EmuStructDesc
 #define M68K_InfoData_id_DiskType 24
 #define M68K_InfoData_id_VolumeNode 28   /* native @32 - CONVERT */
 #define M68K_InfoData_id_InUse 32   /* native @40 - CONVERT */
+
+/* struct DosPacket: 48 bytes on m68k (DosPacket), 96 native (DosPacket) */
+#define M68K_DosPacket_SIZEOF 48
+#define M68K_DosPacket_dp_Link 0
+#define M68K_DosPacket_dp_Port 4   /* native @8 - CONVERT */
+#define M68K_DosPacket_dp_Type 8   /* native @16 - CONVERT */
+#define M68K_DosPacket_dp_Res1 12   /* native @24 - CONVERT */
+#define M68K_DosPacket_dp_Res2 16   /* native @32 - CONVERT */
+#define M68K_DosPacket_dp_Arg1 20   /* native @40 - CONVERT */
+#define M68K_DosPacket_dp_Arg2 24   /* native @48 - CONVERT */
+#define M68K_DosPacket_dp_Arg3 28   /* native @56 - CONVERT */
+#define M68K_DosPacket_dp_Arg4 32   /* native @64 - CONVERT */
+#define M68K_DosPacket_dp_Arg5 36   /* native @72 - CONVERT */
+#define M68K_DosPacket_dp_Arg6 40   /* native @80 - CONVERT */
+#define M68K_DosPacket_dp_Arg7 44   /* native @88 - CONVERT */
+
+/* struct LocalVar: 24 bytes on m68k (LocalVar), 56 native (LocalVar) */
+#define M68K_LocalVar_SIZEOF 24
+#define M68K_LocalVar_lv_Node_ln_Succ 0
+#define M68K_LocalVar_lv_Node_ln_Pred 4   /* native @8 - CONVERT */
+#define M68K_LocalVar_lv_Node_ln_Type 8   /* native @16 - CONVERT */
+#define M68K_LocalVar_lv_Node_ln_Pri 9   /* native @17 - CONVERT */
+#define M68K_LocalVar_lv_Node_ln_Name 10   /* native @24 - CONVERT */
+#define M68K_LocalVar_lv_Flags 14   /* native @32 - CONVERT */
+#define M68K_LocalVar_lv_Value 16   /* native @40 - CONVERT */
+#define M68K_LocalVar_lv_Len 20   /* native @48 - CONVERT */
+
+/* struct ExAllControl: 16 bytes on m68k (ExAllControl), 32 native (ExAllControl) */
+#define M68K_ExAllControl_SIZEOF 16
+#define M68K_ExAllControl_eac_Entries 0
+#define M68K_ExAllControl_eac_LastKey 4   /* native @8 - CONVERT */
+#define M68K_ExAllControl_eac_MatchString 8   /* native @16 - CONVERT */
+#define M68K_ExAllControl_eac_MatchFunc 12   /* native @24 - CONVERT */
 
 /* struct TagItem: 8 bytes on m68k (TagItem), 16 native (TagItem) */
 #define M68K_TagItem_SIZEOF 8
@@ -440,6 +490,43 @@ struct EmuStructDesc
 #define M68K_Screen_ExtData 346   /* native @640 - CONVERT */
 #define M68K_Screen_UserData 350   /* native @648 - CONVERT */
 
+/* struct NewWindow: 48 bytes on m68k (NewWindow), 80 native (NewWindow) */
+#define M68K_NewWindow_SIZEOF 48
+#define M68K_NewWindow_LeftEdge 0
+#define M68K_NewWindow_TopEdge 2
+#define M68K_NewWindow_Width 4
+#define M68K_NewWindow_Height 6
+#define M68K_NewWindow_DetailPen 8
+#define M68K_NewWindow_BlockPen 9
+#define M68K_NewWindow_IDCMPFlags 10   /* native @12 - CONVERT */
+#define M68K_NewWindow_Flags 14   /* native @16 - CONVERT */
+#define M68K_NewWindow_FirstGadget 18   /* native @24 - CONVERT */
+#define M68K_NewWindow_CheckMark 22   /* native @32 - CONVERT */
+#define M68K_NewWindow_Title 26   /* native @40 - CONVERT */
+#define M68K_NewWindow_Screen 30   /* native @48 - CONVERT */
+#define M68K_NewWindow_BitMap 34   /* native @56 - CONVERT */
+#define M68K_NewWindow_MinWidth 38   /* native @64 - CONVERT */
+#define M68K_NewWindow_MinHeight 40   /* native @66 - CONVERT */
+#define M68K_NewWindow_MaxWidth 42   /* native @68 - CONVERT */
+#define M68K_NewWindow_MaxHeight 44   /* native @70 - CONVERT */
+#define M68K_NewWindow_Type 46   /* native @72 - CONVERT */
+
+/* struct NewScreen: 32 bytes on m68k (NewScreen), 48 native (NewScreen) */
+#define M68K_NewScreen_SIZEOF 32
+#define M68K_NewScreen_LeftEdge 0
+#define M68K_NewScreen_TopEdge 2
+#define M68K_NewScreen_Width 4
+#define M68K_NewScreen_Height 6
+#define M68K_NewScreen_Depth 8
+#define M68K_NewScreen_DetailPen 10
+#define M68K_NewScreen_BlockPen 11
+#define M68K_NewScreen_ViewModes 12
+#define M68K_NewScreen_Type 14
+#define M68K_NewScreen_Font 16
+#define M68K_NewScreen_DefaultTitle 20   /* native @24 - CONVERT */
+#define M68K_NewScreen_Gadgets 24   /* native @32 - CONVERT */
+#define M68K_NewScreen_CustomBitMap 28   /* native @40 - CONVERT */
+
 /* struct RastPort: 100 bytes on m68k (RastPort), 176 native (RastPort) */
 #define M68K_RastPort_SIZEOF 100
 #define M68K_RastPort_Layer 0
@@ -545,6 +632,147 @@ struct EmuStructDesc
 #define M68K_BitMap_pad 6
 #define M68K_BitMap_Planes 8
 
+/* struct AreaInfo: 24 bytes on m68k (AreaInfo), 40 native (AreaInfo) */
+#define M68K_AreaInfo_SIZEOF 24
+#define M68K_AreaInfo_VctrTbl 0
+#define M68K_AreaInfo_VctrPtr 4   /* native @8 - CONVERT */
+#define M68K_AreaInfo_FlagTbl 8   /* native @16 - CONVERT */
+#define M68K_AreaInfo_FlagPtr 12   /* native @24 - CONVERT */
+#define M68K_AreaInfo_Count 16   /* native @32 - CONVERT */
+#define M68K_AreaInfo_MaxCount 18   /* native @34 - CONVERT */
+#define M68K_AreaInfo_FirstX 20   /* native @36 - CONVERT */
+#define M68K_AreaInfo_FirstY 22   /* native @38 - CONVERT */
+
+/* struct TmpRas: 8 bytes on m68k (TmpRas), 16 native (TmpRas) */
+#define M68K_TmpRas_SIZEOF 8
+#define M68K_TmpRas_RasPtr 0
+#define M68K_TmpRas_Size 4   /* native @8 - CONVERT */
+
+/* struct GelsInfo: 38 bytes on m68k (GelsInfo), 72 native (GelsInfo) */
+#define M68K_GelsInfo_SIZEOF 38
+#define M68K_GelsInfo_sprRsrvd 0
+#define M68K_GelsInfo_Flags 1
+#define M68K_GelsInfo_gelHead 2   /* native @8 - CONVERT */
+#define M68K_GelsInfo_gelTail 6   /* native @16 - CONVERT */
+#define M68K_GelsInfo_nextLine 10   /* native @24 - CONVERT */
+#define M68K_GelsInfo_lastColor 14   /* native @32 - CONVERT */
+#define M68K_GelsInfo_collHandler 18   /* native @40 - CONVERT */
+#define M68K_GelsInfo_leftmost 22   /* native @48 - CONVERT */
+#define M68K_GelsInfo_rightmost 24   /* native @50 - CONVERT */
+#define M68K_GelsInfo_topmost 26   /* native @52 - CONVERT */
+#define M68K_GelsInfo_bottommost 28   /* native @54 - CONVERT */
+#define M68K_GelsInfo_firstBlissObj 30   /* native @56 - CONVERT */
+#define M68K_GelsInfo_lastBlissObj 34   /* native @64 - CONVERT */
+
+/* struct collTable: 64 bytes on m68k (collTable), 128 native (collTable) */
+#define M68K_collTable_SIZEOF 64
+#define M68K_collTable_collPtrs 0
+
+/* struct AnimOb: 42 bytes on m68k (AnimOb), 64 native (AnimOb) */
+#define M68K_AnimOb_SIZEOF 42
+#define M68K_AnimOb_NextOb 0
+#define M68K_AnimOb_PrevOb 4   /* native @8 - CONVERT */
+#define M68K_AnimOb_Clock 8   /* native @16 - CONVERT */
+#define M68K_AnimOb_AnOldY 12   /* native @20 - CONVERT */
+#define M68K_AnimOb_AnOldX 14   /* native @22 - CONVERT */
+#define M68K_AnimOb_AnY 16   /* native @24 - CONVERT */
+#define M68K_AnimOb_AnX 18   /* native @26 - CONVERT */
+#define M68K_AnimOb_YVel 20   /* native @28 - CONVERT */
+#define M68K_AnimOb_XVel 22   /* native @30 - CONVERT */
+#define M68K_AnimOb_YAccel 24   /* native @32 - CONVERT */
+#define M68K_AnimOb_XAccel 26   /* native @34 - CONVERT */
+#define M68K_AnimOb_RingYTrans 28   /* native @36 - CONVERT */
+#define M68K_AnimOb_RingXTrans 30   /* native @38 - CONVERT */
+#define M68K_AnimOb_AnimORoutine 32   /* native @40 - CONVERT */
+#define M68K_AnimOb_HeadComp 36   /* native @48 - CONVERT */
+#define M68K_AnimOb_AUserExt 40   /* native @56 - CONVERT */
+
+/* struct AnimComp: 38 bytes on m68k (AnimComp), 72 native (AnimComp) */
+#define M68K_AnimComp_SIZEOF 38
+#define M68K_AnimComp_Flags 0
+#define M68K_AnimComp_Timer 2
+#define M68K_AnimComp_TimeSet 4
+#define M68K_AnimComp_NextComp 6   /* native @8 - CONVERT */
+#define M68K_AnimComp_PrevComp 10   /* native @16 - CONVERT */
+#define M68K_AnimComp_NextSeq 14   /* native @24 - CONVERT */
+#define M68K_AnimComp_PrevSeq 18   /* native @32 - CONVERT */
+#define M68K_AnimComp_AnimCRoutine 22   /* native @40 - CONVERT */
+#define M68K_AnimComp_YTrans 26   /* native @48 - CONVERT */
+#define M68K_AnimComp_XTrans 28   /* native @50 - CONVERT */
+#define M68K_AnimComp_HeadOb 30   /* native @56 - CONVERT */
+#define M68K_AnimComp_AnimBob 34   /* native @64 - CONVERT */
+
+/* struct Bob: 32 bytes on m68k (Bob), 72 native (Bob) */
+#define M68K_Bob_SIZEOF 32
+#define M68K_Bob_Flags 0
+#define M68K_Bob_SaveBuffer 2   /* native @8 - CONVERT */
+#define M68K_Bob_ImageShadow 6   /* native @16 - CONVERT */
+#define M68K_Bob_Before 10   /* native @24 - CONVERT */
+#define M68K_Bob_After 14   /* native @32 - CONVERT */
+#define M68K_Bob_BobVSprite 18   /* native @40 - CONVERT */
+#define M68K_Bob_BobComp 22   /* native @48 - CONVERT */
+#define M68K_Bob_DBuffer 26   /* native @56 - CONVERT */
+#define M68K_Bob_BUserExt 30   /* native @64 - CONVERT */
+
+/* struct VSprite: 60 bytes on m68k (VSprite), 104 native (VSprite) */
+#define M68K_VSprite_SIZEOF 60
+#define M68K_VSprite_NextVSprite 0
+#define M68K_VSprite_PrevVSprite 4   /* native @8 - CONVERT */
+#define M68K_VSprite_IntVSprite 8   /* native @16 - CONVERT */
+#define M68K_VSprite_ClearPath 12   /* native @24 - CONVERT */
+#define M68K_VSprite_OldY 16   /* native @32 - CONVERT */
+#define M68K_VSprite_OldX 18   /* native @34 - CONVERT */
+#define M68K_VSprite_Flags 20   /* native @36 - CONVERT */
+#define M68K_VSprite_Y 22   /* native @38 - CONVERT */
+#define M68K_VSprite_X 24   /* native @40 - CONVERT */
+#define M68K_VSprite_Height 26   /* native @42 - CONVERT */
+#define M68K_VSprite_Width 28   /* native @44 - CONVERT */
+#define M68K_VSprite_Depth 30   /* native @46 - CONVERT */
+#define M68K_VSprite_MeMask 32   /* native @48 - CONVERT */
+#define M68K_VSprite_HitMask 34   /* native @50 - CONVERT */
+#define M68K_VSprite_ImageData 36   /* native @56 - CONVERT */
+#define M68K_VSprite_BorderLine 40   /* native @64 - CONVERT */
+#define M68K_VSprite_CollMask 44   /* native @72 - CONVERT */
+#define M68K_VSprite_SprColors 48   /* native @80 - CONVERT */
+#define M68K_VSprite_VSBob 52   /* native @88 - CONVERT */
+#define M68K_VSprite_PlanePick 56   /* native @96 - CONVERT */
+#define M68K_VSprite_PlaneOnOff 57   /* native @97 - CONVERT */
+#define M68K_VSprite_VUserExt 58   /* native @98 - CONVERT */
+
+/* struct UCopList: 12 bytes on m68k (UCopList), 24 native (UCopList) */
+#define M68K_UCopList_SIZEOF 12
+#define M68K_UCopList_Next 0
+#define M68K_UCopList_FirstCopList 4   /* native @8 - CONVERT */
+#define M68K_UCopList_CopList 8   /* native @16 - CONVERT */
+
+/* struct CopList: 38 bytes on m68k (CopList), 72 native (CopList) */
+#define M68K_CopList_SIZEOF 38
+#define M68K_CopList_Next 0
+#define M68K_CopList__CopList 4   /* native @8 - CONVERT */
+#define M68K_CopList__ViewPort 8   /* native @16 - CONVERT */
+#define M68K_CopList_CopIns 12   /* native @24 - CONVERT */
+#define M68K_CopList_CopPtr 16   /* native @32 - CONVERT */
+#define M68K_CopList_CopLStart 20   /* native @40 - CONVERT */
+#define M68K_CopList_CopSStart 24   /* native @48 - CONVERT */
+#define M68K_CopList_Count 28   /* native @56 - CONVERT */
+#define M68K_CopList_MaxCount 30   /* native @58 - CONVERT */
+#define M68K_CopList_DyOffset 32   /* native @60 - CONVERT */
+#define M68K_CopList_SLRepeat 34   /* native @62 - CONVERT */
+#define M68K_CopList_Flags 36   /* native @64 - CONVERT */
+
+/* struct CopIns: 6 bytes on m68k (CopIns), 16 native (CopIns) */
+#define M68K_CopIns_SIZEOF 6
+#define M68K_CopIns_OpCode 0
+#define M68K_CopIns_u3_nxtlist 2   /* native @8 - CONVERT */
+
+/* struct SimpleSprite: 12 bytes on m68k (SimpleSprite), 16 native (SimpleSprite) */
+#define M68K_SimpleSprite_SIZEOF 12
+#define M68K_SimpleSprite_posctldata 0
+#define M68K_SimpleSprite_height 4   /* native @8 - CONVERT */
+#define M68K_SimpleSprite_x 6   /* native @10 - CONVERT */
+#define M68K_SimpleSprite_y 8   /* native @12 - CONVERT */
+#define M68K_SimpleSprite_num 10   /* native @14 - CONVERT */
+
 /* struct TextAttr: 8 bytes on m68k (TextAttr), 16 native (TextAttr) */
 #define M68K_TextAttr_SIZEOF 8
 #define M68K_TextAttr_ta_Name 0
@@ -595,6 +823,26 @@ struct EmuStructDesc
 #define M68K_IntuiText_ITextFont 8
 #define M68K_IntuiText_IText 12   /* native @16 - CONVERT */
 #define M68K_IntuiText_NextText 16   /* native @24 - CONVERT */
+
+/* struct EasyStruct: 20 bytes on m68k (EasyStruct), 32 native (EasyStruct) */
+#define M68K_EasyStruct_SIZEOF 20
+#define M68K_EasyStruct_es_StructSize 0
+#define M68K_EasyStruct_es_Flags 4
+#define M68K_EasyStruct_es_Title 8
+#define M68K_EasyStruct_es_TextFormat 12   /* native @16 - CONVERT */
+#define M68K_EasyStruct_es_GadgetFormat 16   /* native @24 - CONVERT */
+
+/* struct ColorWheelHSB: 12 bytes on m68k (ColorWheelHSB), 12 native (ColorWheelHSB) */
+#define M68K_ColorWheelHSB_SIZEOF 12
+#define M68K_ColorWheelHSB_cw_Hue 0
+#define M68K_ColorWheelHSB_cw_Saturation 4
+#define M68K_ColorWheelHSB_cw_Brightness 8
+
+/* struct ColorWheelRGB: 12 bytes on m68k (ColorWheelRGB), 12 native (ColorWheelRGB) */
+#define M68K_ColorWheelRGB_SIZEOF 12
+#define M68K_ColorWheelRGB_cw_Red 0
+#define M68K_ColorWheelRGB_cw_Green 4
+#define M68K_ColorWheelRGB_cw_Blue 8
 
 /* struct DimensionInfo: 88 bytes on m68k (DimensionInfo), 96 native (DimensionInfo) */
 #define M68K_DimensionInfo_SIZEOF 88
@@ -739,6 +987,12 @@ struct EmuStructDesc
 #define M68K_IntuiMessage_IDCMPWindow 44   /* native @80 - CONVERT */
 #define M68K_IntuiMessage_SpecialLink 48   /* native @88 - CONVERT */
 
+/* struct Remember: 12 bytes on m68k (Remember), 24 native (Remember) */
+#define M68K_Remember_SIZEOF 12
+#define M68K_Remember_NextRemember 0
+#define M68K_Remember_RememberSize 4   /* native @8 - CONVERT */
+#define M68K_Remember_Memory 8   /* native @16 - CONVERT */
+
 /* struct Gadget: 44 bytes on m68k (Gadget), 80 native (Gadget) */
 #define M68K_Gadget_SIZEOF 44
 #define M68K_Gadget_NextGadget 0
@@ -779,6 +1033,31 @@ struct EmuStructDesc
 #define M68K_ExtGadget_BoundsTopEdge 50   /* native @86 - CONVERT */
 #define M68K_ExtGadget_BoundsWidth 52   /* native @88 - CONVERT */
 #define M68K_ExtGadget_BoundsHeight 54   /* native @90 - CONVERT */
+
+/* struct CyberModeNode: 60 bytes on m68k (CyberModeNode), 88 native (CyberModeNode) */
+#define M68K_CyberModeNode_SIZEOF 60
+#define M68K_CyberModeNode_Node_ln_Succ 0
+#define M68K_CyberModeNode_Node_ln_Pred 4   /* native @8 - CONVERT */
+#define M68K_CyberModeNode_Node_ln_Type 8   /* native @16 - CONVERT */
+#define M68K_CyberModeNode_Node_ln_Pri 9   /* native @17 - CONVERT */
+#define M68K_CyberModeNode_Node_ln_Name 10   /* native @24 - CONVERT */
+#define M68K_CyberModeNode_ModeText 14   /* native @32 - CONVERT */
+#define M68K_CyberModeNode_DisplayID 46   /* native @64 - CONVERT */
+#define M68K_CyberModeNode_Width 50   /* native @68 - CONVERT */
+#define M68K_CyberModeNode_Height 52   /* native @70 - CONVERT */
+#define M68K_CyberModeNode_Depth 54   /* native @72 - CONVERT */
+#define M68K_CyberModeNode_DisplayTagList 56   /* native @80 - CONVERT */
+
+/* struct CDrawMsg: 26 bytes on m68k (CDrawMsg), 32 native (CDrawMsg) */
+#define M68K_CDrawMsg_SIZEOF 26
+#define M68K_CDrawMsg_cdm_MemPtr 0
+#define M68K_CDrawMsg_cdm_offx 4   /* native @8 - CONVERT */
+#define M68K_CDrawMsg_cdm_offy 8   /* native @12 - CONVERT */
+#define M68K_CDrawMsg_cdm_xsize 12   /* native @16 - CONVERT */
+#define M68K_CDrawMsg_cdm_ysize 16   /* native @20 - CONVERT */
+#define M68K_CDrawMsg_cdm_BytesPerRow 20   /* native @24 - CONVERT */
+#define M68K_CDrawMsg_cdm_BytesPerPix 22   /* native @26 - CONVERT */
+#define M68K_CDrawMsg_cdm_ColorModel 24   /* native @28 - CONVERT */
 
 /* The conversion tables. Each row is one field: where it lives on
  * each side, how wide it is on each side, and what may be done to it.
@@ -865,6 +1144,27 @@ static const struct EmuField emu_fields_DateStamp[] = {
     {    8,    8,    1, 4, 4, EMU_F_SCALAR },   /* ds_Tick                  LONG */
 };
 
+static const struct EmuField emu_fields_DateTime[] = {
+    {    0,    0,    1, 4, 4, EMU_F_SCALAR },   /* dat_Stamp_ds_Days        LONG */
+    {    4,    4,    1, 4, 4, EMU_F_SCALAR },   /* dat_Stamp_ds_Minute      LONG */
+    {    8,    8,    1, 4, 4, EMU_F_SCALAR },   /* dat_Stamp_ds_Tick        LONG */
+    {   12,   12,    1, 1, 1, EMU_F_SCALAR },   /* dat_Format               UBYTE */
+    {   13,   13,    1, 1, 1, EMU_F_SCALAR },   /* dat_Flags                UBYTE */
+};
+/* NOT converted, and deliberately not guessed at:
+ *   dat_StrDay (UBYTE *)
+ *   dat_StrDate (UBYTE *)
+ *   dat_StrTime (UBYTE *)
+ */
+
+static const struct EmuField emu_fields_CSource[] = {
+    {    4,    8,    1, 4, 4, EMU_F_SCALAR },   /* CS_Length                LONG */
+    {    8,   12,    1, 4, 4, EMU_F_SCALAR },   /* CS_CurChr                LONG */
+};
+/* NOT converted, and deliberately not guessed at:
+ *   CS_Buffer (UBYTE *)
+ */
+
 static const struct EmuField emu_fields_InfoData[] = {
     {    0,    0,    1, 4, 4, EMU_F_SCALAR },   /* id_NumSoftErrors         LONG */
     {    4,    4,    1, 4, 4, EMU_F_SCALAR },   /* id_UnitNumber            LONG */
@@ -877,6 +1177,45 @@ static const struct EmuField emu_fields_InfoData[] = {
 };
 /* NOT converted, and deliberately not guessed at:
  *   id_VolumeNode (BPTR)
+ */
+
+static const struct EmuField emu_fields_DosPacket[] = {
+    {    8,   16,    1, 4, 4, EMU_F_SCALAR },   /* dp_Type                  LONG */
+};
+/* NOT converted, and deliberately not guessed at:
+ *   dp_Link (struct Message *)
+ *   dp_Port (struct MsgPort *)
+ *   dp_Res1 (SIPTR)
+ *   dp_Res2 (SIPTR)
+ *   dp_Arg1 (SIPTR)
+ *   dp_Arg2 (SIPTR)
+ *   dp_Arg3 (SIPTR)
+ *   dp_Arg4 (SIPTR)
+ *   dp_Arg5 (SIPTR)
+ *   dp_Arg6 (SIPTR)
+ *   dp_Arg7 (SIPTR)
+ */
+
+static const struct EmuField emu_fields_LocalVar[] = {
+    {    8,   16,    1, 1, 1, EMU_F_SCALAR },   /* lv_Node_ln_Type          UBYTE */
+    {    9,   17,    1, 1, 1, EMU_F_SCALAR },   /* lv_Node_ln_Pri           BYTE */
+    {   14,   32,    1, 2, 2, EMU_F_SCALAR },   /* lv_Flags                 UWORD */
+    {   20,   48,    1, 4, 4, EMU_F_SCALAR },   /* lv_Len                   ULONG */
+};
+/* NOT converted, and deliberately not guessed at:
+ *   lv_Node_ln_Succ (struct Node *)
+ *   lv_Node_ln_Pred (struct Node *)
+ *   lv_Node_ln_Name (char *)
+ *   lv_Value (UBYTE *)
+ */
+
+static const struct EmuField emu_fields_ExAllControl[] = {
+    {    0,    0,    1, 4, 4, EMU_F_SCALAR },   /* eac_Entries              ULONG */
+};
+/* NOT converted, and deliberately not guessed at:
+ *   eac_LastKey (IPTR)
+ *   eac_MatchString (UBYTE *)
+ *   eac_MatchFunc (struct Hook *)
  */
 
 static const struct EmuField emu_fields_Node[] = {
@@ -1183,6 +1522,47 @@ static const struct EmuField emu_fields_Screen[] = {
  *   UserData (UBYTE *)
  */
 
+static const struct EmuField emu_fields_NewWindow[] = {
+    {    0,    0,    1, 2, 2, EMU_F_SCALAR },   /* LeftEdge                 WORD */
+    {    2,    2,    1, 2, 2, EMU_F_SCALAR },   /* TopEdge                  WORD */
+    {    4,    4,    1, 2, 2, EMU_F_SCALAR },   /* Width                    WORD */
+    {    6,    6,    1, 2, 2, EMU_F_SCALAR },   /* Height                   WORD */
+    {    8,    8,    1, 1, 1, EMU_F_SCALAR },   /* DetailPen                UBYTE */
+    {    9,    9,    1, 1, 1, EMU_F_SCALAR },   /* BlockPen                 UBYTE */
+    {   10,   12,    1, 4, 4, EMU_F_SCALAR },   /* IDCMPFlags               ULONG */
+    {   14,   16,    1, 4, 4, EMU_F_SCALAR },   /* Flags                    ULONG */
+    {   38,   64,    1, 2, 2, EMU_F_SCALAR },   /* MinWidth                 WORD */
+    {   40,   66,    1, 2, 2, EMU_F_SCALAR },   /* MinHeight                WORD */
+    {   42,   68,    1, 2, 2, EMU_F_SCALAR },   /* MaxWidth                 UWORD */
+    {   44,   70,    1, 2, 2, EMU_F_SCALAR },   /* MaxHeight                UWORD */
+    {   46,   72,    1, 2, 2, EMU_F_SCALAR },   /* Type                     UWORD */
+};
+/* NOT converted, and deliberately not guessed at:
+ *   FirstGadget (struct Gadget *)
+ *   CheckMark (struct Image *)
+ *   Title (UBYTE *)
+ *   Screen (struct Screen *)
+ *   BitMap (struct BitMap *)
+ */
+
+static const struct EmuField emu_fields_NewScreen[] = {
+    {    0,    0,    1, 2, 2, EMU_F_SCALAR },   /* LeftEdge                 WORD */
+    {    2,    2,    1, 2, 2, EMU_F_SCALAR },   /* TopEdge                  WORD */
+    {    4,    4,    1, 2, 2, EMU_F_SCALAR },   /* Width                    WORD */
+    {    6,    6,    1, 2, 2, EMU_F_SCALAR },   /* Height                   WORD */
+    {    8,    8,    1, 2, 2, EMU_F_SCALAR },   /* Depth                    WORD */
+    {   10,   10,    1, 1, 1, EMU_F_SCALAR },   /* DetailPen                UBYTE */
+    {   11,   11,    1, 1, 1, EMU_F_SCALAR },   /* BlockPen                 UBYTE */
+    {   12,   12,    1, 2, 2, EMU_F_SCALAR },   /* ViewModes                UWORD */
+    {   14,   14,    1, 2, 2, EMU_F_SCALAR },   /* Type                     UWORD */
+};
+/* NOT converted, and deliberately not guessed at:
+ *   Font (struct TextAttr *)
+ *   DefaultTitle (UBYTE *)
+ *   Gadgets (struct Gadget *)
+ *   CustomBitMap (struct BitMap *)
+ */
+
 static const struct EmuField emu_fields_RastPort[] = {
     {   24,   48,    1, 1, 1, EMU_F_SCALAR },   /* Mask                     UBYTE */
     {   25,   49,    1, 1, 1, EMU_F_SCALAR },   /* FgPen                    BYTE */
@@ -1290,6 +1670,157 @@ static const struct EmuField emu_fields_BitMap[] = {
     {    8,    8,    8, 4, 8, EMU_F_GUESTPTR },   /* Planes                   PLANEPTR[8] */
 };
 
+static const struct EmuField emu_fields_AreaInfo[] = {
+    {   16,   32,    1, 2, 2, EMU_F_SCALAR },   /* Count                    WORD */
+    {   18,   34,    1, 2, 2, EMU_F_SCALAR },   /* MaxCount                 WORD */
+    {   20,   36,    1, 2, 2, EMU_F_SCALAR },   /* FirstX                   WORD */
+    {   22,   38,    1, 2, 2, EMU_F_SCALAR },   /* FirstY                   WORD */
+};
+/* NOT converted, and deliberately not guessed at:
+ *   VctrTbl (WORD *)
+ *   VctrPtr (WORD *)
+ *   FlagTbl (BYTE *)
+ *   FlagPtr (BYTE *)
+ */
+
+static const struct EmuField emu_fields_TmpRas[] = {
+    {    4,    8,    1, 4, 4, EMU_F_SCALAR },   /* Size                     LONG */
+};
+/* NOT converted, and deliberately not guessed at:
+ *   RasPtr (UBYTE *)
+ */
+
+static const struct EmuField emu_fields_GelsInfo[] = {
+    {    0,    0,    1, 1, 1, EMU_F_SCALAR },   /* sprRsrvd                 BYTE */
+    {    1,    1,    1, 1, 1, EMU_F_SCALAR },   /* Flags                    UBYTE */
+    {   22,   48,    1, 2, 2, EMU_F_SCALAR },   /* leftmost                 WORD */
+    {   24,   50,    1, 2, 2, EMU_F_SCALAR },   /* rightmost                WORD */
+    {   26,   52,    1, 2, 2, EMU_F_SCALAR },   /* topmost                  WORD */
+    {   28,   54,    1, 2, 2, EMU_F_SCALAR },   /* bottommost               WORD */
+};
+/* NOT converted, and deliberately not guessed at:
+ *   gelHead (struct VSprite *)
+ *   gelTail (struct VSprite *)
+ *   nextLine (WORD *)
+ *   lastColor (WORD **)
+ *   collHandler (struct collTable *)
+ *   firstBlissObj (APTR)
+ *   lastBlissObj (APTR)
+ */
+
+static const struct EmuField emu_fields_AnimOb[] = {
+    {    8,   16,    1, 4, 4, EMU_F_SCALAR },   /* Clock                    LONG */
+    {   12,   20,    1, 2, 2, EMU_F_SCALAR },   /* AnOldY                   WORD */
+    {   14,   22,    1, 2, 2, EMU_F_SCALAR },   /* AnOldX                   WORD */
+    {   16,   24,    1, 2, 2, EMU_F_SCALAR },   /* AnY                      WORD */
+    {   18,   26,    1, 2, 2, EMU_F_SCALAR },   /* AnX                      WORD */
+    {   20,   28,    1, 2, 2, EMU_F_SCALAR },   /* YVel                     WORD */
+    {   22,   30,    1, 2, 2, EMU_F_SCALAR },   /* XVel                     WORD */
+    {   24,   32,    1, 2, 2, EMU_F_SCALAR },   /* YAccel                   WORD */
+    {   26,   34,    1, 2, 2, EMU_F_SCALAR },   /* XAccel                   WORD */
+    {   28,   36,    1, 2, 2, EMU_F_SCALAR },   /* RingYTrans               WORD */
+    {   30,   38,    1, 2, 2, EMU_F_SCALAR },   /* RingXTrans               WORD */
+    {   40,   56,    1, 2, 2, EMU_F_SCALAR },   /* AUserExt                 WORD */
+};
+/* NOT converted, and deliberately not guessed at:
+ *   NextOb (struct AnimOb *)
+ *   PrevOb (struct AnimOb *)
+ *   AnimORoutine (WORD (*)())
+ *   HeadComp (struct AnimComp *)
+ */
+
+static const struct EmuField emu_fields_AnimComp[] = {
+    {    0,    0,    1, 2, 2, EMU_F_SCALAR },   /* Flags                    WORD */
+    {    2,    2,    1, 2, 2, EMU_F_SCALAR },   /* Timer                    WORD */
+    {    4,    4,    1, 2, 2, EMU_F_SCALAR },   /* TimeSet                  WORD */
+    {   26,   48,    1, 2, 2, EMU_F_SCALAR },   /* YTrans                   WORD */
+    {   28,   50,    1, 2, 2, EMU_F_SCALAR },   /* XTrans                   WORD */
+};
+/* NOT converted, and deliberately not guessed at:
+ *   NextComp (struct AnimComp *)
+ *   PrevComp (struct AnimComp *)
+ *   NextSeq (struct AnimComp *)
+ *   PrevSeq (struct AnimComp *)
+ *   AnimCRoutine (WORD (*)())
+ *   HeadOb (struct AnimOb *)
+ *   AnimBob (struct Bob *)
+ */
+
+static const struct EmuField emu_fields_Bob[] = {
+    {    0,    0,    1, 2, 2, EMU_F_SCALAR },   /* Flags                    WORD */
+    {   30,   64,    1, 2, 2, EMU_F_SCALAR },   /* BUserExt                 WORD */
+};
+/* NOT converted, and deliberately not guessed at:
+ *   SaveBuffer (WORD *)
+ *   ImageShadow (WORD *)
+ *   Before (struct Bob *)
+ *   After (struct Bob *)
+ *   BobVSprite (struct VSprite *)
+ *   BobComp (struct AnimComp *)
+ *   DBuffer (struct DBufPacket *)
+ */
+
+static const struct EmuField emu_fields_VSprite[] = {
+    {   16,   32,    1, 2, 2, EMU_F_SCALAR },   /* OldY                     WORD */
+    {   18,   34,    1, 2, 2, EMU_F_SCALAR },   /* OldX                     WORD */
+    {   20,   36,    1, 2, 2, EMU_F_SCALAR },   /* Flags                    WORD */
+    {   22,   38,    1, 2, 2, EMU_F_SCALAR },   /* Y                        WORD */
+    {   24,   40,    1, 2, 2, EMU_F_SCALAR },   /* X                        WORD */
+    {   26,   42,    1, 2, 2, EMU_F_SCALAR },   /* Height                   WORD */
+    {   28,   44,    1, 2, 2, EMU_F_SCALAR },   /* Width                    WORD */
+    {   30,   46,    1, 2, 2, EMU_F_SCALAR },   /* Depth                    WORD */
+    {   32,   48,    1, 2, 2, EMU_F_SCALAR },   /* MeMask                   WORD */
+    {   34,   50,    1, 2, 2, EMU_F_SCALAR },   /* HitMask                  WORD */
+    {   56,   96,    1, 1, 1, EMU_F_SCALAR },   /* PlanePick                BYTE */
+    {   57,   97,    1, 1, 1, EMU_F_SCALAR },   /* PlaneOnOff               BYTE */
+    {   58,   98,    1, 2, 2, EMU_F_SCALAR },   /* VUserExt                 WORD */
+};
+/* NOT converted, and deliberately not guessed at:
+ *   NextVSprite (struct VSprite *)
+ *   PrevVSprite (struct VSprite *)
+ *   IntVSprite (struct IntVSprite *)
+ *   ClearPath (struct VSprite *)
+ *   ImageData (WORD *)
+ *   BorderLine (WORD *)
+ *   CollMask (WORD *)
+ *   SprColors (WORD *)
+ *   VSBob (struct Bob *)
+ */
+
+static const struct EmuField emu_fields_CopList[] = {
+    {   28,   56,    1, 2, 2, EMU_F_SCALAR },   /* Count                    WORD */
+    {   30,   58,    1, 2, 2, EMU_F_SCALAR },   /* MaxCount                 WORD */
+    {   32,   60,    1, 2, 2, EMU_F_SCALAR },   /* DyOffset                 WORD */
+    {   34,   62,    1, 2, 2, EMU_F_SCALAR },   /* SLRepeat                 UWORD */
+    {   36,   64,    1, 2, 2, EMU_F_SCALAR },   /* Flags                    UWORD */
+};
+/* NOT converted, and deliberately not guessed at:
+ *   Next (struct CopList *)
+ *   _CopList (struct CopList *)
+ *   _ViewPort (struct ViewPort *)
+ *   CopIns (struct CopIns *)
+ *   CopPtr (struct CopIns *)
+ *   CopLStart (UWORD *)
+ *   CopSStart (UWORD *)
+ */
+
+static const struct EmuField emu_fields_CopIns[] = {
+    {    0,    0,    1, 2, 2, EMU_F_SCALAR },   /* OpCode                   WORD */
+};
+/* NOT converted, and deliberately not guessed at:
+ *   u3_nxtlist (struct CopList *)
+ */
+
+static const struct EmuField emu_fields_SimpleSprite[] = {
+    {    4,    8,    1, 2, 2, EMU_F_SCALAR },   /* height                   UWORD */
+    {    6,   10,    1, 2, 2, EMU_F_SCALAR },   /* x                        UWORD */
+    {    8,   12,    1, 2, 2, EMU_F_SCALAR },   /* y                        UWORD */
+    {   10,   14,    1, 2, 2, EMU_F_SCALAR },   /* num                      UWORD */
+};
+/* NOT converted, and deliberately not guessed at:
+ *   posctldata (UWORD *)
+ */
+
 static const struct EmuField emu_fields_TextAttr[] = {
     {    0,    0,    1, 4, 8, EMU_F_GUESTPTR },   /* ta_Name                  STRPTR */
     {    4,    8,    1, 2, 2, EMU_F_SCALAR },   /* ta_YSize                 UWORD */
@@ -1344,6 +1875,26 @@ static const struct EmuField emu_fields_IntuiText[] = {
  *   ITextFont (struct TextAttr *)
  *   NextText (struct IntuiText *)
  */
+
+static const struct EmuField emu_fields_EasyStruct[] = {
+    {    0,    0,    1, 4, 4, EMU_F_SCALAR },   /* es_StructSize            ULONG */
+    {    4,    4,    1, 4, 4, EMU_F_SCALAR },   /* es_Flags                 ULONG */
+    {    8,    8,    1, 4, 8, EMU_F_GUESTPTR },   /* es_Title                 CONST_STRPTR */
+    {   12,   16,    1, 4, 8, EMU_F_GUESTPTR },   /* es_TextFormat            CONST_STRPTR */
+    {   16,   24,    1, 4, 8, EMU_F_GUESTPTR },   /* es_GadgetFormat          CONST_STRPTR */
+};
+
+static const struct EmuField emu_fields_ColorWheelHSB[] = {
+    {    0,    0,    1, 4, 4, EMU_F_SCALAR },   /* cw_Hue                   ULONG */
+    {    4,    4,    1, 4, 4, EMU_F_SCALAR },   /* cw_Saturation            ULONG */
+    {    8,    8,    1, 4, 4, EMU_F_SCALAR },   /* cw_Brightness            ULONG */
+};
+
+static const struct EmuField emu_fields_ColorWheelRGB[] = {
+    {    0,    0,    1, 4, 4, EMU_F_SCALAR },   /* cw_Red                   ULONG */
+    {    4,    4,    1, 4, 4, EMU_F_SCALAR },   /* cw_Green                 ULONG */
+    {    8,    8,    1, 4, 4, EMU_F_SCALAR },   /* cw_Blue                  ULONG */
+};
 
 static const struct EmuField emu_fields_DimensionInfo[] = {
     {    0,    0,    1, 4, 4, EMU_F_SCALAR },   /* Header_StructID          ULONG */
@@ -1504,6 +2055,14 @@ static const struct EmuField emu_fields_IntuiMessage[] = {
  *   SpecialLink (struct IntuiMessage *)
  */
 
+static const struct EmuField emu_fields_Remember[] = {
+    {    4,    8,    1, 4, 4, EMU_F_SCALAR },   /* RememberSize             ULONG */
+};
+/* NOT converted, and deliberately not guessed at:
+ *   NextRemember (struct Remember *)
+ *   Memory (UBYTE *)
+ */
+
 static const struct EmuField emu_fields_Gadget[] = {
     {    4,    8,    1, 2, 2, EMU_F_SCALAR },   /* LeftEdge                 WORD */
     {    6,   10,    1, 2, 2, EMU_F_SCALAR },   /* TopEdge                  WORD */
@@ -1547,6 +2106,35 @@ static const struct EmuField emu_fields_ExtGadget[] = {
  *   SelectRender (APTR)
  *   GadgetText (struct IntuiText *)
  *   SpecialInfo (APTR)
+ */
+
+static const struct EmuField emu_fields_CyberModeNode[] = {
+    {    8,   16,    1, 1, 1, EMU_F_SCALAR },   /* Node_ln_Type             UBYTE */
+    {    9,   17,    1, 1, 1, EMU_F_SCALAR },   /* Node_ln_Pri              BYTE */
+    {   14,   32,   32, 1, 1, EMU_F_BYTES },   /* ModeText                 char[32] */
+    {   46,   64,    1, 4, 4, EMU_F_SCALAR },   /* DisplayID                ULONG */
+    {   50,   68,    1, 2, 2, EMU_F_SCALAR },   /* Width                    UWORD */
+    {   52,   70,    1, 2, 2, EMU_F_SCALAR },   /* Height                   UWORD */
+    {   54,   72,    1, 2, 2, EMU_F_SCALAR },   /* Depth                    UWORD */
+};
+/* NOT converted, and deliberately not guessed at:
+ *   Node_ln_Succ (struct Node *)
+ *   Node_ln_Pred (struct Node *)
+ *   Node_ln_Name (char *)
+ *   DisplayTagList (struct TagItem *)
+ */
+
+static const struct EmuField emu_fields_CDrawMsg[] = {
+    {    4,    8,    1, 4, 4, EMU_F_SCALAR },   /* cdm_offx                 ULONG */
+    {    8,   12,    1, 4, 4, EMU_F_SCALAR },   /* cdm_offy                 ULONG */
+    {   12,   16,    1, 4, 4, EMU_F_SCALAR },   /* cdm_xsize                ULONG */
+    {   16,   20,    1, 4, 4, EMU_F_SCALAR },   /* cdm_ysize                ULONG */
+    {   20,   24,    1, 2, 2, EMU_F_SCALAR },   /* cdm_BytesPerRow          UWORD */
+    {   22,   26,    1, 2, 2, EMU_F_SCALAR },   /* cdm_BytesPerPix          UWORD */
+    {   24,   28,    1, 2, 2, EMU_F_SCALAR },   /* cdm_ColorModel           UWORD */
+};
+/* NOT converted, and deliberately not guessed at:
+ *   cdm_MemPtr (APTR)
  */
 
 /* Followed pointer fields (policy struct_metadata.follow_fields):

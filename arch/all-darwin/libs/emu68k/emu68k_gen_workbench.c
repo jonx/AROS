@@ -142,11 +142,22 @@ int emu68k_gen_workbench(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
             snprintf(err, errlen, "capability gap: workbench.library.SendAppWindowMessage needs char **, struct Window * described");
         r->d[0] = 0;
         return 1;
-    case 27:  /* GetNextAppIcon: no crossing [-162] */
-        if (err && errlen)
-            snprintf(err, errlen, "capability gap: workbench.library.GetNextAppIcon needs returns a pointer (struct DiskObject *) described");
-        r->d[0] = 0;
-        return 1;
+    case 27:  /* GetNextAppIcon(struct DiskObject * lastdiskobj, char* text) -> struct DiskObject *  [-162] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_DiskObject, 1,
+                                        "DiskObject", &emu_object_0, err, errlen) < 0)
+            return 1;
+        APTR emu_result = (APTR)GetNextAppIcon((struct DiskObject *)emu_object_0,
+              (char*)EMU_GPTR(guest0, r->a[1]));
+        if (emu68k_object_to_guest_facade(guest0, emu_result, EMU_OBJ_DiskObject,
+                                             base, NULL,
+                                             "DiskObject", M68K_DiskObject_SIZEOF,
+                                             emu_fields_DiskObject, EMU_NFIELDS(emu_fields_DiskObject),
+                                             &r->d[0], err, errlen) < 0)
+            return 1;
+            return 0;
+    }
     }
     return 1;   /* no safe generated crossing for this vector */
 }

@@ -12,10 +12,31 @@
 #include <stdio.h>
 #include <graphics/displayinfo.h>
 #include <graphics/view.h>
+#include <graphics/sprite.h>
+#include <graphics/rpattr.h>
 #include <graphics/modeid.h>
 
 #include "emu68k_gen.h"
 #include "emu68k_layouts.h"
+
+/* A BitMap the program allocated itself: mirrored natively under its
+ * guest address, converted in and back out around every call. */
+static const struct EmuMirror emu_mirror_BitMap =
+{
+    emu_fields_BitMap, EMU_NFIELDS(emu_fields_BitMap),
+    sizeof(struct BitMap), M68K_BitMap_SIZEOF,
+    0, -1, 0,
+    -1, -1, 1
+};
+
+static const struct EmuTagDesc emu_tagdesc_graphics_ignored_tags[] =
+{
+    { 0, EMU_TAG_REFUSE, NULL, NULL, 0, 0, 0, 0, 0 },
+};
+static const struct EmuTagDomain emu_tagdomain_graphics_ignored_tags =
+{
+    emu_tagdesc_graphics_ignored_tags, 0, "graphics.ignored_tags"
+};
 
 static const struct EmuTagDesc emu_tagdesc_import_graphics_ObtainBestPenA_tags[] =
 {
@@ -25,6 +46,74 @@ static const struct EmuTagDesc emu_tagdesc_import_graphics_ObtainBestPenA_tags[]
 static const struct EmuTagDomain emu_tagdomain_import_graphics_ObtainBestPenA_tags =
 {
     emu_tagdesc_import_graphics_ObtainBestPenA_tags, 2, "import.graphics.ObtainBestPenA.tags"
+};
+
+static const struct EmuTagDesc emu_tagdesc_graphics_sprite_get[] =
+{
+    { GSTAG_SPRITE_NUM, EMU_TAG_U32, "GSTAG_SPRITE_NUM", NULL, 0, 0, 0, 0, 0 },
+};
+static const struct EmuTagDomain emu_tagdomain_graphics_sprite_get =
+{
+    emu_tagdesc_graphics_sprite_get, 1, "graphics.sprite_get"
+};
+
+static const struct EmuTagDesc emu_tagdesc_graphics_sprite_alloc[] =
+{
+    { SPRITEA_Width, EMU_TAG_U32, "SPRITEA_Width", NULL, 0, 0, 0, 0, 0 },
+    { SPRITEA_XReplication, EMU_TAG_U32, "SPRITEA_XReplication", NULL, 0, 0, 0, 0, 0 },
+    { SPRITEA_YReplication, EMU_TAG_U32, "SPRITEA_YReplication", NULL, 0, 0, 0, 0, 0 },
+    { SPRITEA_OutputHeight, EMU_TAG_U32, "SPRITEA_OutputHeight", NULL, 0, 0, 0, 0, 0 },
+    { SPRITEA_Attached, EMU_TAG_U32, "SPRITEA_Attached", NULL, 0, 0, 0, 0, 0 },
+    { SPRITEA_OldDataFormat, EMU_TAG_U32, "SPRITEA_OldDataFormat", NULL, 0, 0, 0, 0, 0 },
+};
+static const struct EmuTagDomain emu_tagdomain_graphics_sprite_alloc =
+{
+    emu_tagdesc_graphics_sprite_alloc, 6, "graphics.sprite_alloc"
+};
+
+static const struct EmuTagDesc emu_tagdesc_graphics_rp_set[] =
+{
+    { RPTAG_Font, EMU_TAG_OBJECT, "RPTAG_Font", NULL, 0, 0, 0, EMU_OBJ_TextFont, 1 },
+    { RPTAG_APen, EMU_TAG_U32, "RPTAG_APen", NULL, 0, 0, 0, 0, 0 },
+    { RPTAG_BPen, EMU_TAG_U32, "RPTAG_BPen", NULL, 0, 0, 0, 0, 0 },
+    { RPTAG_DrMd, EMU_TAG_U32, "RPTAG_DrMd", NULL, 0, 0, 0, 0, 0 },
+    { RPTAG_OutlinePen, EMU_TAG_U32, "RPTAG_OutlinePen", NULL, 0, 0, 0, 0, 0 },
+    { RPTAG_WriteMask, EMU_TAG_U32, "RPTAG_WriteMask", NULL, 0, 0, 0, 0, 0 },
+    { RPTAG_MaxPen, EMU_TAG_U32, "RPTAG_MaxPen", NULL, 0, 0, 0, 0, 0 },
+    { RPTAG_DrawBounds, EMU_TAG_U32, "RPTAG_DrawBounds", NULL, 0, 0, 0, 0, 0 },
+    { RPTAG_PenMode, EMU_TAG_U32, "RPTAG_PenMode", NULL, 0, 0, 0, 0, 0 },
+    { RPTAG_FgColor, EMU_TAG_U32, "RPTAG_FgColor", NULL, 0, 0, 0, 0, 0 },
+    { RPTAG_BgColor, EMU_TAG_U32, "RPTAG_BgColor", NULL, 0, 0, 0, 0, 0 },
+    { RPTAG_ClipRectangle, EMU_TAG_STRUCT, "RPTAG_ClipRectangle", emu_fields_Rectangle, EMU_NFIELDS(emu_fields_Rectangle),
+      M68K_Rectangle_SIZEOF, sizeof(struct Rectangle), 0, 0 },
+    { RPTAG_ClipRectangleFlags, EMU_TAG_U32, "RPTAG_ClipRectangleFlags", NULL, 0, 0, 0, 0, 0 },
+    { RPTAG_RemapColorFonts, EMU_TAG_U32, "RPTAG_RemapColorFonts", NULL, 0, 0, 0, 0, 0 },
+};
+static const struct EmuTagDomain emu_tagdomain_graphics_rp_set =
+{
+    emu_tagdesc_graphics_rp_set, 14, "graphics.rp_set"
+};
+
+static const struct EmuTagDesc emu_tagdesc_graphics_rp_get[] =
+{
+    { RPTAG_Font, EMU_TAG_REFUSE, "RPTAG_Font", NULL, 0, 0, 0, 0, 0 },
+    { RPTAG_APen, EMU_TAG_OUT_U32, "RPTAG_APen", NULL, 0, 0, 0, 0, 0 },
+    { RPTAG_BPen, EMU_TAG_OUT_U32, "RPTAG_BPen", NULL, 0, 0, 0, 0, 0 },
+    { RPTAG_DrMd, EMU_TAG_OUT_U32, "RPTAG_DrMd", NULL, 0, 0, 0, 0, 0 },
+    { RPTAG_OutlinePen, EMU_TAG_OUT_U32, "RPTAG_OutlinePen", NULL, 0, 0, 0, 0, 0 },
+    { RPTAG_WriteMask, EMU_TAG_OUT_U32, "RPTAG_WriteMask", NULL, 0, 0, 0, 0, 0 },
+    { RPTAG_MaxPen, EMU_TAG_OUT_U32, "RPTAG_MaxPen", NULL, 0, 0, 0, 0, 0 },
+    { RPTAG_DrawBounds, EMU_TAG_REFUSE, "RPTAG_DrawBounds", NULL, 0, 0, 0, 0, 0 },
+    { RPTAG_PenMode, EMU_TAG_OUT_U32, "RPTAG_PenMode", NULL, 0, 0, 0, 0, 0 },
+    { RPTAG_FgColor, EMU_TAG_OUT_U32, "RPTAG_FgColor", NULL, 0, 0, 0, 0, 0 },
+    { RPTAG_BgColor, EMU_TAG_OUT_U32, "RPTAG_BgColor", NULL, 0, 0, 0, 0, 0 },
+    { RPTAG_ClipRectangle, EMU_TAG_REFUSE, "RPTAG_ClipRectangle", NULL, 0, 0, 0, 0, 0 },
+    { RPTAG_ClipRectangleFlags, EMU_TAG_OUT_U32, "RPTAG_ClipRectangleFlags", NULL, 0, 0, 0, 0, 0 },
+    { RPTAG_RemapColorFonts, EMU_TAG_OUT_U32, "RPTAG_RemapColorFonts", NULL, 0, 0, 0, 0, 0 },
+};
+static const struct EmuTagDomain emu_tagdomain_graphics_rp_get =
+{
+    emu_tagdesc_graphics_rp_get, 14, "graphics.rp_get"
 };
 
 static const struct EmuTagDesc emu_tagdesc_graphics_best_mode[] =
@@ -60,6 +149,30 @@ static void emu_object_cleanup_Region(APTR emu_base, APTR emu_object)
     DisposeRegion((struct Region *)emu_object);
 }
 
+static void emu_object_cleanup_ColorMap(APTR emu_base, APTR emu_object)
+{
+    struct GfxBase *GfxBase = emu_base;
+    FreeColorMap((struct ColorMap *)emu_object);
+}
+
+static void emu_object_cleanup_ExtendedNode(APTR emu_base, APTR emu_object)
+{
+    struct GfxBase *GfxBase = emu_base;
+    GfxFree((struct ExtendedNode *)emu_object);
+}
+
+static void emu_object_cleanup_MonitorSpec(APTR emu_base, APTR emu_object)
+{
+    struct GfxBase *GfxBase = emu_base;
+    CloseMonitor((struct MonitorSpec *)emu_object);
+}
+
+static void emu_object_cleanup_ExtSprite(APTR emu_base, APTR emu_object)
+{
+    struct GfxBase *GfxBase = emu_base;
+    FreeSpriteData((struct ExtSprite *)emu_object);
+}
+
 int emu68k_gen_graphics(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
                   char *err, ULONG errlen)
 {
@@ -68,16 +181,85 @@ int emu68k_gen_graphics(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
 
     switch (lvo)
     {
-    case 5:  /* BltBitMap: no crossing [-30] */
-        if (err && errlen)
-            snprintf(err, errlen, "capability gap: graphics.library.BltBitMap needs PLANEPTR tempA, struct BitMap * described");
-        r->d[0] = 0;
-        return 1;
-    case 6:  /* BltTemplate: no crossing [-36] */
-        if (err && errlen)
-            snprintf(err, errlen, "capability gap: graphics.library.BltTemplate needs PLANEPTR source, struct RastPort * described");
-        r->d[0] = 0;
-        return 1;
+    case 5:  /* BltBitMap(struct BitMap * srcBitMap, WORD xSrc, WORD ySrc, struct BitMap * destBitMap, WORD xDest, WORD yDest, WORD xSize, WORD ySize, ULONG minterm, ULONG mask, PLANEPTR tempA) -> LONG  [-30] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_adopt_guest(guest0, r->a[0], EMU_OBJ_BitMap,
+                        "BitMap", &emu_mirror_BitMap, &emu_object_0, err, errlen) < 0)
+            return 1;
+        APTR emu_object_3;
+        if (emu68k_object_adopt_guest(guest0, r->a[1], EMU_OBJ_BitMap,
+                        "BitMap", &emu_mirror_BitMap, &emu_object_3, err, errlen) < 0)
+            return 1;
+        if (r->a[2])
+        {
+            if (err && errlen)
+                snprintf(err, errlen, "BltBitMap.tempA currently requires NULL");
+            return 1;
+        }
+            r->d[0] = (ULONG)BltBitMap((struct BitMap *)emu_object_0,
+              (WORD)r->d[0],
+              (WORD)r->d[1],
+              (struct BitMap *)emu_object_3,
+              (WORD)r->d[2],
+              (WORD)r->d[3],
+              (WORD)r->d[4],
+              (WORD)r->d[5],
+              (ULONG)r->d[6],
+              (ULONG)r->d[7],
+              (PLANEPTR)NULL);
+        if (emu68k_object_sync_guest(guest0, r->a[0], EMU_OBJ_BitMap,
+                                     "BitMap", &emu_mirror_BitMap, err, errlen) < 0)
+            return 1;
+        if (emu68k_object_sync_guest(guest0, r->a[1], EMU_OBJ_BitMap,
+                                     "BitMap", &emu_mirror_BitMap, err, errlen) < 0)
+            return 1;
+            return 0;
+    }
+    case 6:  /* BltTemplate(PLANEPTR source, WORD xSrc, WORD srcMod, struct RastPort * destRP, WORD xDest, WORD yDest, WORD xSize, WORD ySize) -> void  [-36] */
+    {
+        UQUAD emu_buffer_size_0 = 1;
+        UQUAD emu_buffer_factor_0_0 = (ULONG)r->d[1];
+        if (emu_buffer_factor_0_0 && emu_buffer_size_0 >
+            0xffffffffUL / emu_buffer_factor_0_0)
+        {
+            if (err && errlen)
+                snprintf(err, errlen, "BltTemplate.source extent overflows guest memory");
+            return 1;
+        }
+        emu_buffer_size_0 *= emu_buffer_factor_0_0;
+        UQUAD emu_buffer_factor_0_1 = (ULONG)r->d[5];
+        if (emu_buffer_factor_0_1 && emu_buffer_size_0 >
+            0xffffffffUL / emu_buffer_factor_0_1)
+        {
+            if (err && errlen)
+                snprintf(err, errlen, "BltTemplate.source extent overflows guest memory");
+            return 1;
+        }
+        emu_buffer_size_0 *= emu_buffer_factor_0_1;
+        if (!r->a[0])
+        {
+            if (err && errlen)
+                snprintf(err, errlen, "BltTemplate.source requires a non-NULL buffer");
+            return 1;
+        }
+        if (r->a[0] && emu68k_require_guest_range(r->a[0],
+                (ULONG)emu_buffer_size_0, "BltTemplate.source", err, errlen) < 0)
+            return 1;
+        APTR emu_object_3;
+        if (emu68k_object_from_guest(guest0, r->a[1], EMU_OBJ_RastPort, 0,
+                                        "RastPort", &emu_object_3, err, errlen) < 0)
+            return 1;
+            BltTemplate((PLANEPTR)EMU_GPTR(guest0, r->a[0]),
+              (WORD)r->d[0],
+              (WORD)r->d[1],
+              (struct RastPort *)emu_object_3,
+              (WORD)r->d[2],
+              (WORD)r->d[3],
+              (WORD)r->d[4],
+              (WORD)r->d[5]);
+            return 0;
+    }
     case 7:  /* ClearEOL(struct RastPort * rp) -> void  [-42] */
     {
         APTR emu_object_0;
@@ -96,17 +278,11 @@ int emu68k_gen_graphics(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
             ClearScreen((struct RastPort *)emu_object_0);
             return 0;
     }
-    case 9:  /* TextLength(struct RastPort * rp, CONST_STRPTR string, ULONG count) -> WORD  [-54] */
-    {
-        APTR emu_object_0;
-        if (emu68k_object_from_guest(guest0, r->a[1], EMU_OBJ_RastPort, 1,
-                                        "RastPort", &emu_object_0, err, errlen) < 0)
-            return 1;
-            r->d[0] = (ULONG)TextLength((struct RastPort *)emu_object_0,
-              (CONST_STRPTR)EMU_GPTR(guest0, r->a[0]),
-              (ULONG)r->d[0]);
-            return 0;
-    }
+    case 9:  /* TextLength: explicit reviewed refusal [-54] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: graphics.library.TextLength refused: served by the OS-side text adapter, which constructs a native RastPort view from validated guest scalar state and an issued TextFont");
+        r->d[0] = 0;
+        return 1;
     case 10:  /* Text(struct RastPort * rp, CONST_STRPTR string, ULONG count) -> void  [-60] */
     {
         APTR emu_object_0;
@@ -118,20 +294,11 @@ int emu68k_gen_graphics(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
               (ULONG)r->d[0]);
             return 0;
     }
-    case 11:  /* SetFont(struct RastPort * rp, struct TextFont * textFont) -> void  [-66] */
-    {
-        APTR emu_object_0;
-        if (emu68k_object_from_guest(guest0, r->a[1], EMU_OBJ_RastPort, 1,
-                                        "RastPort", &emu_object_0, err, errlen) < 0)
-            return 1;
-        APTR emu_object_1;
-        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_TextFont, 1,
-                                        "TextFont", &emu_object_1, err, errlen) < 0)
-            return 1;
-            SetFont((struct RastPort *)emu_object_0,
-              (struct TextFont *)emu_object_1);
-            return 0;
-    }
+    case 11:  /* SetFont: explicit reviewed refusal [-66] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: graphics.library.SetFont refused: served by the OS-side RastPort adapter: issued RastPorts update natively, while program-owned RastPorts receive the exact guest-visible Font and text-metric mutations");
+        r->d[0] = 0;
+        return 1;
     case 12:  /* OpenFont(const struct TextAttr * textAttr) -> struct TextFont *  [-72] */
     {
         struct TextAttr emu_struct_0;
@@ -185,27 +352,39 @@ int emu68k_gen_graphics(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
             r->d[0] = (ULONG)AskSoftStyle((struct RastPort *)emu_object_0);
             return 0;
     }
-    case 15:  /* SetSoftStyle(struct RastPort * rp, ULONG style, ULONG enable) -> ULONG  [-90] */
+    case 15:  /* SetSoftStyle: explicit reviewed refusal [-90] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: graphics.library.SetSoftStyle refused: served by the OS-side RastPort adapter, which reads the guest TextFont style and mirrors the exact AlgoStyle mutation and result");
+        r->d[0] = 0;
+        return 1;
+    case 16:  /* AddBob(struct Bob * bob, struct RastPort * rp) -> void  [-96] */
     {
         APTR emu_object_0;
-        if (emu68k_object_from_guest(guest0, r->a[1], EMU_OBJ_RastPort, 1,
-                                        "RastPort", &emu_object_0, err, errlen) < 0)
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_Bob, 1,
+                                        "Bob", &emu_object_0, err, errlen) < 0)
             return 1;
-            r->d[0] = (ULONG)SetSoftStyle((struct RastPort *)emu_object_0,
-              (ULONG)r->d[0],
-              (ULONG)r->d[1]);
+        APTR emu_object_1;
+        if (emu68k_object_from_guest(guest0, r->a[1], EMU_OBJ_RastPort, 1,
+                                        "RastPort", &emu_object_1, err, errlen) < 0)
+            return 1;
+            AddBob((struct Bob *)emu_object_0,
+              (struct RastPort *)emu_object_1);
             return 0;
     }
-    case 16:  /* AddBob: no crossing [-96] */
-        if (err && errlen)
-            snprintf(err, errlen, "capability gap: graphics.library.AddBob needs struct Bob *, struct RastPort * described");
-        r->d[0] = 0;
-        return 1;
-    case 17:  /* AddVSprite: no crossing [-102] */
-        if (err && errlen)
-            snprintf(err, errlen, "capability gap: graphics.library.AddVSprite needs struct RastPort *, struct VSprite * described");
-        r->d[0] = 0;
-        return 1;
+    case 17:  /* AddVSprite(struct VSprite * vs, struct RastPort * rp) -> void  [-102] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_VSprite, 1,
+                                        "VSprite", &emu_object_0, err, errlen) < 0)
+            return 1;
+        APTR emu_object_1;
+        if (emu68k_object_from_guest(guest0, r->a[1], EMU_OBJ_RastPort, 1,
+                                        "RastPort", &emu_object_1, err, errlen) < 0)
+            return 1;
+            AddVSprite((struct VSprite *)emu_object_0,
+              (struct RastPort *)emu_object_1);
+            return 0;
+    }
     case 18:  /* DoCollision(struct RastPort * rp) -> void  [-108] */
     {
         APTR emu_object_0;
@@ -229,29 +408,65 @@ int emu68k_gen_graphics(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
               (struct ViewPort *)emu_object_1);
             return 0;
     }
-    case 20:  /* InitGels: no crossing [-120] */
+    case 20:  /* InitGels(struct VSprite * head, struct VSprite * tail, struct GelsInfo * GInfo) -> void  [-120] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_VSprite, 1,
+                                        "VSprite", &emu_object_0, err, errlen) < 0)
+            return 1;
+        APTR emu_object_1;
+        if (emu68k_object_from_guest(guest0, r->a[1], EMU_OBJ_VSprite, 1,
+                                        "VSprite", &emu_object_1, err, errlen) < 0)
+            return 1;
+        APTR emu_object_2;
+        if (emu68k_object_from_guest(guest0, r->a[2], EMU_OBJ_GelsInfo, 1,
+                                        "GelsInfo", &emu_object_2, err, errlen) < 0)
+            return 1;
+            InitGels((struct VSprite *)emu_object_0,
+              (struct VSprite *)emu_object_1,
+              (struct GelsInfo *)emu_object_2);
+            return 0;
+    }
+    case 21:  /* InitMasks(struct VSprite * vs) -> void  [-126] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_VSprite, 1,
+                                        "VSprite", &emu_object_0, err, errlen) < 0)
+            return 1;
+            InitMasks((struct VSprite *)emu_object_0);
+            return 0;
+    }
+    case 22:  /* RemIBob(struct Bob * bob, struct RastPort * rp, struct ViewPort * vp) -> void  [-132] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_Bob, 1,
+                                        "Bob", &emu_object_0, err, errlen) < 0)
+            return 1;
+        APTR emu_object_1;
+        if (emu68k_object_from_guest(guest0, r->a[1], EMU_OBJ_RastPort, 1,
+                                        "RastPort", &emu_object_1, err, errlen) < 0)
+            return 1;
+        APTR emu_object_2;
+        if (emu68k_object_from_guest(guest0, r->a[2], EMU_OBJ_ViewPort, 1,
+                                        "ViewPort", &emu_object_2, err, errlen) < 0)
+            return 1;
+            RemIBob((struct Bob *)emu_object_0,
+              (struct RastPort *)emu_object_1,
+              (struct ViewPort *)emu_object_2);
+            return 0;
+    }
+    case 23:  /* RemVSprite(struct VSprite * vs) -> void  [-138] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_VSprite, 1,
+                                        "VSprite", &emu_object_0, err, errlen) < 0)
+            return 1;
+            RemVSprite((struct VSprite *)emu_object_0);
+            return 0;
+    }
+    case 24:  /* SetCollision: explicit reviewed refusal [-144] */
         if (err && errlen)
-            snprintf(err, errlen, "capability gap: graphics.library.InitGels needs struct GelsInfo *, struct VSprite * described");
-        r->d[0] = 0;
-        return 1;
-    case 21:  /* InitMasks: no crossing [-126] */
-        if (err && errlen)
-            snprintf(err, errlen, "capability gap: graphics.library.InitMasks needs struct VSprite * described");
-        r->d[0] = 0;
-        return 1;
-    case 22:  /* RemIBob: no crossing [-132] */
-        if (err && errlen)
-            snprintf(err, errlen, "capability gap: graphics.library.RemIBob needs struct Bob *, struct RastPort *, struct ViewPort * described");
-        r->d[0] = 0;
-        return 1;
-    case 23:  /* RemVSprite: no crossing [-138] */
-        if (err && errlen)
-            snprintf(err, errlen, "capability gap: graphics.library.RemVSprite needs struct VSprite * described");
-        r->d[0] = 0;
-        return 1;
-    case 24:  /* SetCollision: no crossing [-144] */
-        if (err && errlen)
-            snprintf(err, errlen, "capability gap: graphics.library.SetCollision needs VOID_FUNC routine, struct GelsInfo * described");
+            snprintf(err, errlen, "capability gap: graphics.library.SetCollision refused: retains a 68k collision callback which native graphics.library cannot invoke without a callback adapter");
         r->d[0] = 0;
         return 1;
     case 25:  /* SortGList(struct RastPort * rp) -> void  [-150] */
@@ -263,26 +478,40 @@ int emu68k_gen_graphics(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
             SortGList((struct RastPort *)emu_object_0);
             return 0;
     }
-    case 26:  /* AddAnimOb: no crossing [-156] */
+    case 26:  /* AddAnimOb: explicit reviewed refusal [-156] */
         if (err && errlen)
-            snprintf(err, errlen, "capability gap: graphics.library.AddAnimOb needs struct AnimOb *, struct AnimOb **, struct RastPort * described");
+            snprintf(err, errlen, "capability gap: graphics.library.AddAnimOb refused: mutates and retains a guest AnimOb linked list through a pointer-to-pointer graph");
         r->d[0] = 0;
         return 1;
-    case 27:  /* Animate: no crossing [-162] */
+    case 27:  /* Animate: explicit reviewed refusal [-162] */
         if (err && errlen)
-            snprintf(err, errlen, "capability gap: graphics.library.Animate needs struct AnimOb **, struct RastPort * described");
+            snprintf(err, errlen, "capability gap: graphics.library.Animate refused: walks retained guest animation graphs and may execute their guest callbacks");
         r->d[0] = 0;
         return 1;
-    case 28:  /* GetGBuffers: no crossing [-168] */
-        if (err && errlen)
-            snprintf(err, errlen, "capability gap: graphics.library.GetGBuffers needs struct AnimOb *, struct RastPort * described");
-        r->d[0] = 0;
-        return 1;
-    case 29:  /* InitGMasks: no crossing [-174] */
-        if (err && errlen)
-            snprintf(err, errlen, "capability gap: graphics.library.InitGMasks needs struct AnimOb * described");
-        r->d[0] = 0;
-        return 1;
+    case 28:  /* GetGBuffers(struct AnimOb * anOb, struct RastPort * rp, BOOL db) -> BOOL  [-168] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_AnimOb, 1,
+                                        "AnimOb", &emu_object_0, err, errlen) < 0)
+            return 1;
+        APTR emu_object_1;
+        if (emu68k_object_from_guest(guest0, r->a[1], EMU_OBJ_RastPort, 1,
+                                        "RastPort", &emu_object_1, err, errlen) < 0)
+            return 1;
+            r->d[0] = (ULONG)GetGBuffers((struct AnimOb *)emu_object_0,
+              (struct RastPort *)emu_object_1,
+              (BOOL)r->d[0]);
+            return 0;
+    }
+    case 29:  /* InitGMasks(struct AnimOb * anOb) -> void  [-174] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_AnimOb, 1,
+                                        "AnimOb", &emu_object_0, err, errlen) < 0)
+            return 1;
+            InitGMasks((struct AnimOb *)emu_object_0);
+            return 0;
+    }
     case 30:  /* DrawEllipse(struct RastPort * rp, WORD xCenter, WORD yCenter, WORD a, WORD b) -> void  [-180] */
     {
         APTR emu_object_0;
@@ -309,11 +538,53 @@ int emu68k_gen_graphics(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
               (WORD)r->d[3]);
             return 0;
     }
-    case 32:  /* LoadRGB4: no crossing [-192] */
-        if (err && errlen)
-            snprintf(err, errlen, "capability gap: graphics.library.LoadRGB4 needs UWORD *, struct ViewPort * described");
-        r->d[0] = 0;
-        return 1;
+    case 32:  /* LoadRGB4(struct ViewPort * vp, UWORD * colors, WORD count) -> void  [-192] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_ViewPort, 0,
+                                        "ViewPort", &emu_object_0, err, errlen) < 0)
+            return 1;
+        UQUAD emu_array_wide_count_1 = (UQUAD)(ULONG)r->d[0] * 1;
+        if (emu_array_wide_count_1 > 256)
+        {
+            if (err && errlen)
+                snprintf(err, errlen, "LoadRGB4.colors count exceeds 256");
+            return 1;
+        }
+        ULONG emu_array_count_1 = (ULONG)emu_array_wide_count_1;
+        ULONG emu_array_size_1 = sizeof(UWORD) * 256;
+        APTR emu_array_scratch_1 = NULL;
+        if (!r->a[1])
+        {
+            if (err && errlen)
+                snprintf(err, errlen, "LoadRGB4.colors requires a non-NULL array");
+            return 1;
+        }
+        if (r->a[1])
+        {
+            emu_array_scratch_1 = emu68k_scratch_alloc(
+                emu_array_size_1, err, errlen);
+            if (!emu_array_scratch_1)
+            {
+                return 1;
+            }
+            if (emu68k_require_guest_range(r->a[1], emu_array_count_1 * 2,
+                    "LoadRGB4.colors", err, errlen) < 0)
+            {
+                emu68k_scratch_free(emu_array_scratch_1, emu_array_size_1);
+                return 1;
+            }
+            for (ULONG emu_array_i_1 = 0; emu_array_i_1 < emu_array_count_1; emu_array_i_1++)
+                ((UWORD *)emu_array_scratch_1)[emu_array_i_1] = (UWORD)
+                    emu68k_scalar_from_guest(guest0, r->a[1] + emu_array_i_1 * 2, 2);
+        }
+            LoadRGB4((struct ViewPort *)emu_object_0,
+              (UWORD *)emu_array_scratch_1,
+              (WORD)r->d[0]);
+        if (emu_array_scratch_1)
+            emu68k_scratch_free(emu_array_scratch_1, emu_array_size_1);
+            return 0;
+    }
     case 33:  /* InitRastPort(struct RastPort * rp) -> void  [-198] */
     {
         struct RastPort emu_struct_0;
@@ -377,16 +648,11 @@ int emu68k_gen_graphics(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
     case 38:  /* WaitBlit(void) -> void  [-228] */
         WaitBlit();
         return 0;
-    case 39:  /* SetRast(struct RastPort * rp, ULONG pen) -> void  [-234] */
-    {
-        APTR emu_object_0;
-        if (emu68k_object_from_guest(guest0, r->a[1], EMU_OBJ_RastPort, 1,
-                                        "RastPort", &emu_object_0, err, errlen) < 0)
-            return 1;
-            SetRast((struct RastPort *)emu_object_0,
-              (ULONG)r->d[0]);
-            return 0;
-    }
+    case 39:  /* SetRast: explicit reviewed refusal [-234] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: graphics.library.SetRast refused: served by the OS-side planar RastPort adapter, which fills program-owned guest bitplanes according to the requested pen");
+        r->d[0] = 0;
+        return 1;
     case 40:  /* Move(struct RastPort * rp, WORD x, WORD y) -> void  [-240] */
     {
         APTR emu_object_0;
@@ -443,14 +709,18 @@ int emu68k_gen_graphics(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
     case 45:  /* WaitTOF(void) -> void  [-270] */
         WaitTOF();
         return 0;
-    case 46:  /* QBlit: no crossing [-276] */
+    case 46:  /* QBlit(struct bltnode * bn) -> void  [-276] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[1], EMU_OBJ_bltnode, 1,
+                                        "bltnode", &emu_object_0, err, errlen) < 0)
+            return 1;
+            QBlit((struct bltnode *)emu_object_0);
+            return 0;
+    }
+    case 47:  /* InitArea: explicit reviewed refusal [-282] */
         if (err && errlen)
-            snprintf(err, errlen, "capability gap: graphics.library.QBlit needs struct bltnode * described");
-        r->d[0] = 0;
-        return 1;
-    case 47:  /* InitArea: no crossing [-282] */
-        if (err && errlen)
-            snprintf(err, errlen, "capability gap: graphics.library.InitArea needs struct AreaInfo *, void * described");
+            snprintf(err, errlen, "capability gap: graphics.library.InitArea refused: served by the handwritten Graphics handler because AreaInfo retains guest pointers into the caller's vector buffer");
         r->d[0] = 0;
         return 1;
     case 48:  /* SetRGB4(struct ViewPort * vp, ULONG n, ULONG r, ULONG g, ULONG b) -> void  [-288] */
@@ -466,14 +736,18 @@ int emu68k_gen_graphics(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
               (ULONG)r->d[3]);
             return 0;
     }
-    case 49:  /* QBSBlit: no crossing [-294] */
+    case 49:  /* QBSBlit(struct bltnode * bn) -> void  [-294] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[1], EMU_OBJ_bltnode, 1,
+                                        "bltnode", &emu_object_0, err, errlen) < 0)
+            return 1;
+            QBSBlit((struct bltnode *)emu_object_0);
+            return 0;
+    }
+    case 50:  /* BltClear: explicit reviewed refusal [-300] */
         if (err && errlen)
-            snprintf(err, errlen, "capability gap: graphics.library.QBSBlit needs struct bltnode * described");
-        r->d[0] = 0;
-        return 1;
-    case 50:  /* BltClear: no crossing [-300] */
-        if (err && errlen)
-            snprintf(err, errlen, "capability gap: graphics.library.BltClear needs void * described");
+            snprintf(err, errlen, "capability gap: graphics.library.BltClear refused: served directly in guest memory by the handwritten Graphics handler");
         r->d[0] = 0;
         return 1;
     case 51:  /* RectFill(struct RastPort * rp, WORD xMin, WORD yMin, WORD xMax, WORD yMax) -> void  [-306] */
@@ -489,11 +763,43 @@ int emu68k_gen_graphics(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
               (WORD)r->d[3]);
             return 0;
     }
-    case 52:  /* BltPattern: no crossing [-312] */
-        if (err && errlen)
-            snprintf(err, errlen, "capability gap: graphics.library.BltPattern needs PLANEPTR mask, struct RastPort * described");
-        r->d[0] = 0;
-        return 1;
+    case 52:  /* BltPattern(struct RastPort * rp, PLANEPTR mask, WORD xMin, WORD yMin, WORD xMax, WORD yMax, ULONG byteCnt) -> void  [-312] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[1], EMU_OBJ_RastPort, 0,
+                                        "RastPort", &emu_object_0, err, errlen) < 0)
+            return 1;
+        UQUAD emu_buffer_size_1 = 1;
+        UQUAD emu_buffer_factor_1_0 = (ULONG)r->d[4];
+        if (emu_buffer_factor_1_0 && emu_buffer_size_1 >
+            0xffffffffUL / emu_buffer_factor_1_0)
+        {
+            if (err && errlen)
+                snprintf(err, errlen, "BltPattern.mask extent overflows guest memory");
+            return 1;
+        }
+        emu_buffer_size_1 *= emu_buffer_factor_1_0;
+        UQUAD emu_buffer_factor_1_1 = (UQUAD)((LONG)r->d[3] - (LONG)r->d[1] + 1);
+        if (emu_buffer_factor_1_1 && emu_buffer_size_1 >
+            0xffffffffUL / emu_buffer_factor_1_1)
+        {
+            if (err && errlen)
+                snprintf(err, errlen, "BltPattern.mask extent overflows guest memory");
+            return 1;
+        }
+        emu_buffer_size_1 *= emu_buffer_factor_1_1;
+        if (r->a[0] && emu68k_require_guest_range(r->a[0],
+                (ULONG)emu_buffer_size_1, "BltPattern.mask", err, errlen) < 0)
+            return 1;
+            BltPattern((struct RastPort *)emu_object_0,
+              (PLANEPTR)EMU_GPTR(guest0, r->a[0]),
+              (WORD)r->d[0],
+              (WORD)r->d[1],
+              (WORD)r->d[2],
+              (WORD)r->d[3],
+              (ULONG)r->d[4]);
+            return 0;
+    }
     case 53:  /* ReadPixel(struct RastPort * rp, WORD x, WORD y) -> LONG  [-318] */
     {
         APTR emu_object_0;
@@ -528,41 +834,68 @@ int emu68k_gen_graphics(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
               (WORD)r->d[1]);
             return 0;
     }
-    case 56:  /* PolyDraw: no crossing [-336] */
+    case 56:  /* PolyDraw(struct RastPort * rp, LONG count, WORD * polyTable) -> void  [-336] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[1], EMU_OBJ_RastPort, 0,
+                                        "RastPort", &emu_object_0, err, errlen) < 0)
+            return 1;
+        UQUAD emu_array_wide_count_2 = (UQUAD)(ULONG)r->d[0] * 2;
+        if (emu_array_wide_count_2 > 4096)
+        {
+            if (err && errlen)
+                snprintf(err, errlen, "PolyDraw.polyTable count exceeds 4096");
+            return 1;
+        }
+        ULONG emu_array_count_2 = (ULONG)emu_array_wide_count_2;
+        ULONG emu_array_size_2 = sizeof(UWORD) * 4096;
+        APTR emu_array_scratch_2 = NULL;
+        if (!r->a[0])
+        {
+            if (err && errlen)
+                snprintf(err, errlen, "PolyDraw.polyTable requires a non-NULL array");
+            return 1;
+        }
+        if (r->a[0])
+        {
+            emu_array_scratch_2 = emu68k_scratch_alloc(
+                emu_array_size_2, err, errlen);
+            if (!emu_array_scratch_2)
+            {
+                return 1;
+            }
+            if (emu68k_require_guest_range(r->a[0], emu_array_count_2 * 2,
+                    "PolyDraw.polyTable", err, errlen) < 0)
+            {
+                emu68k_scratch_free(emu_array_scratch_2, emu_array_size_2);
+                return 1;
+            }
+            for (ULONG emu_array_i_2 = 0; emu_array_i_2 < emu_array_count_2; emu_array_i_2++)
+                ((UWORD *)emu_array_scratch_2)[emu_array_i_2] = (UWORD)
+                    emu68k_scalar_from_guest(guest0, r->a[0] + emu_array_i_2 * 2, 2);
+        }
+            PolyDraw((struct RastPort *)emu_object_0,
+              (LONG)r->d[0],
+              (WORD *)emu_array_scratch_2);
+        if (emu_array_scratch_2)
+            emu68k_scratch_free(emu_array_scratch_2, emu_array_size_2);
+            return 0;
+    }
+    case 57:  /* SetAPen: explicit reviewed refusal [-342] */
         if (err && errlen)
-            snprintf(err, errlen, "capability gap: graphics.library.PolyDraw needs WORD *, struct RastPort * described");
+            snprintf(err, errlen, "capability gap: graphics.library.SetAPen refused: served by the OS-side RastPort adapter, which mirrors the exact pen, line-pattern and flag mutations into program-owned guest RastPorts");
         r->d[0] = 0;
         return 1;
-    case 57:  /* SetAPen(struct RastPort * rp, ULONG pen) -> void  [-342] */
-    {
-        APTR emu_object_0;
-        if (emu68k_object_from_guest(guest0, r->a[1], EMU_OBJ_RastPort, 1,
-                                        "RastPort", &emu_object_0, err, errlen) < 0)
-            return 1;
-            SetAPen((struct RastPort *)emu_object_0,
-              (ULONG)r->d[0]);
-            return 0;
-    }
-    case 58:  /* SetBPen(struct RastPort * rp, ULONG pen) -> void  [-348] */
-    {
-        APTR emu_object_0;
-        if (emu68k_object_from_guest(guest0, r->a[1], EMU_OBJ_RastPort, 1,
-                                        "RastPort", &emu_object_0, err, errlen) < 0)
-            return 1;
-            SetBPen((struct RastPort *)emu_object_0,
-              (ULONG)r->d[0]);
-            return 0;
-    }
-    case 59:  /* SetDrMd(struct RastPort * rp, ULONG drawMode) -> void  [-354] */
-    {
-        APTR emu_object_0;
-        if (emu68k_object_from_guest(guest0, r->a[1], EMU_OBJ_RastPort, 1,
-                                        "RastPort", &emu_object_0, err, errlen) < 0)
-            return 1;
-            SetDrMd((struct RastPort *)emu_object_0,
-              (ULONG)r->d[0]);
-            return 0;
-    }
+    case 58:  /* SetBPen: explicit reviewed refusal [-348] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: graphics.library.SetBPen refused: served by the OS-side RastPort adapter, including the guest ABI minterm regeneration performed by graphics.library");
+        r->d[0] = 0;
+        return 1;
+    case 59:  /* SetDrMd: explicit reviewed refusal [-354] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: graphics.library.SetDrMd refused: served by the OS-side RastPort adapter, including the guest ABI minterm regeneration performed by graphics.library");
+        r->d[0] = 0;
+        return 1;
     case 60:  /* InitView(struct View * view) -> void  [-360] */
     {
         APTR emu_object_0;
@@ -572,21 +905,31 @@ int emu68k_gen_graphics(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
             InitView((struct View *)emu_object_0);
             return 0;
     }
-    case 61:  /* CBump: no crossing [-366] */
+    case 61:  /* CBump(struct UCopList * ucl) -> void  [-366] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[1], EMU_OBJ_UCopList, 1,
+                                        "UCopList", &emu_object_0, err, errlen) < 0)
+            return 1;
+            CBump((struct UCopList *)emu_object_0);
+            return 0;
+    }
+    case 62:  /* CMove: explicit reviewed refusal [-372] */
         if (err && errlen)
-            snprintf(err, errlen, "capability gap: graphics.library.CBump needs struct UCopList * described");
+            snprintf(err, errlen, "capability gap: graphics.library.CMove refused: the register argument is an Amiga custom-chip address and has no valid hosted native pointer meaning");
         r->d[0] = 0;
         return 1;
-    case 62:  /* CMove: no crossing [-372] */
-        if (err && errlen)
-            snprintf(err, errlen, "capability gap: graphics.library.CMove needs struct UCopList *, void * described");
-        r->d[0] = 0;
-        return 1;
-    case 63:  /* CWait: no crossing [-378] */
-        if (err && errlen)
-            snprintf(err, errlen, "capability gap: graphics.library.CWait needs struct UCopList * described");
-        r->d[0] = 0;
-        return 1;
+    case 63:  /* CWait(struct UCopList * ucl, WORD v, WORD h) -> void  [-378] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[1], EMU_OBJ_UCopList, 1,
+                                        "UCopList", &emu_object_0, err, errlen) < 0)
+            return 1;
+            CWait((struct UCopList *)emu_object_0,
+              (WORD)r->d[0],
+              (WORD)r->d[1]);
+            return 0;
+    }
     case 64:  /* VBeamPos(void) -> LONG  [-384] */
         r->d[0] = (ULONG)VBeamPos();
         return 0;
@@ -635,24 +978,40 @@ int emu68k_gen_graphics(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
             WaitBOVP((struct ViewPort *)emu_object_0);
             return 0;
     }
-    case 68:  /* GetSprite: no crossing [-408] */
-        if (err && errlen)
-            snprintf(err, errlen, "capability gap: graphics.library.GetSprite needs struct SimpleSprite * described");
-        r->d[0] = 0;
-        return 1;
+    case 68:  /* GetSprite(struct SimpleSprite * sprite, WORD pick) -> WORD  [-408] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_SimpleSprite, 1,
+                                        "SimpleSprite", &emu_object_0, err, errlen) < 0)
+            return 1;
+            r->d[0] = (ULONG)GetSprite((struct SimpleSprite *)emu_object_0,
+              (WORD)r->d[0]);
+            return 0;
+    }
     case 69:  /* FreeSprite(WORD pick) -> void  [-414] */
         FreeSprite((WORD)r->d[0]);
         return 0;
-    case 70:  /* ChangeSprite: no crossing [-420] */
+    case 70:  /* ChangeSprite: explicit reviewed refusal [-420] */
         if (err && errlen)
-            snprintf(err, errlen, "capability gap: graphics.library.ChangeSprite needs struct SimpleSprite *, struct ViewPort *, void * described");
+            snprintf(err, errlen, "capability gap: graphics.library.ChangeSprite refused: accepts raw chipset sprite words whose retained extent and hardware representation are not described by the ABI");
         r->d[0] = 0;
         return 1;
-    case 71:  /* MoveSprite: no crossing [-426] */
-        if (err && errlen)
-            snprintf(err, errlen, "capability gap: graphics.library.MoveSprite needs struct SimpleSprite *, struct ViewPort * described");
-        r->d[0] = 0;
-        return 1;
+    case 71:  /* MoveSprite(struct ViewPort * vp, struct SimpleSprite * sprite, WORD x, WORD y) -> void  [-426] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_ViewPort, 1,
+                                        "ViewPort", &emu_object_0, err, errlen) < 0)
+            return 1;
+        APTR emu_object_1;
+        if (emu68k_object_from_guest(guest0, r->a[1], EMU_OBJ_SimpleSprite, 1,
+                                        "SimpleSprite", &emu_object_1, err, errlen) < 0)
+            return 1;
+            MoveSprite((struct ViewPort *)emu_object_0,
+              (struct SimpleSprite *)emu_object_1,
+              (WORD)r->d[0],
+              (WORD)r->d[1]);
+            return 0;
+    }
     case 72:  /* LockLayerRom(struct Layer * l) -> void  [-432] */
     {
         APTR emu_object_0;
@@ -695,9 +1054,9 @@ int emu68k_gen_graphics(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
     case 77:  /* DisownBlitter(void) -> void  [-462] */
         DisownBlitter();
         return 0;
-    case 78:  /* InitTmpRas: no crossing [-468] */
+    case 78:  /* InitTmpRas: explicit reviewed refusal [-468] */
         if (err && errlen)
-            snprintf(err, errlen, "capability gap: graphics.library.InitTmpRas needs returns a pointer (struct TmpRas *) described");
+            snprintf(err, errlen, "capability gap: graphics.library.InitTmpRas refused: served by the handwritten Graphics handler because TmpRas retains a guest raster pointer");
         r->d[0] = 0;
         return 1;
     case 79:  /* AskFont(struct RastPort * rp, struct TextAttr * textAttr) -> void  [-474] */
@@ -743,14 +1102,14 @@ int emu68k_gen_graphics(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
             RemFont((struct TextFont *)emu_object_0);
             return 0;
     }
-    case 82:  /* AllocRaster: no crossing [-492] */
+    case 82:  /* AllocRaster: explicit reviewed refusal [-492] */
         if (err && errlen)
-            snprintf(err, errlen, "capability gap: graphics.library.AllocRaster needs returns a pointer (PLANEPTR) described");
+            snprintf(err, errlen, "capability gap: graphics.library.AllocRaster refused: served by the handwritten Graphics handler so the returned raster is addressable 32-bit guest memory");
         r->d[0] = 0;
         return 1;
-    case 83:  /* FreeRaster: no crossing [-498] */
+    case 83:  /* FreeRaster: explicit reviewed refusal [-498] */
         if (err && errlen)
-            snprintf(err, errlen, "capability gap: graphics.library.FreeRaster needs PLANEPTR p described");
+            snprintf(err, errlen, "capability gap: graphics.library.FreeRaster refused: paired handwritten release for a run-owned guest raster allocation");
         r->d[0] = 0;
         return 1;
     case 84:  /* AndRectRegion(struct Region * Reg, struct Rectangle * Rect) -> void  [-504] */
@@ -859,11 +1218,15 @@ int emu68k_gen_graphics(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
             FreeVPortCopLists((struct ViewPort *)emu_object_0);
             return 0;
     }
-    case 91:  /* FreeCopList: no crossing [-546] */
-        if (err && errlen)
-            snprintf(err, errlen, "capability gap: graphics.library.FreeCopList needs struct CopList * described");
-        r->d[0] = 0;
-        return 1;
+    case 91:  /* FreeCopList(struct CopList * coplist) -> void  [-546] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_CopList, 1,
+                                        "CopList", &emu_object_0, err, errlen) < 0)
+            return 1;
+            FreeCopList((struct CopList *)emu_object_0);
+            return 0;
+    }
     case 92:  /* ClipBlit(struct RastPort * srcRP, WORD xSrc, WORD ySrc, struct RastPort * destRP, WORD xDest, WORD yDest, WORD xSize, WORD ySize, UBYTE minterm) -> void  [-552] */
     {
         APTR emu_object_0;
@@ -908,16 +1271,24 @@ int emu68k_gen_graphics(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
               (struct Rectangle *)&emu_struct_1);
             return 0;
     }
-    case 94:  /* FreeCprList: no crossing [-564] */
-        if (err && errlen)
-            snprintf(err, errlen, "capability gap: graphics.library.FreeCprList needs struct cprlist * described");
-        r->d[0] = 0;
-        return 1;
-    case 95:  /* GetColorMap: no crossing [-570] */
-        if (err && errlen)
-            snprintf(err, errlen, "capability gap: graphics.library.GetColorMap needs returns a pointer (struct ColorMap *) described");
-        r->d[0] = 0;
-        return 1;
+    case 94:  /* FreeCprList(struct cprlist * cprList) -> void  [-564] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_cprlist, 1,
+                                        "cprlist", &emu_object_0, err, errlen) < 0)
+            return 1;
+            FreeCprList((struct cprlist *)emu_object_0);
+            return 0;
+    }
+    case 95:  /* GetColorMap(ULONG entries) -> struct ColorMap *  [-570] */
+    {
+        APTR emu_result = (APTR)GetColorMap((ULONG)r->d[0]);
+        if (emu68k_object_to_guest(guest0, emu_result, EMU_OBJ_ColorMap,
+                                      base, emu_object_cleanup_ColorMap,
+                                      "ColorMap", &r->d[0], err, errlen) < 0)
+            return 1;
+            return 0;
+    }
     case 96:  /* FreeColorMap(struct ColorMap * colormap) -> void  [-576] */
     {
         APTR emu_object_0;
@@ -946,50 +1317,40 @@ int emu68k_gen_graphics(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
             ScrollVPort((struct ViewPort *)emu_object_0);
             return 0;
     }
-    case 99:  /* UCopperListInit: no crossing [-594] */
-        if (err && errlen)
-            snprintf(err, errlen, "capability gap: graphics.library.UCopperListInit needs returns a pointer (struct CopList *) described");
-        r->d[0] = 0;
-        return 1;
-    case 100:  /* FreeGBuffers: no crossing [-600] */
-        if (err && errlen)
-            snprintf(err, errlen, "capability gap: graphics.library.FreeGBuffers needs struct AnimOb *, struct RastPort * described");
-        r->d[0] = 0;
-        return 1;
-    case 101:  /* BltBitMapRastPort(struct BitMap * srcBitMap, WORD xSrc, WORD ySrc, struct RastPort * destRP, WORD xDest, WORD yDest, WORD xSize, WORD ySize, ULONG minterm) -> void  [-606] */
+    case 99:  /* UCopperListInit(struct UCopList * ucl, WORD n) -> struct CopList *  [-594] */
     {
-        struct BitMap emu_struct_0;
-        struct BitMap *emu_structp_0 = NULL;
-        if (r->a[0])
-        {
-            emu_structp_0 = &emu_struct_0;
-            if (emu68k_require_guest_range(r->a[0], M68K_BitMap_SIZEOF,
-                                             "BltBitMapRastPort.srcBitMap", err, errlen) < 0)
-                return 1;
-            memset(&emu_struct_0, 0, sizeof(emu_struct_0));
-        emu68k_from_guest_sized(guest0, r->a[0], &emu_struct_0,
-                             emu_fields_BitMap, EMU_NFIELDS(emu_fields_BitMap), M68K_BitMap_SIZEOF);
-        }
-        APTR emu_object_3;
-        if (emu68k_object_from_guest(guest0, r->a[1], EMU_OBJ_RastPort, 1,
-                                        "RastPort", &emu_object_3, err, errlen) < 0)
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_UCopList, 1,
+                                        "UCopList", &emu_object_0, err, errlen) < 0)
             return 1;
-            BltBitMapRastPort((struct BitMap *)emu_structp_0,
-              (WORD)r->d[0],
-              (WORD)r->d[1],
-              (struct RastPort *)emu_object_3,
-              (WORD)r->d[2],
-              (WORD)r->d[3],
-              (WORD)r->d[4],
-              (WORD)r->d[5],
-              (ULONG)r->d[6]);
-        if (emu_structp_0)
-        {
-            emu68k_to_guest_sized(guest0, r->a[0], &emu_struct_0,
-                               emu_fields_BitMap, EMU_NFIELDS(emu_fields_BitMap), M68K_BitMap_SIZEOF);
-        }
+        APTR emu_result = (APTR)UCopperListInit((struct UCopList *)emu_object_0,
+              (WORD)r->d[0]);
+        if (emu68k_object_to_guest(guest0, emu_result, EMU_OBJ_CopList,
+                                      base, NULL,
+                                      "CopList", &r->d[0], err, errlen) < 0)
+            return 1;
             return 0;
     }
+    case 100:  /* FreeGBuffers(struct AnimOb * anOb, struct RastPort * rp, BOOL db) -> void  [-600] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_AnimOb, 1,
+                                        "AnimOb", &emu_object_0, err, errlen) < 0)
+            return 1;
+        APTR emu_object_1;
+        if (emu68k_object_from_guest(guest0, r->a[1], EMU_OBJ_RastPort, 1,
+                                        "RastPort", &emu_object_1, err, errlen) < 0)
+            return 1;
+            FreeGBuffers((struct AnimOb *)emu_object_0,
+              (struct RastPort *)emu_object_1,
+              (BOOL)r->d[0]);
+            return 0;
+    }
+    case 101:  /* BltBitMapRastPort: explicit reviewed refusal [-606] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: graphics.library.BltBitMapRastPort refused: served by the OS-side planar RastPort adapter, which constructs validated transient native views for program-owned source BitMaps and destination RastPorts");
+        r->d[0] = 0;
+        return 1;
     case 102:  /* OrRegionRegion(struct Region * R1, struct Region * R2) -> BOOL  [-612] */
     {
         APTR emu_object_0;
@@ -1045,19 +1406,19 @@ int emu68k_gen_graphics(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
               (UBYTE)r->d[3]);
             return 0;
     }
-    case 106:  /* BltMaskBitMapRastPort: no crossing [-636] */
+    case 106:  /* BltMaskBitMapRastPort: explicit reviewed refusal [-636] */
         if (err && errlen)
-            snprintf(err, errlen, "capability gap: graphics.library.BltMaskBitMapRastPort needs PLANEPTR bltMask, struct BitMap *, struct RastPort * described");
+            snprintf(err, errlen, "capability gap: graphics.library.BltMaskBitMapRastPort refused: the mask pointer has no length argument; its extent depends on native bitmap layout and source coordinates");
         r->d[0] = 0;
         return 1;
-    case 107:  /* AddDisplayDriverA: no crossing [-642] */
+    case 107:  /* AddDisplayDriverA: explicit reviewed refusal [-642] */
         if (err && errlen)
-            snprintf(err, errlen, "capability gap: graphics.library.AddDisplayDriverA needs APTR gfxhidd, const struct TagItem * described");
+            snprintf(err, errlen, "capability gap: graphics.library.AddDisplayDriverA refused: registers a native HIDD driver object and driver attribute contracts that cannot be represented by a guest token alone");
         r->d[0] = 0;
         return 1;
-    case 108:  /* SetDisplayDriverCallback: no crossing [-648] */
+    case 108:  /* SetDisplayDriverCallback: explicit reviewed refusal [-648] */
         if (err && errlen)
-            snprintf(err, errlen, "capability gap: graphics.library.SetDisplayDriverCallback needs APTR callback, APTR userdata described");
+            snprintf(err, errlen, "capability gap: graphics.library.SetDisplayDriverCallback refused: retains and invokes a callback using the native display-driver ABI");
         r->d[0] = 0;
         return 1;
     case 109:  /* AttemptLockLayerRom(struct Layer * l) -> BOOL  [-654] */
@@ -1069,61 +1430,91 @@ int emu68k_gen_graphics(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
             r->d[0] = (ULONG)AttemptLockLayerRom((struct Layer *)emu_object_0);
             return 0;
     }
-    case 110:  /* GfxNew: no crossing [-660] */
-        if (err && errlen)
-            snprintf(err, errlen, "capability gap: graphics.library.GfxNew needs returns a pointer (struct ExtendedNode *) described");
-        r->d[0] = 0;
-        return 1;
-    case 111:  /* GfxFree: no crossing [-666] */
-        if (err && errlen)
-            snprintf(err, errlen, "capability gap: graphics.library.GfxFree needs struct ExtendedNode * described");
-        r->d[0] = 0;
-        return 1;
-    case 112:  /* GfxAssociate: no crossing [-672] */
-        if (err && errlen)
-            snprintf(err, errlen, "capability gap: graphics.library.GfxAssociate needs struct ExtendedNode *, void * described");
-        r->d[0] = 0;
-        return 1;
-    case 113:  /* BitMapScale: no crossing [-678] */
-        if (err && errlen)
-            snprintf(err, errlen, "capability gap: graphics.library.BitMapScale needs struct BitScaleArgs * described");
-        r->d[0] = 0;
-        return 1;
+    case 110:  /* GfxNew(ULONG node_type) -> struct ExtendedNode *  [-660] */
+    {
+        APTR emu_result = (APTR)GfxNew((ULONG)r->d[0]);
+        if (emu68k_object_to_guest(guest0, emu_result, EMU_OBJ_ExtendedNode,
+                                      base, emu_object_cleanup_ExtendedNode,
+                                      "ExtendedNode", &r->d[0], err, errlen) < 0)
+            return 1;
+            return 0;
+    }
+    case 111:  /* GfxFree(struct ExtendedNode * node) -> void  [-666] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_ExtendedNode, 1,
+                                        "ExtendedNode", &emu_object_0, err, errlen) < 0)
+            return 1;
+            GfxFree((struct ExtendedNode *)emu_object_0);
+            return 0;
+    }
+    case 112:  /* GfxAssociate(void * pointer, struct ExtendedNode * node) -> void  [-672] */
+    {
+        APTR emu_object_1;
+        if (emu68k_object_from_guest(guest0, r->a[1], EMU_OBJ_ExtendedNode, 0,
+                                        "ExtendedNode", &emu_object_1, err, errlen) < 0)
+            return 1;
+            GfxAssociate((void *)(IPTR)r->a[0],
+              (struct ExtendedNode *)emu_object_1);
+            return 0;
+    }
+    case 113:  /* BitMapScale(struct BitScaleArgs * bitScaleArgs) -> void  [-678] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_BitScaleArgs, 1,
+                                        "BitScaleArgs", &emu_object_0, err, errlen) < 0)
+            return 1;
+            BitMapScale((struct BitScaleArgs *)emu_object_0);
+            return 0;
+    }
     case 114:  /* ScalerDiv(UWORD factor, UWORD numerator, UWORD denominator) -> UWORD  [-684] */
         r->d[0] = (ULONG)ScalerDiv((UWORD)r->d[0],
               (UWORD)r->d[1],
               (UWORD)r->d[2]);
         return 0;
-    case 115:  /* TextExtent: no crossing [-690] */
+    case 115:  /* TextExtent: explicit reviewed refusal [-690] */
         if (err && errlen)
-            snprintf(err, errlen, "capability gap: graphics.library.TextExtent needs struct RastPort *, struct TextExtent * described");
+            snprintf(err, errlen, "capability gap: graphics.library.TextExtent refused: served by the OS-side text adapter, including explicit big-endian TextExtent output conversion for program-owned RastPorts");
         r->d[0] = 0;
         return 1;
-    case 116:  /* TextFit: no crossing [-696] */
+    case 116:  /* TextFit: explicit reviewed refusal [-696] */
         if (err && errlen)
-            snprintf(err, errlen, "capability gap: graphics.library.TextFit needs struct RastPort *, struct TextExtent * described");
+            snprintf(err, errlen, "capability gap: graphics.library.TextFit refused: served by the OS-side text adapter, including explicit conversion of both constraining and returned TextExtent structures");
         r->d[0] = 0;
         return 1;
-    case 117:  /* GfxLookUp: no crossing [-702] */
+    case 117:  /* GfxLookUp(void * pointer) -> struct ExtendedNode *  [-702] */
+    {
+        APTR emu_result = (APTR)GfxLookUp((void *)(IPTR)r->a[0]);
+        if (emu68k_object_to_guest(guest0, emu_result, EMU_OBJ_ExtendedNode,
+                                      base, NULL,
+                                      "ExtendedNode", &r->d[0], err, errlen) < 0)
+            return 1;
+            return 0;
+    }
+    case 118:  /* VideoControl: explicit reviewed refusal [-708] */
         if (err && errlen)
-            snprintf(err, errlen, "capability gap: graphics.library.GfxLookUp needs returns a pointer (struct ExtendedNode *) described");
+            snprintf(err, errlen, "capability gap: graphics.library.VideoControl refused: its bidirectional tag API includes retained native pointers and output pointer values without a complete guest representation");
         r->d[0] = 0;
         return 1;
-    case 118:  /* VideoControl: no crossing [-708] */
-        if (err && errlen)
-            snprintf(err, errlen, "capability gap: graphics.library.VideoControl needs struct ColorMap *, struct TagItem * described");
-        r->d[0] = 0;
-        return 1;
-    case 119:  /* OpenMonitor: no crossing [-714] */
-        if (err && errlen)
-            snprintf(err, errlen, "capability gap: graphics.library.OpenMonitor needs returns a pointer (struct MonitorSpec *) described");
-        r->d[0] = 0;
-        return 1;
-    case 120:  /* CloseMonitor: no crossing [-720] */
-        if (err && errlen)
-            snprintf(err, errlen, "capability gap: graphics.library.CloseMonitor needs struct MonitorSpec * described");
-        r->d[0] = 0;
-        return 1;
+    case 119:  /* OpenMonitor(STRPTR monitor_name, ULONG display_id) -> struct MonitorSpec *  [-714] */
+    {
+        APTR emu_result = (APTR)OpenMonitor((STRPTR)EMU_GPTR(guest0, r->a[1]),
+              (ULONG)r->d[0]);
+        if (emu68k_object_to_guest(guest0, emu_result, EMU_OBJ_MonitorSpec,
+                                      base, emu_object_cleanup_MonitorSpec,
+                                      "MonitorSpec", &r->d[0], err, errlen) < 0)
+            return 1;
+            return 0;
+    }
+    case 120:  /* CloseMonitor(struct MonitorSpec * monitor_spec) -> LONG  [-720] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_MonitorSpec, 1,
+                                        "MonitorSpec", &emu_object_0, err, errlen) < 0)
+            return 1;
+            r->d[0] = (ULONG)CloseMonitor((struct MonitorSpec *)emu_object_0);
+            return 0;
+    }
     case 121:  /* FindDisplayInfo(ULONG ID) -> DisplayInfoHandle  [-726] */
     {
         APTR emu_result = (APTR)FindDisplayInfo((ULONG)r->d[0]);
@@ -1309,11 +1700,42 @@ int emu68k_gen_graphics(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
     case 133:  /* ModeNotAvailable(ULONG modeID) -> ULONG  [-798] */
         r->d[0] = (ULONG)ModeNotAvailable((ULONG)r->d[0]);
         return 0;
-    case 134:  /* WeighTAMatch: no crossing [-804] */
-        if (err && errlen)
-            snprintf(err, errlen, "capability gap: graphics.library.WeighTAMatch needs const struct TextAttr *, struct TagItem * described");
-        r->d[0] = 0;
-        return 1;
+    case 134:  /* WeighTAMatch(const struct TextAttr * reqTextAttr, const struct TextAttr * targetTextAttr, struct TagItem * targetTags) -> WORD  [-804] */
+    {
+        struct TextAttr emu_struct_0;
+        if (!r->a[0])
+        {
+            if (err && errlen)
+                snprintf(err, errlen, "capability gap: WeighTAMatch.reqTextAttr requires a structure");
+            return 1;
+        }
+        if (emu68k_require_guest_range(r->a[0], M68K_TextAttr_SIZEOF,
+                                         "WeighTAMatch.reqTextAttr", err, errlen) < 0)
+            return 1;
+        memset(&emu_struct_0, 0, sizeof(emu_struct_0));
+        emu68k_from_guest_sized(guest0, r->a[0], &emu_struct_0,
+                             emu_fields_TextAttr, EMU_NFIELDS(emu_fields_TextAttr), M68K_TextAttr_SIZEOF);
+        struct TextAttr emu_struct_1;
+        if (!r->a[1])
+        {
+            if (err && errlen)
+                snprintf(err, errlen, "capability gap: WeighTAMatch.targetTextAttr requires a structure");
+            return 1;
+        }
+        if (emu68k_require_guest_range(r->a[1], M68K_TextAttr_SIZEOF,
+                                         "WeighTAMatch.targetTextAttr", err, errlen) < 0)
+            return 1;
+        memset(&emu_struct_1, 0, sizeof(emu_struct_1));
+        emu68k_from_guest_sized(guest0, r->a[1], &emu_struct_1,
+                             emu_fields_TextAttr, EMU_NFIELDS(emu_fields_TextAttr), M68K_TextAttr_SIZEOF);
+        struct TagItem emu_tags_2[5];
+        if (emu68k_tags_to_native(guest0, r->a[2], &emu_tagdomain_graphics_ignored_tags, emu_tags_2, 5, NULL, 0, err, errlen) < 0)
+            return 1;
+            r->d[0] = (ULONG)WeighTAMatch((const struct TextAttr *)&emu_struct_0,
+              (const struct TextAttr *)&emu_struct_1,
+              (struct TagItem *)(r->a[2] ? emu_tags_2 : NULL));
+            return 0;
+    }
     case 135:  /* EraseRect(struct RastPort * rp, WORD xMin, WORD yMin, WORD xMax, WORD yMax) -> void  [-810] */
     {
         APTR emu_object_0;
@@ -1327,11 +1749,19 @@ int emu68k_gen_graphics(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
               (WORD)r->d[3]);
             return 0;
     }
-    case 136:  /* ExtendFont: no crossing [-816] */
-        if (err && errlen)
-            snprintf(err, errlen, "capability gap: graphics.library.ExtendFont needs struct TagItem *, struct TextFont * described");
-        r->d[0] = 0;
-        return 1;
+    case 136:  /* ExtendFont(struct TextFont * font, struct TagItem * fontTags) -> ULONG  [-816] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_TextFont, 0,
+                                        "TextFont", &emu_object_0, err, errlen) < 0)
+            return 1;
+        struct TagItem emu_tags_1[5];
+        if (emu68k_tags_to_native(guest0, r->a[1], &emu_tagdomain_graphics_ignored_tags, emu_tags_1, 5, NULL, 0, err, errlen) < 0)
+            return 1;
+            r->d[0] = (ULONG)ExtendFont((struct TextFont *)emu_object_0,
+              (struct TagItem *)(r->a[1] ? emu_tags_1 : NULL));
+            return 0;
+    }
     case 137:  /* StripFont(struct TextFont * font) -> void  [-822] */
     {
         APTR emu_object_0;
@@ -1440,6 +1870,7 @@ int emu68k_gen_graphics(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
         if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_ViewPort, 0,
                                         "ViewPort", &emu_object_0, err, errlen) < 0)
             return 1;
+        ULONG emu_array_count_1 = 1024;
         ULONG emu_array_size_1 = sizeof(ULONG) * 1024;
         APTR emu_array_scratch_1 = NULL;
         if (r->a[1])
@@ -1467,28 +1898,80 @@ int emu68k_gen_graphics(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
     case 148:  /* SetChipRev(ULONG ChipRev) -> ULONG  [-888] */
         r->d[0] = (ULONG)SetChipRev((ULONG)r->d[0]);
         return 0;
-    case 149:  /* SetABPenDrMd(struct RastPort * rp, ULONG apen, ULONG bpen, ULONG drawMode) -> void  [-894] */
+    case 149:  /* SetABPenDrMd: explicit reviewed refusal [-894] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: graphics.library.SetABPenDrMd refused: served by the OS-side RastPort adapter, which applies the combined scalar and minterm mutations to issued or program-owned RastPorts");
+        r->d[0] = 0;
+        return 1;
+    case 150:  /* GetRGB32(struct ColorMap * cm, ULONG firstcolor, ULONG ncolors, ULONG * table) -> void  [-900] */
     {
         APTR emu_object_0;
-        if (emu68k_object_from_guest(guest0, r->a[1], EMU_OBJ_RastPort, 1,
-                                        "RastPort", &emu_object_0, err, errlen) < 0)
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_ColorMap, 0,
+                                        "ColorMap", &emu_object_0, err, errlen) < 0)
             return 1;
-            SetABPenDrMd((struct RastPort *)emu_object_0,
+        UQUAD emu_array_wide_count_3 = (UQUAD)(ULONG)r->d[1] * 3;
+        if (emu_array_wide_count_3 > 3072)
+        {
+            if (err && errlen)
+                snprintf(err, errlen, "GetRGB32.table count exceeds 3072");
+            return 1;
+        }
+        ULONG emu_array_count_3 = (ULONG)emu_array_wide_count_3;
+        ULONG emu_array_size_3 = sizeof(ULONG) * 3072;
+        APTR emu_array_scratch_3 = NULL;
+        if (!r->a[1])
+        {
+            if (err && errlen)
+                snprintf(err, errlen, "GetRGB32.table requires a non-NULL array");
+            return 1;
+        }
+        if (r->a[1])
+        {
+            emu_array_scratch_3 = emu68k_scratch_alloc(
+                emu_array_size_3, err, errlen);
+            if (!emu_array_scratch_3)
+            {
+                return 1;
+            }
+            if (emu68k_require_guest_range(r->a[1], emu_array_count_3 * 4,
+                    "GetRGB32.table", err, errlen) < 0)
+            {
+                emu68k_scratch_free(emu_array_scratch_3, emu_array_size_3);
+                return 1;
+            }
+        }
+            GetRGB32((struct ColorMap *)emu_object_0,
               (ULONG)r->d[0],
               (ULONG)r->d[1],
-              (ULONG)r->d[2]);
+              (ULONG *)emu_array_scratch_3);
+        for (ULONG emu_array_out_i_3 = 0;
+             emu_array_out_i_3 < emu_array_count_3; emu_array_out_i_3++)
+            emu68k_scalar_to_guest(guest0, r->a[1] + emu_array_out_i_3 * 4, 4,
+                ((ULONG *)emu_array_scratch_3)[emu_array_out_i_3]);
+        if (emu_array_scratch_3)
+            emu68k_scratch_free(emu_array_scratch_3, emu_array_size_3);
             return 0;
     }
-    case 150:  /* GetRGB32: no crossing [-900] */
-        if (err && errlen)
-            snprintf(err, errlen, "capability gap: graphics.library.GetRGB32 needs ULONG *, struct ColorMap * described");
-        r->d[0] = 0;
-        return 1;
-    case 153:  /* AllocBitMap: no crossing [-918] */
-        if (err && errlen)
-            snprintf(err, errlen, "capability gap: graphics.library.AllocBitMap needs returns a pointer (struct BitMap *) described");
-        r->d[0] = 0;
-        return 1;
+    case 153:  /* AllocBitMap(UWORD sizex, UWORD sizey, ULONG depth, ULONG flags, struct BitMap * friend_bitmap) -> struct BitMap *  [-918] */
+    {
+        APTR emu_object_4;
+        if (emu68k_object_adopt_guest(guest0, r->a[0], EMU_OBJ_BitMap,
+                        "BitMap", &emu_mirror_BitMap, &emu_object_4, err, errlen) < 0)
+            return 1;
+        APTR emu_result = (APTR)AllocBitMap((UWORD)r->d[0],
+              (UWORD)r->d[1],
+              (ULONG)r->d[2],
+              (ULONG)r->d[3],
+              (struct BitMap *)emu_object_4);
+        if (emu68k_object_sync_guest(guest0, r->a[0], EMU_OBJ_BitMap,
+                                     "BitMap", &emu_mirror_BitMap, err, errlen) < 0)
+            return 1;
+        if (emu68k_object_to_guest(guest0, emu_result, EMU_OBJ_BitMap,
+                                      base, NULL,
+                                      "BitMap", &r->d[0], err, errlen) < 0)
+            return 1;
+            return 0;
+    }
     case 154:  /* FreeBitMap(struct BitMap * bm) -> void  [-924] */
     {
         struct BitMap emu_struct_0;
@@ -1511,11 +1994,19 @@ int emu68k_gen_graphics(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
         }
             return 0;
     }
-    case 155:  /* GetExtSpriteA: no crossing [-930] */
-        if (err && errlen)
-            snprintf(err, errlen, "capability gap: graphics.library.GetExtSpriteA needs struct ExtSprite *, struct TagItem * described");
-        r->d[0] = 0;
-        return 1;
+    case 155:  /* GetExtSpriteA(struct ExtSprite * sprite, struct TagItem * tags) -> LONG  [-930] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[2], EMU_OBJ_ExtSprite, 0,
+                                        "ExtSprite", &emu_object_0, err, errlen) < 0)
+            return 1;
+        struct TagItem emu_tags_1[5];
+        if (emu68k_tags_to_native(guest0, r->a[1], &emu_tagdomain_graphics_sprite_get, emu_tags_1, 5, NULL, 0, err, errlen) < 0)
+            return 1;
+            r->d[0] = (ULONG)GetExtSpriteA((struct ExtSprite *)emu_object_0,
+              (struct TagItem *)(r->a[1] ? emu_tags_1 : NULL));
+            return 0;
+    }
     case 156:  /* CoerceMode(struct ViewPort * RealViewPort, ULONG MonitorID, ULONG Flags) -> ULONG  [-936] */
     {
         APTR emu_object_0;
@@ -1527,11 +2018,28 @@ int emu68k_gen_graphics(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
               (ULONG)r->d[1]);
             return 0;
     }
-    case 157:  /* ChangeVPBitMap: no crossing [-942] */
-        if (err && errlen)
-            snprintf(err, errlen, "capability gap: graphics.library.ChangeVPBitMap needs struct BitMap *, struct DBufInfo *, struct ViewPort * described");
-        r->d[0] = 0;
-        return 1;
+    case 157:  /* ChangeVPBitMap(struct ViewPort * vp, struct BitMap * bm, struct DBufInfo * db) -> void  [-942] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_ViewPort, 1,
+                                        "ViewPort", &emu_object_0, err, errlen) < 0)
+            return 1;
+        APTR emu_object_1;
+        if (emu68k_object_adopt_guest(guest0, r->a[1], EMU_OBJ_BitMap,
+                        "BitMap", &emu_mirror_BitMap, &emu_object_1, err, errlen) < 0)
+            return 1;
+        APTR emu_object_2;
+        if (emu68k_object_from_guest(guest0, r->a[2], EMU_OBJ_DBufInfo, 1,
+                                        "DBufInfo", &emu_object_2, err, errlen) < 0)
+            return 1;
+            ChangeVPBitMap((struct ViewPort *)emu_object_0,
+              (struct BitMap *)emu_object_1,
+              (struct DBufInfo *)emu_object_2);
+        if (emu68k_object_sync_guest(guest0, r->a[1], EMU_OBJ_BitMap,
+                                     "BitMap", &emu_mirror_BitMap, err, errlen) < 0)
+            return 1;
+            return 0;
+    }
     case 158:  /* ReleasePen(struct ColorMap * cm, ULONG n) -> void  [-948] */
     {
         APTR emu_object_0;
@@ -1558,65 +2066,54 @@ int emu68k_gen_graphics(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
     }
     case 160:  /* GetBitMapAttr(struct BitMap * bitmap, ULONG attribute) -> IPTR  [-960] */
     {
-        struct BitMap emu_struct_0;
-        if (!r->a[0])
-        {
-            if (err && errlen)
-                snprintf(err, errlen, "capability gap: GetBitMapAttr.bitmap requires a structure");
+        APTR emu_object_0;
+        if (emu68k_object_adopt_guest(guest0, r->a[0], EMU_OBJ_BitMap,
+                        "BitMap", &emu_mirror_BitMap, &emu_object_0, err, errlen) < 0)
             return 1;
-        }
-        if (emu68k_require_guest_range(r->a[0], M68K_BitMap_SIZEOF,
-                                         "GetBitMapAttr.bitmap", err, errlen) < 0)
-            return 1;
-        memset(&emu_struct_0, 0, sizeof(emu_struct_0));
-        emu68k_from_guest_sized(guest0, r->a[0], &emu_struct_0,
-                             emu_fields_BitMap, EMU_NFIELDS(emu_fields_BitMap), M68K_BitMap_SIZEOF);
-            r->d[0] = (ULONG)GetBitMapAttr((struct BitMap *)&emu_struct_0,
+            r->d[0] = (ULONG)GetBitMapAttr((struct BitMap *)emu_object_0,
               (ULONG)r->d[1]);   /* narrowed: an integer, never an address */
-        emu68k_to_guest_sized(guest0, r->a[0], &emu_struct_0,
-                           emu_fields_BitMap, EMU_NFIELDS(emu_fields_BitMap), M68K_BitMap_SIZEOF);
+        if (emu68k_object_sync_guest(guest0, r->a[0], EMU_OBJ_BitMap,
+                                     "BitMap", &emu_mirror_BitMap, err, errlen) < 0)
+            return 1;
             return 0;
     }
-    case 161:  /* AllocDBufInfo: no crossing [-966] */
+    case 161:  /* AllocDBufInfo(struct ViewPort * vp) -> struct DBufInfo *  [-966] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_ViewPort, 1,
+                                        "ViewPort", &emu_object_0, err, errlen) < 0)
+            return 1;
+        APTR emu_result = (APTR)AllocDBufInfo((struct ViewPort *)emu_object_0);
+        if (emu68k_object_to_guest(guest0, emu_result, EMU_OBJ_DBufInfo,
+                                      base, NULL,
+                                      "DBufInfo", &r->d[0], err, errlen) < 0)
+            return 1;
+            return 0;
+    }
+    case 162:  /* FreeDBufInfo(struct DBufInfo * db) -> void  [-972] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[1], EMU_OBJ_DBufInfo, 1,
+                                        "DBufInfo", &emu_object_0, err, errlen) < 0)
+            return 1;
+            FreeDBufInfo((struct DBufInfo *)emu_object_0);
+            return 0;
+    }
+    case 163:  /* SetOutlinePen: explicit reviewed refusal [-978] */
         if (err && errlen)
-            snprintf(err, errlen, "capability gap: graphics.library.AllocDBufInfo needs returns a pointer (struct DBufInfo *) described");
+            snprintf(err, errlen, "capability gap: graphics.library.SetOutlinePen refused: served by the OS-side RastPort adapter so the old pen result and AREAOUTLINE guest mutation remain ABI-correct");
         r->d[0] = 0;
         return 1;
-    case 162:  /* FreeDBufInfo: no crossing [-972] */
+    case 164:  /* SetWriteMask: explicit reviewed refusal [-984] */
         if (err && errlen)
-            snprintf(err, errlen, "capability gap: graphics.library.FreeDBufInfo needs struct DBufInfo * described");
+            snprintf(err, errlen, "capability gap: graphics.library.SetWriteMask refused: served by the OS-side RastPort adapter so a program-owned guest RastPort receives the native one-byte mask mutation");
         r->d[0] = 0;
         return 1;
-    case 163:  /* SetOutlinePen(struct RastPort * rp, ULONG pen) -> ULONG  [-978] */
-    {
-        APTR emu_object_0;
-        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_RastPort, 1,
-                                        "RastPort", &emu_object_0, err, errlen) < 0)
-            return 1;
-            r->d[0] = (ULONG)SetOutlinePen((struct RastPort *)emu_object_0,
-              (ULONG)r->d[0]);
-            return 0;
-    }
-    case 164:  /* SetWriteMask(struct RastPort * rp, ULONG mask) -> ULONG  [-984] */
-    {
-        APTR emu_object_0;
-        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_RastPort, 1,
-                                        "RastPort", &emu_object_0, err, errlen) < 0)
-            return 1;
-            r->d[0] = (ULONG)SetWriteMask((struct RastPort *)emu_object_0,
-              (ULONG)r->d[0]);
-            return 0;
-    }
-    case 165:  /* SetMaxPen(struct RastPort * rp, ULONG maxpen) -> void  [-990] */
-    {
-        APTR emu_object_0;
-        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_RastPort, 1,
-                                        "RastPort", &emu_object_0, err, errlen) < 0)
-            return 1;
-            SetMaxPen((struct RastPort *)emu_object_0,
-              (ULONG)r->d[0]);
-            return 0;
-    }
+    case 165:  /* SetMaxPen: explicit reviewed refusal [-990] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: graphics.library.SetMaxPen refused: served by the OS-side RastPort adapter, which computes the same highest-set-bit write mask for program-owned guest RastPorts");
+        r->d[0] = 0;
+        return 1;
     case 166:  /* SetRGB32CM(struct ColorMap * cm, ULONG n, ULONG r, ULONG g, ULONG b) -> void  [-996] */
     {
         APTR emu_object_0;
@@ -1658,31 +2155,93 @@ int emu68k_gen_graphics(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
               (ULONG)r->d[4]);
             return 0;
     }
-    case 170:  /* AllocSpriteDataA: no crossing [-1020] */
-        if (err && errlen)
-            snprintf(err, errlen, "capability gap: graphics.library.AllocSpriteDataA needs returns a pointer (struct ExtSprite *) described");
-        r->d[0] = 0;
-        return 1;
-    case 171:  /* ChangeExtSpriteA: no crossing [-1026] */
-        if (err && errlen)
-            snprintf(err, errlen, "capability gap: graphics.library.ChangeExtSpriteA needs struct ExtSprite *, struct TagItem *, struct ViewPort * described");
-        r->d[0] = 0;
-        return 1;
-    case 172:  /* FreeSpriteData: no crossing [-1032] */
-        if (err && errlen)
-            snprintf(err, errlen, "capability gap: graphics.library.FreeSpriteData needs struct ExtSprite * described");
-        r->d[0] = 0;
-        return 1;
-    case 173:  /* SetRPAttrsA: no crossing [-1038] */
-        if (err && errlen)
-            snprintf(err, errlen, "capability gap: graphics.library.SetRPAttrsA needs struct RastPort *, struct TagItem * described");
-        r->d[0] = 0;
-        return 1;
-    case 174:  /* GetRPAttrsA: no crossing [-1044] */
-        if (err && errlen)
-            snprintf(err, errlen, "capability gap: graphics.library.GetRPAttrsA needs struct RastPort *, struct TagItem * described");
-        r->d[0] = 0;
-        return 1;
+    case 170:  /* AllocSpriteDataA(struct BitMap * bitmap, struct TagItem * tagList) -> struct ExtSprite *  [-1020] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_adopt_guest(guest0, r->a[2], EMU_OBJ_BitMap,
+                        "BitMap", &emu_mirror_BitMap, &emu_object_0, err, errlen) < 0)
+            return 1;
+        struct TagItem emu_tags_1[13];
+        if (emu68k_tags_to_native(guest0, r->a[1], &emu_tagdomain_graphics_sprite_alloc, emu_tags_1, 13, NULL, 0, err, errlen) < 0)
+            return 1;
+        APTR emu_result = (APTR)AllocSpriteDataA((struct BitMap *)emu_object_0,
+              (struct TagItem *)(r->a[1] ? emu_tags_1 : NULL));
+        if (emu68k_object_sync_guest(guest0, r->a[2], EMU_OBJ_BitMap,
+                                     "BitMap", &emu_mirror_BitMap, err, errlen) < 0)
+            return 1;
+        if (emu68k_object_to_guest(guest0, emu_result, EMU_OBJ_ExtSprite,
+                                      base, emu_object_cleanup_ExtSprite,
+                                      "ExtSprite", &r->d[0], err, errlen) < 0)
+            return 1;
+            return 0;
+    }
+    case 171:  /* ChangeExtSpriteA(struct ViewPort * vp, struct ExtSprite * oldsprite, struct ExtSprite * newsprite, struct TagItem * tags) -> LONG  [-1026] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_ViewPort, 1,
+                                        "ViewPort", &emu_object_0, err, errlen) < 0)
+            return 1;
+        APTR emu_object_1;
+        if (emu68k_object_from_guest(guest0, r->a[1], EMU_OBJ_ExtSprite, 0,
+                                        "ExtSprite", &emu_object_1, err, errlen) < 0)
+            return 1;
+        APTR emu_object_2;
+        if (emu68k_object_from_guest(guest0, r->a[2], EMU_OBJ_ExtSprite, 0,
+                                        "ExtSprite", &emu_object_2, err, errlen) < 0)
+            return 1;
+        struct TagItem emu_tags_3[5];
+        if (emu68k_tags_to_native(guest0, r->a[3], &emu_tagdomain_graphics_ignored_tags, emu_tags_3, 5, NULL, 0, err, errlen) < 0)
+            return 1;
+            r->d[0] = (ULONG)ChangeExtSpriteA((struct ViewPort *)emu_object_0,
+              (struct ExtSprite *)emu_object_1,
+              (struct ExtSprite *)emu_object_2,
+              (struct TagItem *)(r->a[3] ? emu_tags_3 : NULL));
+            return 0;
+    }
+    case 172:  /* FreeSpriteData(struct ExtSprite * extsp) -> void  [-1032] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[2], EMU_OBJ_ExtSprite, 1,
+                                        "ExtSprite", &emu_object_0, err, errlen) < 0)
+            return 1;
+            FreeSpriteData((struct ExtSprite *)emu_object_0);
+            return 0;
+    }
+    case 173:  /* SetRPAttrsA(struct RastPort * rp, struct TagItem * tags) -> void  [-1038] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_RastPort, 0,
+                                        "RastPort", &emu_object_0, err, errlen) < 0)
+            return 1;
+        struct TagItem emu_tags_1[21];
+        UQUAD emu_tagscratch_1[(sizeof(struct Rectangle) + 7) / 8];
+        if (emu68k_tags_to_native(guest0, r->a[1], &emu_tagdomain_graphics_rp_set, emu_tags_1, 21, emu_tagscratch_1, sizeof emu_tagscratch_1, err, errlen) < 0)
+            return 1;
+            SetRPAttrsA((struct RastPort *)emu_object_0,
+              (struct TagItem *)(r->a[1] ? emu_tags_1 : NULL));
+            return 0;
+    }
+    case 174:  /* GetRPAttrsA(struct RastPort * rp, struct TagItem * tags) -> void  [-1044] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_RastPort, 0,
+                                        "RastPort", &emu_object_0, err, errlen) < 0)
+            return 1;
+        struct TagItem emu_tags_1[21];
+        UQUAD emu_tagscratch_1[20 * ((sizeof(struct EmuTagOutSlot) + 7) / 8)];
+        LONG emu_tagcount_1 = emu68k_tags_to_native(guest0, r->a[1], &emu_tagdomain_graphics_rp_get, emu_tags_1, 21, emu_tagscratch_1, sizeof emu_tagscratch_1, err, errlen);
+        if (emu_tagcount_1 < 0)
+            return 1;
+            GetRPAttrsA((struct RastPort *)emu_object_0,
+              (struct TagItem *)(r->a[1] ? emu_tags_1 : NULL));
+        if (emu68k_tags_to_guest(guest0, emu_tags_1,
+                (ULONG)emu_tagcount_1, &emu_tagdomain_graphics_rp_get,
+                err, errlen) < 0)
+        {
+            return 1;
+        }
+            return 0;
+    }
     case 175:  /* BestModeIDA(struct TagItem * TagItems) -> ULONG  [-1050] */
     {
         struct TagItem emu_tags_0[33];
@@ -1788,11 +2347,33 @@ int emu68k_gen_graphics(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
         }
             return 0;
     }
-    case 186:  /* AndRectRegionND: no crossing [-1116] */
-        if (err && errlen)
-            snprintf(err, errlen, "capability gap: graphics.library.AndRectRegionND needs returns a pointer (struct Region *) described");
-        r->d[0] = 0;
-        return 1;
+    case 186:  /* AndRectRegionND(struct Region * Reg, struct Rectangle * Rect) -> struct Region *  [-1116] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_Region, 0,
+                                        "Region", &emu_object_0, err, errlen) < 0)
+            return 1;
+        struct Rectangle emu_struct_1;
+        if (!r->a[1])
+        {
+            if (err && errlen)
+                snprintf(err, errlen, "capability gap: AndRectRegionND.Rect requires a structure");
+            return 1;
+        }
+        if (emu68k_require_guest_range(r->a[1], M68K_Rectangle_SIZEOF,
+                                         "AndRectRegionND.Rect", err, errlen) < 0)
+            return 1;
+        memset(&emu_struct_1, 0, sizeof(emu_struct_1));
+        emu68k_from_guest_sized(guest0, r->a[1], &emu_struct_1,
+                             emu_fields_Rectangle, EMU_NFIELDS(emu_fields_Rectangle), M68K_Rectangle_SIZEOF);
+        APTR emu_result = (APTR)AndRectRegionND((struct Region *)emu_object_0,
+              (struct Rectangle *)&emu_struct_1);
+        if (emu68k_object_to_guest(guest0, emu_result, EMU_OBJ_Region,
+                                      base, emu_object_cleanup_Region,
+                                      "Region", &r->d[0], err, errlen) < 0)
+            return 1;
+            return 0;
+    }
     case 187:  /* AndRegionRegionND(struct Region * R1, struct Region * R2) -> struct Region *  [-1122] */
     {
         APTR emu_object_0;
@@ -1811,11 +2392,33 @@ int emu68k_gen_graphics(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
             return 1;
             return 0;
     }
-    case 188:  /* OrRectRegionND: no crossing [-1128] */
-        if (err && errlen)
-            snprintf(err, errlen, "capability gap: graphics.library.OrRectRegionND needs returns a pointer (struct Region *) described");
-        r->d[0] = 0;
-        return 1;
+    case 188:  /* OrRectRegionND(struct Region * Reg, struct Rectangle * Rect) -> struct Region *  [-1128] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_Region, 0,
+                                        "Region", &emu_object_0, err, errlen) < 0)
+            return 1;
+        struct Rectangle emu_struct_1;
+        if (!r->a[1])
+        {
+            if (err && errlen)
+                snprintf(err, errlen, "capability gap: OrRectRegionND.Rect requires a structure");
+            return 1;
+        }
+        if (emu68k_require_guest_range(r->a[1], M68K_Rectangle_SIZEOF,
+                                         "OrRectRegionND.Rect", err, errlen) < 0)
+            return 1;
+        memset(&emu_struct_1, 0, sizeof(emu_struct_1));
+        emu68k_from_guest_sized(guest0, r->a[1], &emu_struct_1,
+                             emu_fields_Rectangle, EMU_NFIELDS(emu_fields_Rectangle), M68K_Rectangle_SIZEOF);
+        APTR emu_result = (APTR)OrRectRegionND((struct Region *)emu_object_0,
+              (struct Rectangle *)&emu_struct_1);
+        if (emu68k_object_to_guest(guest0, emu_result, EMU_OBJ_Region,
+                                      base, emu_object_cleanup_Region,
+                                      "Region", &r->d[0], err, errlen) < 0)
+            return 1;
+            return 0;
+    }
     case 189:  /* OrRegionRegionND(struct Region * R1, struct Region * R2) -> struct Region *  [-1134] */
     {
         APTR emu_object_0;
@@ -1834,11 +2437,33 @@ int emu68k_gen_graphics(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
             return 1;
             return 0;
     }
-    case 190:  /* XorRectRegionND: no crossing [-1140] */
-        if (err && errlen)
-            snprintf(err, errlen, "capability gap: graphics.library.XorRectRegionND needs returns a pointer (struct Region *) described");
-        r->d[0] = 0;
-        return 1;
+    case 190:  /* XorRectRegionND(struct Region * Reg, struct Rectangle * Rect) -> struct Region *  [-1140] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_Region, 0,
+                                        "Region", &emu_object_0, err, errlen) < 0)
+            return 1;
+        struct Rectangle emu_struct_1;
+        if (!r->a[1])
+        {
+            if (err && errlen)
+                snprintf(err, errlen, "capability gap: XorRectRegionND.Rect requires a structure");
+            return 1;
+        }
+        if (emu68k_require_guest_range(r->a[1], M68K_Rectangle_SIZEOF,
+                                         "XorRectRegionND.Rect", err, errlen) < 0)
+            return 1;
+        memset(&emu_struct_1, 0, sizeof(emu_struct_1));
+        emu68k_from_guest_sized(guest0, r->a[1], &emu_struct_1,
+                             emu_fields_Rectangle, EMU_NFIELDS(emu_fields_Rectangle), M68K_Rectangle_SIZEOF);
+        APTR emu_result = (APTR)XorRectRegionND((struct Region *)emu_object_0,
+              (struct Rectangle *)&emu_struct_1);
+        if (emu68k_object_to_guest(guest0, emu_result, EMU_OBJ_Region,
+                                      base, emu_object_cleanup_Region,
+                                      "Region", &r->d[0], err, errlen) < 0)
+            return 1;
+            return 0;
+    }
     case 191:  /* XorRegionRegionND(struct Region * R1, struct Region * R2) -> struct Region *  [-1146] */
     {
         APTR emu_object_0;
@@ -1857,11 +2482,33 @@ int emu68k_gen_graphics(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
             return 1;
             return 0;
     }
-    case 192:  /* ClearRectRegionND: no crossing [-1152] */
-        if (err && errlen)
-            snprintf(err, errlen, "capability gap: graphics.library.ClearRectRegionND needs returns a pointer (struct Region *) described");
-        r->d[0] = 0;
-        return 1;
+    case 192:  /* ClearRectRegionND(struct Region * Reg, struct Rectangle * Rect) -> struct Region *  [-1152] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_Region, 0,
+                                        "Region", &emu_object_0, err, errlen) < 0)
+            return 1;
+        struct Rectangle emu_struct_1;
+        if (!r->a[1])
+        {
+            if (err && errlen)
+                snprintf(err, errlen, "capability gap: ClearRectRegionND.Rect requires a structure");
+            return 1;
+        }
+        if (emu68k_require_guest_range(r->a[1], M68K_Rectangle_SIZEOF,
+                                         "ClearRectRegionND.Rect", err, errlen) < 0)
+            return 1;
+        memset(&emu_struct_1, 0, sizeof(emu_struct_1));
+        emu68k_from_guest_sized(guest0, r->a[1], &emu_struct_1,
+                             emu_fields_Rectangle, EMU_NFIELDS(emu_fields_Rectangle), M68K_Rectangle_SIZEOF);
+        APTR emu_result = (APTR)ClearRectRegionND((struct Region *)emu_object_0,
+              (struct Rectangle *)&emu_struct_1);
+        if (emu68k_object_to_guest(guest0, emu_result, EMU_OBJ_Region,
+                                      base, emu_object_cleanup_Region,
+                                      "Region", &r->d[0], err, errlen) < 0)
+            return 1;
+            return 0;
+    }
     case 193:  /* ClearRegionRegionND(struct Region * R1, struct Region * R2) -> struct Region *  [-1158] */
     {
         APTR emu_object_0;
@@ -1880,9 +2527,9 @@ int emu68k_gen_graphics(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
             return 1;
             return 0;
     }
-    case 197:  /* WritePixels8: no crossing [-1182] */
+    case 197:  /* WritePixels8: explicit reviewed refusal [-1182] */
         if (err && errlen)
-            snprintf(err, errlen, "capability gap: graphics.library.WritePixels8 needs APTR pixlut, struct RastPort * described");
+            snprintf(err, errlen, "capability gap: graphics.library.WritePixels8 refused: pixlut is an undocumented pointer-bearing PixelLUT contract and cannot safely be treated as either guest bytes or a native pointer");
         r->d[0] = 0;
         return 1;
     case 198:  /* FillRectPenDrMd(struct RastPort * rp, WORD x1, WORD y1, WORD x2, WORD y2, ULONG pix, IPTR drmd, BOOL do_update) -> LONG  [-1188] */
@@ -1901,14 +2548,14 @@ int emu68k_gen_graphics(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
               (BOOL)r->d[6]);
             return 0;
     }
-    case 199:  /* DoRenderFunc: no crossing [-1194] */
+    case 199:  /* DoRenderFunc: explicit reviewed refusal [-1194] */
         if (err && errlen)
-            snprintf(err, errlen, "capability gap: graphics.library.DoRenderFunc needs APTR funcdata, APTR render_func, Point *, struct RastPort *, struct Rectangle * described");
+            snprintf(err, errlen, "capability gap: graphics.library.DoRenderFunc refused: invokes a native render callback with native RastPort, Point and Rectangle pointers");
         r->d[0] = 0;
         return 1;
-    case 200:  /* DoPixelFunc: no crossing [-1200] */
+    case 200:  /* DoPixelFunc: explicit reviewed refusal [-1200] */
         if (err && errlen)
-            snprintf(err, errlen, "capability gap: graphics.library.DoPixelFunc needs APTR funcdata, APTR render_func, struct RastPort * described");
+            snprintf(err, errlen, "capability gap: graphics.library.DoPixelFunc refused: invokes a native per-pixel callback and cannot call a 68k function pointer directly");
         r->d[0] = 0;
         return 1;
     case 201:  /* UpdateBitMap(struct BitMap * bitmap, UWORD x, UWORD y, UWORD width, UWORD height) -> void  [-1206] */

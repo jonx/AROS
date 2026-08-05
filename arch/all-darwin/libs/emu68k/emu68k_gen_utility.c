@@ -8,6 +8,7 @@
 
 #include <exec/types.h>
 #include <proto/utility.h>
+#include <stdio.h>
 
 #include "emu68k_gen.h"
 
@@ -164,65 +165,44 @@ int emu68k_gen_utility(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
             snprintf(err, errlen, "capability gap: utility.library.UnpackStructureTags needs APTR pack, ULONG *, struct TagItem * described");
         r->d[0] = 0;
         return 1;
-    case 37:  /* AddNamedObject(struct NamedObject * nameSpace, struct NamedObject * object) -> BOOL  [-222] */
-    {
-        APTR emu_object_0;
-        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_NamedObject, 1,
-                                        "NamedObject", &emu_object_0, err, errlen) < 0)
-            return 1;
-        APTR emu_object_1;
-        if (emu68k_object_from_guest(guest0, r->a[1], EMU_OBJ_NamedObject, 1,
-                                        "NamedObject", &emu_object_1, err, errlen) < 0)
-            return 1;
-            r->d[0] = (ULONG)AddNamedObject((struct NamedObject *)emu_object_0,
-              (struct NamedObject *)emu_object_1);
-            return 0;
-    }
-    case 38:  /* AllocNamedObjectA: no crossing [-228] */
+    case 37:  /* AddNamedObject: explicit reviewed refusal [-222] */
         if (err && errlen)
-            snprintf(err, errlen, "capability gap: utility.library.AllocNamedObjectA needs returns a pointer (struct NamedObject *) described");
+            snprintf(err, errlen, "capability gap: utility.library.AddNamedObject refused: served by the handwritten Utility handler because the named-object namespace is owned by the isolated guest run");
         r->d[0] = 0;
         return 1;
-    case 39:  /* AttemptRemNamedObject(struct NamedObject * object) -> LONG  [-234] */
-    {
-        APTR emu_object_0;
-        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_NamedObject, 1,
-                                        "NamedObject", &emu_object_0, err, errlen) < 0)
-            return 1;
-            r->d[0] = (ULONG)AttemptRemNamedObject((struct NamedObject *)emu_object_0);
-            return 0;
-    }
-    case 40:  /* FindNamedObject: no crossing [-240] */
+    case 38:  /* AllocNamedObjectA: explicit reviewed refusal [-228] */
         if (err && errlen)
-            snprintf(err, errlen, "capability gap: utility.library.FindNamedObject needs returns a pointer (struct NamedObject *) described");
+            snprintf(err, errlen, "capability gap: utility.library.AllocNamedObjectA refused: served by the handwritten Utility handler because the NamedObject and its user space must remain guest-addressable");
         r->d[0] = 0;
         return 1;
-    case 41:  /* FreeNamedObject(struct NamedObject * object) -> void  [-246] */
-    {
-        APTR emu_object_0;
-        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_NamedObject, 1,
-                                        "NamedObject", &emu_object_0, err, errlen) < 0)
-            return 1;
-            FreeNamedObject((struct NamedObject *)emu_object_0);
-            return 0;
-    }
-    case 42:  /* NamedObjectName: no crossing [-252] */
+    case 39:  /* AttemptRemNamedObject: explicit reviewed refusal [-234] */
         if (err && errlen)
-            snprintf(err, errlen, "capability gap: utility.library.NamedObjectName needs returns a pointer (STRPTR) described");
+            snprintf(err, errlen, "capability gap: utility.library.AttemptRemNamedObject refused: served by the handwritten Utility handler to preserve run-local guest reference and removal semantics");
         r->d[0] = 0;
         return 1;
-    case 43:  /* ReleaseNamedObject(struct NamedObject * object) -> void  [-258] */
-    {
-        APTR emu_object_0;
-        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_NamedObject, 1,
-                                        "NamedObject", &emu_object_0, err, errlen) < 0)
-            return 1;
-            ReleaseNamedObject((struct NamedObject *)emu_object_0);
-            return 0;
-    }
-    case 44:  /* RemNamedObject: no crossing [-264] */
+    case 40:  /* FindNamedObject: explicit reviewed refusal [-240] */
         if (err && errlen)
-            snprintf(err, errlen, "capability gap: utility.library.RemNamedObject needs struct Message *, struct NamedObject * described");
+            snprintf(err, errlen, "capability gap: utility.library.FindNamedObject refused: served by the handwritten Utility handler so lookup returns guest object identities from the run-local namespace");
+        r->d[0] = 0;
+        return 1;
+    case 41:  /* FreeNamedObject: explicit reviewed refusal [-246] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: utility.library.FreeNamedObject refused: served by the handwritten Utility handler as the paired release for run-owned guest NamedObjects");
+        r->d[0] = 0;
+        return 1;
+    case 42:  /* NamedObjectName: explicit reviewed refusal [-252] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: utility.library.NamedObjectName refused: served by the handwritten Utility handler so the returned name pointer addresses retained guest memory");
+        r->d[0] = 0;
+        return 1;
+    case 43:  /* ReleaseNamedObject: explicit reviewed refusal [-258] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: utility.library.ReleaseNamedObject refused: served by the handwritten Utility handler to update references in the run-local guest namespace");
+        r->d[0] = 0;
+        return 1;
+    case 44:  /* RemNamedObject: explicit reviewed refusal [-264] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: utility.library.RemNamedObject refused: served by the handwritten Utility handler because removal and its optional reply message use guest identities");
         r->d[0] = 0;
         return 1;
     case 45:  /* GetUniqueID(void) -> ULONG  [-270] */

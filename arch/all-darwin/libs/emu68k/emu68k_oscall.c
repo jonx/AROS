@@ -17,13 +17,20 @@
 #include <dos/dos.h>
 #include <dos/dosextens.h>
 #include <graphics/gfx.h>
+#include <intuition/diattr.h>
+#include <intuition/extensions.h>
+#include <cybergraphx/cybergraphics.h>
 
 #include <proto/exec.h>
 #include <proto/dos.h>
+#include <proto/graphics.h>
 #include <proto/intuition.h>
+#include <proto/gadtools.h>
+#include <proto/cybergraphics.h>
 
 #include "emu68k_intern.h"
 #include "emu68k_gen.h"
+#include "emu68k_lvos.h"
 #include "emu68k_layouts.h"
 #include LC_LIBDEFS_FILE
 
@@ -33,34 +40,6 @@
 #include <aros/asmcall.h>
 #include <string.h>
 
-/* dos.library vector indices (negative offset / 6) */
-#define DOS_LVO_OPEN     5    /* -30  */
-#define DOS_LVO_CLOSE    6    /* -36  */
-#define DOS_LVO_READ     7    /* -42  */
-#define DOS_LVO_WRITE    8    /* -48  */
-#define DOS_LVO_INPUT    9    /* -54  */
-#define DOS_LVO_OUTPUT  10    /* -60  */
-#define DOS_LVO_SEEK    11    /* -66  */
-#define DOS_LVO_DELAY   33    /* -198 */
-#define DOS_LVO_WAITFORCHAR   34   /* -204 */
-#define DOS_LVO_ISINTERACTIVE 36   /* -216 */
-#define DOS_LVO_FLUSH         60   /* -360 */
-#define DOS_LVO_LOCK          14   /* -84  */
-#define DOS_LVO_UNLOCK        15   /* -90  */
-#define DOS_LVO_DUPLOCK       16   /* -96  */
-#define DOS_LVO_CREATEDIR     20   /* -120 */
-#define DOS_LVO_CURRENTDIR    21   /* -126 */
-#define DOS_LVO_FILEPART     145   /* -870 */
-#define DOS_LVO_PATHPART     146   /* -876 */
-#define DOS_LVO_MATCHFIRST   137   /* -822 */
-#define DOS_LVO_MATCHNEXT    138   /* -828 */
-#define DOS_LVO_MATCHEND     139   /* -834 */
-#define DOS_LVO_IOERR   22    /* -132: what every failed dos call is followed by */
-#define DOS_LVO_GETPROGRAMNAME 96   /* -576 */
-#define DOS_LVO_GETVAR        151   /* -906 */
-#define DOS_LVO_SETVAR        152   /* -912 */
-#define DOS_LVO_PRINTFAULT 79 /* -474 */
-#define DOS_LVO_SETIOERR   77 /* -462 */
 #define ICON_LVO_FINDTOOLTYPE  16   /* -96  */
 #define GFX_LVO_ALLOCRASTER    82   /* -492 */
 #define GFX_LVO_FREERASTER     83   /* -498 */
@@ -74,6 +53,8 @@
 #define WB_LVO_REMOVEAPPMENUITEM 13 /* -78  */
 #define WB_LVO_ADDAPPWINDOWDROPZONE 19    /* -114 */
 #define WB_LVO_REMOVEAPPWINDOWDROPZONE 20 /* -120 */
+#define GADTOOLS_LVO_GT_GETIMSG      12
+#define GADTOOLS_LVO_GT_REPLYIMSG    13
 
 /* A guest pointer becomes a host pointer by adding the guest base. Only memory
  * INSIDE the guest arena may be handed to a native call this way. */
@@ -96,6 +77,80 @@ static ULONG gr32(APTR guest0, ULONG addr)
            ((ULONG)p[2] << 8) | (ULONG)p[3];
 }
 
+/* These setters are deliberately mirrored instead of treating a guest-owned
+ * RastPort as a native pointer.  The byte fields have the same scalar meaning
+ * in both ABIs; the UWORD Flags field is kept big-endian in guest memory. */
+#define EMU68K_RPF_NO_PENS (1U << 14)
+
+static void guest_rastport_minterms(APTR guest0, ULONG rp)
+{
+    UBYTE *g = (UBYTE *)guest0;
+    UBYTE fg = g[rp + M68K_RastPort_FgPen];
+    UBYTE bg = g[rp + M68K_RastPort_BgPen];
+    UBYTE mode = g[rp + M68K_RastPort_DrawMode];
+    UBYTE min_a, min_b;
+    ULONG i;
+
+    if (mode & COMPLEMENT)
+    {
+        min_a = (mode & INVERSVID) ? 0x6a : 0x9a;
+        for (i = 0; i < 8; i++)
+            g[rp + M68K_RastPort_minterms + i] = min_a;
+        return;
+    }
+    for (i = 0; i < 8; i++)
+    {
+        min_a = ((fg >> i) & 1) * 3;
+        min_b = (mode & JAM2) ? ((bg >> i) & 1) * 3 : 2;
+        min_a = (mode & INVERSVID)
+            ? (UBYTE)((min_b << 2) | min_a)
+            : (UBYTE)((min_a << 2) | min_b);
+        g[rp + M68K_RastPort_minterms + i] = (min_a << 4) | 0x0a;
+    }
+}
+
+static void guest_rastport_enable_pens(APTR guest0, ULONG rp)
+{
+    ULONG flags = emu68k_scalar_from_guest(guest0,
+        rp + M68K_RastPort_Flags, 2);
+    emu68k_scalar_to_guest(guest0, rp + M68K_RastPort_Flags, 2,
+                           flags & ~EMU68K_RPF_NO_PENS);
+}
+
+static void guest_text_extent_from_native(APTR guest0, ULONG gp,
+                                          const struct TextExtent *te)
+{
+    emu68k_scalar_to_guest(guest0, gp + M68K_TextExtent_te_Width, 2,
+                           te->te_Width);
+    emu68k_scalar_to_guest(guest0, gp + M68K_TextExtent_te_Height, 2,
+                           te->te_Height);
+    emu68k_scalar_to_guest(guest0, gp + M68K_TextExtent_te_Extent_MinX, 2,
+                           te->te_Extent.MinX);
+    emu68k_scalar_to_guest(guest0, gp + M68K_TextExtent_te_Extent_MinY, 2,
+                           te->te_Extent.MinY);
+    emu68k_scalar_to_guest(guest0, gp + M68K_TextExtent_te_Extent_MaxX, 2,
+                           te->te_Extent.MaxX);
+    emu68k_scalar_to_guest(guest0, gp + M68K_TextExtent_te_Extent_MaxY, 2,
+                           te->te_Extent.MaxY);
+}
+
+static void guest_text_extent_to_native(APTR guest0, ULONG gp,
+                                        struct TextExtent *te)
+{
+    te->te_Width = emu68k_scalar_from_guest(
+        guest0, gp + M68K_TextExtent_te_Width, 2);
+    te->te_Height = emu68k_scalar_from_guest(
+        guest0, gp + M68K_TextExtent_te_Height, 2);
+    te->te_Extent.MinX = emu68k_scalar_from_guest(
+        guest0, gp + M68K_TextExtent_te_Extent_MinX, 2);
+    te->te_Extent.MinY = emu68k_scalar_from_guest(
+        guest0, gp + M68K_TextExtent_te_Extent_MinY, 2);
+    te->te_Extent.MaxX = emu68k_scalar_from_guest(
+        guest0, gp + M68K_TextExtent_te_Extent_MaxX, 2);
+    te->te_Extent.MaxY = emu68k_scalar_from_guest(
+        guest0, gp + M68K_TextExtent_te_Extent_MaxY, 2);
+}
+
 /* A guest string, only if the whole of it is inside the arena. Returns NULL
  * rather than a truncated or runaway string. */
 static const char *guest_cstr(APTR guest0, ULONG addr, ULONG max)
@@ -113,36 +168,156 @@ static const char *guest_cstr(APTR guest0, ULONG addr, ULONG max)
     return NULL;
 }
 
-/* Say what a requester ASKED before answering it.
- *
- * The answer given below is "no", which is the only safe reply when there is
- * nobody to ask, but a program that then tidies up and exits looks identical to
- * one that failed for no reason. The question is the difference, so it is
- * reported. struct EasyStruct is read at its AmigaOS offsets: it is not in the
- * AROS headers to derive a layout from, and the guest's copy is the one being
- * described anyway.
- *
- * The format strings are shown as the program wrote them. Substituting the
- * argument list would mean widening a 32-bit RAWARG array to native varargs
- * against the format, which is real work and belongs with the decision to
- * display requesters for real. */
-#define EASY_TITLE   8
-#define EASY_TEXT    12
-#define EASY_GADGETS 16
-#define EASY_SIZEOF  20
-
-static void report_easyrequest(APTR guest0, ULONG easy)
+static int easy_append(char *out, ULONG room, ULONG *used,
+                       const char *text, ULONG length)
 {
-    const char *title, *text, *gadgets;
+    if (!out || !used || *used > room || length >= room - *used)
+        return -1;
+    memcpy(out + *used, text, length);
+    *used += length;
+    out[*used] = 0;
+    return 0;
+}
 
-    if (emu68k_require_guest_range(easy, EASY_SIZEOF, "EasyStruct", NULL, 0) < 0)
-        return;
-    title   = guest_cstr(guest0, gr32(guest0, easy + EASY_TITLE), 256);
-    text    = guest_cstr(guest0, gr32(guest0, easy + EASY_TEXT), 1024);
-    gadgets = guest_cstr(guest0, gr32(guest0, easy + EASY_GADGETS), 256);
+/* EasyRequestArgs receives a RawDoFmt-style stream in A3.  That stream is
+ * 68k-sized and big-endian, so it cannot be handed to native Intuition.  Make
+ * the final text while it is still in the guest ABI, then give Intuition a
+ * format with no remaining arguments.  This is the common RawDoFmt surface
+ * used by system requesters; unsupported/runaway input fails by name instead
+ * of becoming a native varargs read. */
+static LONG easy_text_from_guest(APTR guest0, ULONG format, ULONG args,
+                                 char *out, ULONG room,
+                                 char *err, ULONG errlen)
+{
+    const char *f = guest_cstr(guest0, format, 65536);
+    ULONG fp = 0, ap = args, used = 0;
 
-    bug("[emu68k] requester answered no: \"%s\" / \"%s\" [%s]\n",
-        title ? title : "", text ? text : "", gadgets ? gadgets : "");
+    if (!f || !out || room < 2)
+        goto invalid;
+    out[0] = 0;
+    while (f[fp])
+    {
+        char spec[48], temp[1024];
+        ULONG si = 0, value, bytes;
+        char conv;
+        BOOL is_long = FALSE;
+
+        if (f[fp] != '%')
+        {
+            if (easy_append(out, room, &used, f + fp, 1) < 0) goto large;
+            fp++;
+            continue;
+        }
+        fp++;
+        if (f[fp] == '%')
+        {
+            if (easy_append(out, room, &used, "%", 1) < 0) goto large;
+            fp++;
+            continue;
+        }
+
+        spec[si++] = '%';
+        while (strchr("-+ #0", f[fp]))
+        {
+            if (si + 2 >= sizeof spec) goto invalid;
+            spec[si++] = f[fp++];
+        }
+        while (f[fp] >= '0' && f[fp] <= '9')
+        {
+            if (si + 2 >= sizeof spec) goto invalid;
+            spec[si++] = f[fp++];
+        }
+        if (f[fp] == '.')
+        {
+            if (si + 2 >= sizeof spec) goto invalid;
+            spec[si++] = f[fp++];
+            while (f[fp] >= '0' && f[fp] <= '9')
+            {
+                if (si + 2 >= sizeof spec) goto invalid;
+                spec[si++] = f[fp++];
+            }
+        }
+        if (f[fp] == 'l') { is_long = TRUE; fp++; }
+        conv = f[fp++];
+        if (!conv) goto invalid;
+
+        if (conv == 's' || conv == 'b')
+        {
+            const char *s;
+            char bstr[256];
+            ULONG p, n;
+            if (!ap || emu68k_require_guest_range(ap, 4,
+                    "EasyRequestArgs string argument", err, errlen) < 0)
+                return -1;
+            p = gr32(guest0, ap); ap += 4;
+            if (conv == 's')
+            {
+                s = guest_cstr(guest0, p, 65536);
+                if (!s) goto invalid;
+            }
+            else
+            {
+                p <<= 2;
+                if (emu68k_require_guest_range(p, 1,
+                        "EasyRequestArgs BSTR", err, errlen) < 0)
+                    return -1;
+                n = *((UBYTE *)guest0 + p++);
+                if (emu68k_require_guest_range(p, n,
+                        "EasyRequestArgs BSTR bytes", err, errlen) < 0)
+                    return -1;
+                memcpy(bstr, (UBYTE *)guest0 + p, n);
+                bstr[n] = 0;
+                s = bstr;
+            }
+            spec[si++] = 's'; spec[si] = 0;
+            if (snprintf(temp, sizeof temp, spec, s) < 0) goto invalid;
+        }
+        else if (conv == 'c')
+        {
+            if (!ap || emu68k_require_guest_range(ap, 2,
+                    "EasyRequestArgs character argument", err, errlen) < 0)
+                return -1;
+            value = (ULONG)emu68k_scalar_from_guest(guest0, ap, 2); ap += 2;
+            spec[si++] = 'c'; spec[si] = 0;
+            if (snprintf(temp, sizeof temp, spec, (int)(UBYTE)value) < 0)
+                goto invalid;
+        }
+        else if (strchr("diuxX", conv))
+        {
+            bytes = is_long ? 4 : 2;
+            if (!ap || emu68k_require_guest_range(ap, bytes,
+                    "EasyRequestArgs numeric argument", err, errlen) < 0)
+                return -1;
+            value = (ULONG)emu68k_scalar_from_guest(guest0, ap, (UBYTE)bytes);
+            ap += bytes;
+            spec[si++] = 'l'; spec[si++] = conv; spec[si] = 0;
+            if (conv == 'd' || conv == 'i')
+            {
+                LONG signed_value = is_long ? (LONG)value : (WORD)value;
+                if (snprintf(temp, sizeof temp, spec, (long)signed_value) < 0)
+                    goto invalid;
+            }
+            else if (snprintf(temp, sizeof temp, spec,
+                              (unsigned long)value) < 0)
+                goto invalid;
+        }
+        else
+        {
+            temp[0] = conv; temp[1] = 0;
+        }
+        if (easy_append(out, room, &used, temp, strlen(temp)) < 0) goto large;
+    }
+    return 0;
+
+large:
+    if (err && errlen)
+        snprintf(err, errlen, "EasyRequestArgs formatted text exceeds %lu bytes",
+                 (unsigned long)(room - 1));
+    return -1;
+invalid:
+    if (err && errlen)
+        snprintf(err, errlen, "EasyRequestArgs has an invalid EasyStruct string or RAWARG stream");
+    return -1;
 }
 
 UQUAD emu68k_scalar_from_guest(APTR guest0, ULONG addr, UBYTE width)
@@ -193,6 +368,7 @@ void emu68k_cstr_to_guest(APTR guest0, ULONG addr, const char *s, ULONG room)
 /* A classic GUI hands over a whole gadget family at once and takes a RastPort
  * per render, so a real program needs far more live objects than a test does. */
 #define EMU68K_MAX_OBJECTS 1024
+#define EMU68K_MAX_TOMBSTONES 4096
 #define EMU68K_MAX_BITMAPS 64
 #define EMU68K_MAX_RUNS    4
 #define EMU68K_OBJECT_TOKEN_BASE 0xE6800000UL
@@ -204,6 +380,9 @@ void emu68k_cstr_to_guest(APTR guest0, ULONG addr, const char *s, ULONG room)
 #define EMU68K_OBJ_GUEST_OWNED  0x0001   /* a mirror of the program's memory  */
 #define EMU68K_OBJ_ADOPT_FRESH  0x0002   /* created by the adoption in flight */
 #define EMU68K_OBJ_GADGET_VIEW  0x0004   /* facade carries a converted Gadget */
+#define EMU68K_OBJ_GADGET_PROP  0x0008   /* mirror owns appended PropInfo      */
+#define EMU68K_OBJ_GADGET_STRING 0x0010  /* mirror owns StringInfo and buffers */
+#define EMU68K_OBJ_GUEST_CLASS  0x0020   /* per-run public BOOPSI shadow       */
 
 struct Emu68kObject
 {
@@ -214,6 +393,10 @@ struct Emu68kObject
     ULONG refs;
     UWORD type;
     UWORD flags;
+    /* A guest-created BOOPSI class remains callable after NewObjectA returns:
+     * Intuition invokes gadget methods later while processing input.  The
+     * temporary per-crossing bridge nests on top of this run-lifetime one. */
+    struct Emu68kBoopsiBridge persistent_boopsi;
 };
 
 /* ---- PER-RUN STATE --------------------------------------------------------
@@ -234,7 +417,7 @@ struct Emu68kObject
 #define EMU68K_MAX_DEV 8
 
 #define INT_LVO_MODIFYIDCMP 25
-#define EXEC_LVO_PUMP     9001   /* private: "drain the port bound to this one" */
+#define EXEC_LVO_EVENT_PUMP 9001 /* private typed native-event broker pump */
 #define EMU68K_MAX_IDCMP  16
 
 struct Emu68kRunState
@@ -250,12 +433,32 @@ struct Emu68kRunState
     struct { ULONG guest; struct AnchorPath *nap; } scans[EMU68K_MAX_SCANS];
     struct { ULONG guest; } bitmaps[EMU68K_MAX_BITMAPS];
     struct Emu68kObject objects[EMU68K_MAX_OBJECTS];
+    /* Facades are allocated inside the same readable arena as program-owned
+     * structures.  Once released, their addresses must never be re-adopted as
+     * if the program had allocated them itself.  The arena allocator is
+     * monotonic for a run, so a bounded retired-address set is sufficient;
+     * exhaustion makes later adoption fail closed. */
+    ULONG object_tombstones[EMU68K_MAX_TOMBSTONES];
+    ULONG object_tombstone_count;
+    BOOL object_tombstones_full;
     /* Intuition's own messages, paired with the guest copies handed out, so a
      * reply reaches the message Intuition is waiting to get back. */
-    struct { APTR native; ULONG guest; } imsg[EMU68K_MAX_IMSG];
+    struct { APTR native; APTR original; ULONG guest; UBYTE allocated; }
+        imsg[EMU68K_MAX_IMSG];
     /* Which guest port a window's IDCMP is delivered to. Recorded when the
      * program says so, never guessed: several windows commonly share one. */
     struct { APTR window; ULONG guest_port; } idcmp[EMU68K_MAX_IDCMP];
+    struct { APTR native; ULONG guest; } monitors[8];
+    APTR pubscreen_list;
+    ULONG pubscreen_guest;
+    struct { APTR native; ULONG guest; } cmodes[8];
+    struct {
+        APTR handle;
+        APTR native_base;
+        ULONG guest_handle;
+        ULONG guest_buffer;
+        ULONG size;
+    } cyberlock[16];
     /* Devices opened for the guest. The native IORequest is OURS: the guest's
      * is big-endian and 32-bit and can never be handed to a device. */
     struct { struct IORequest *req; ULONG guest_req; char name[32]; } dev[EMU68K_MAX_DEV];
@@ -291,6 +494,39 @@ static APTR emu68k_persist_from_run(ULONG size)
     h->next = g_persist_rs->persist_head;
     g_persist_rs->persist_head = h;
     return h + 1;
+}
+
+static CONST_STRPTR retained_guest_title(struct Emu68kRunState *rs,
+                                         APTR guest0, ULONG address,
+                                         char *err, ULONG errlen)
+{
+    const char *source;
+    char *copy;
+    ULONG length;
+    struct Emu68kRunState *previous;
+
+    if (!address) return NULL;
+    if (address == 0xffffffffUL)
+        return (CONST_STRPTR)(IPTR)-1;
+    source = guest_cstr(guest0, address, 65536);
+    if (!source)
+    {
+        if (err && errlen)
+            snprintf(err, errlen, "SetWindowTitles string is outside guest memory or unterminated");
+        return NULL;
+    }
+    length = (ULONG)strlen(source) + 1;
+    previous = g_persist_rs;
+    g_persist_rs = rs;
+    copy = emu68k_persist_from_run(length);
+    g_persist_rs = previous;
+    if (!copy)
+    {
+        if (err && errlen) snprintf(err, errlen, "SetWindowTitles string shadow allocation failed");
+        return NULL;
+    }
+    memcpy(copy, source, length);
+    return copy;
 }
 
 static struct Emu68kRunState *run_state(APTR guest0)
@@ -375,6 +611,182 @@ static struct Emu68kObject *object_by_token(struct Emu68kRunState *rs,
                                             ULONG token);
 static struct Emu68kObject *object_by_native(struct Emu68kRunState *rs,
                                              APTR native);
+static BOOL class_roots_in(Class *cl, const char *id);
+
+/* Turn the classic planar BitMap a program built in its arena into a
+ * short-lived native view.  The plane storage is not copied: after exact
+ * range validation the native software-bitmap wrapper may read or write the
+ * guest planes directly for the duration of the call. */
+static int guest_bitmap_view(struct Emu68kRunState *rs, APTR guest0,
+                             ULONG gp, struct BitMap *shadow,
+                             struct BitMap **native, const char *what,
+                             char *err, ULONG errlen)
+{
+    struct Emu68kObject *o = object_by_token(rs, gp);
+    ULONG bytesperrow, rows, depth, size, i;
+
+    if (!gp || (o && o->type != EMU_OBJ_BitMap))
+        return -1;
+    if (o)
+    {
+        *native = (struct BitMap *)o->native;
+        return 0;
+    }
+    if (emu68k_require_guest_range(gp, M68K_BitMap_SIZEOF,
+                                   what, err, errlen) < 0)
+        return -1;
+
+    bytesperrow = emu68k_scalar_from_guest(
+        guest0, gp + M68K_BitMap_BytesPerRow, 2);
+    rows = emu68k_scalar_from_guest(guest0, gp + M68K_BitMap_Rows, 2);
+    depth = *((UBYTE *)guest0 + gp + M68K_BitMap_Depth);
+    if (!bytesperrow || !rows || !depth || depth > 8 ||
+        (UQUAD)bytesperrow * rows > 0xffffffffUL)
+    {
+        if (err && errlen)
+            snprintf(err, errlen, "%s has invalid planar geometry %lux%lu "
+                     "depth %lu", what, (unsigned long)bytesperrow,
+                     (unsigned long)rows, (unsigned long)depth);
+        return -1;
+    }
+
+    memset(shadow, 0, sizeof *shadow);
+    shadow->BytesPerRow = bytesperrow;
+    shadow->Rows = rows;
+    shadow->Flags = *((UBYTE *)guest0 + gp + M68K_BitMap_Flags);
+    shadow->Depth = depth;
+    size = bytesperrow * rows;
+    for (i = 0; i < depth; i++)
+    {
+        ULONG plane = gr32(guest0, gp + M68K_BitMap_Planes + i * 4);
+        /* Classic planar bitmaps may name an absent/all-zero plane with NULL
+         * and an all-one plane with (PLANEPTR)-1.  Neither is a guest pointer
+         * that should be rebased. */
+        if (!plane || plane == 0xffffffffUL)
+            shadow->Planes[i] = (PLANEPTR)(IPTR)plane;
+        else
+        {
+            if (emu68k_require_guest_range(plane, size, "BitMap plane",
+                                           err, errlen) < 0)
+                return -1;
+            shadow->Planes[i] = gptr(guest0, plane);
+        }
+    }
+    *native = shadow;
+    return 0;
+}
+
+/* A program-owned RastPort is not an object token, but drawing into its
+ * program-owned planar BitMap is still representable.  Build only the native
+ * state graphics.library consumes for rendering; never reinterpret the guest
+ * structure or its private pointer fields in place. */
+static int guest_render_rastport(struct Emu68kRunState *rs, APTR guest0,
+                                 ULONG gp, struct RastPort *shadow,
+                                 struct BitMap *bmshadow,
+                                 struct RastPort **native,
+                                 char *err, ULONG errlen)
+{
+    struct Emu68kObject *o = object_by_token(rs, gp);
+    struct Emu68kObject *layero;
+    struct BitMap *bitmap;
+    ULONG bitmap_gp, layer_gp;
+    UBYTE *g = (UBYTE *)guest0;
+
+    if (!gp || (o && o->type != EMU_OBJ_RastPort))
+        return -1;
+    if (o)
+    {
+        *native = (struct RastPort *)o->native;
+        return 0;
+    }
+    if (emu68k_require_guest_range(gp, M68K_RastPort_SIZEOF,
+                                   "render RastPort", err, errlen) < 0)
+        return -1;
+    bitmap_gp = gr32(guest0, gp + M68K_RastPort_BitMap);
+    if (guest_bitmap_view(rs, guest0, bitmap_gp, bmshadow, &bitmap,
+                          "render RastPort BitMap", err, errlen) < 0)
+        return -1;
+
+    InitRastPort(shadow);
+    shadow->BitMap = bitmap;
+    shadow->Mask = g[gp + M68K_RastPort_Mask];
+    shadow->FgPen = g[gp + M68K_RastPort_FgPen];
+    shadow->BgPen = g[gp + M68K_RastPort_BgPen];
+    shadow->AOlPen = g[gp + M68K_RastPort_AOlPen];
+    shadow->DrawMode = g[gp + M68K_RastPort_DrawMode];
+    shadow->Flags = emu68k_scalar_from_guest(
+        guest0, gp + M68K_RastPort_Flags, 2);
+    shadow->LinePtrn = emu68k_scalar_from_guest(
+        guest0, gp + M68K_RastPort_LinePtrn, 2);
+    memcpy(shadow->minterms, g + gp + M68K_RastPort_minterms,
+           sizeof shadow->minterms);
+
+    layer_gp = gr32(guest0, gp + M68K_RastPort_Layer);
+    if (layer_gp)
+    {
+        layero = object_by_token(rs, layer_gp);
+        if (!layero || layero->type != EMU_OBJ_Layer)
+        {
+            if (err && errlen)
+                snprintf(err, errlen, "render RastPort has unknown Layer %08lx",
+                         (unsigned long)layer_gp);
+            return -1;
+        }
+        shadow->Layer = (struct Layer *)layero->native;
+    }
+    *native = shadow;
+    return 0;
+}
+
+static int guest_text_rastport(struct Emu68kRunState *rs, APTR guest0,
+                               ULONG rp, struct RastPort *shadow,
+                               struct RastPort **native,
+                               char *err, ULONG errlen)
+{
+    struct Emu68kObject *rpo = object_by_token(rs, rp);
+    struct Emu68kObject *fonto;
+    ULONG fontp;
+    UBYTE *g = (UBYTE *)guest0;
+
+    if (!rp || (rpo && rpo->type != EMU_OBJ_RastPort))
+        return -1;
+    if (rpo)
+    {
+        *native = (struct RastPort *)rpo->native;
+        return 0;
+    }
+    if (emu68k_require_guest_range(rp, M68K_RastPort_SIZEOF,
+                                   "text RastPort", err, errlen) < 0)
+        return -1;
+    fontp = emu68k_scalar_from_guest(guest0, rp + M68K_RastPort_Font, 4);
+    fonto = object_by_token(rs, fontp);
+    if (!fonto || fonto->type != EMU_OBJ_TextFont)
+    {
+        if (err && errlen)
+            snprintf(err, errlen, "text RastPort has unknown TextFont %08lx",
+                     (unsigned long)fontp);
+        return -1;
+    }
+
+    memset(shadow, 0, sizeof *shadow);
+    shadow->Font = (struct TextFont *)fonto->native;
+    shadow->Mask = g[rp + M68K_RastPort_Mask];
+    shadow->FgPen = g[rp + M68K_RastPort_FgPen];
+    shadow->BgPen = g[rp + M68K_RastPort_BgPen];
+    shadow->DrawMode = g[rp + M68K_RastPort_DrawMode];
+    shadow->AlgoStyle = g[rp + M68K_RastPort_AlgoStyle];
+    shadow->TxFlags = g[rp + M68K_RastPort_TxFlags];
+    shadow->TxHeight = emu68k_scalar_from_guest(
+        guest0, rp + M68K_RastPort_TxHeight, 2);
+    shadow->TxWidth = emu68k_scalar_from_guest(
+        guest0, rp + M68K_RastPort_TxWidth, 2);
+    shadow->TxBaseline = emu68k_scalar_from_guest(
+        guest0, rp + M68K_RastPort_TxBaseline, 2);
+    shadow->TxSpacing = (WORD)emu68k_scalar_from_guest(
+        guest0, rp + M68K_RastPort_TxSpacing, 2);
+    *native = shadow;
+    return 0;
+}
 
 AROS_UFH3(static IPTR, emu68k_native_boopsi_entry,
           AROS_UFHA(Class *, cl, A0),
@@ -386,7 +798,8 @@ AROS_UFH3(static IPTR, emu68k_native_boopsi_entry,
     struct Emu68kBoopsiBridge *bridge = cl ? cl->cl_Dispatcher.h_Data : NULL;
     struct Emu68kRunState *rs = bridge ? bridge->state : NULL;
     unsigned int result = 0;
-    ULONG guest_message, guest_object, method;
+    ULONG guest_message, guest_object, method, guest_storage_size = 4;
+    const struct EmuTagDesc *attr_desc = NULL;
     UBYTE *p;
 
     if (!bridge || !rs || !rs->call_hook || !rs->guest_alloc)
@@ -424,9 +837,17 @@ AROS_UFH3(static IPTR, emu68k_native_boopsi_entry,
      * copied back after the dispatcher answers. Anything else still crosses
      * as the method ID alone and a dispatcher that needs more will fail
      * visibly rather than read garbage. */
+    if (method == OM_GET && message)
+    {
+        const struct opGet *og = (const struct opGet *)message;
+        attr_desc = emu68k_tag_lookup(emu68k_domain_intuition_new_object,
+                                      (ULONG)og->opg_AttrID);
+        if (attr_desc && attr_desc->kind == EMU_TAG_STRUCT_INOUT)
+            guest_storage_size = attr_desc->guest_size;
+    }
     guest_message = rs->guest_alloc(rs->run,
                                     method == OM_NEW ? 12 :
-                                    method == OM_GET ? 16 : 4);
+                                    method == OM_GET ? 12 + guest_storage_size : 4);
     if (!guest_message)
     {
         bridge->failed = TRUE;
@@ -453,7 +874,7 @@ AROS_UFH3(static IPTR, emu68k_native_boopsi_entry,
         p[6] = (UBYTE)(a >> 8);  p[7] = (UBYTE)a;
         p[8] = (UBYTE)(s >> 24); p[9] = (UBYTE)(s >> 16);
         p[10] = (UBYTE)(s >> 8); p[11] = (UBYTE)s;
-        p[12] = p[13] = p[14] = p[15] = 0;
+        memset(p + 12, 0, guest_storage_size);
     }
     if (rs->call_hook(rs->run, bridge->entry, bridge->guest_class,
                       guest_object, guest_message, &result,
@@ -468,13 +889,21 @@ AROS_UFH3(static IPTR, emu68k_native_boopsi_entry,
         (unsigned long)method, (unsigned long)result);
     if (method == OM_GET && message)
     {
-        /* Guest attribute values are guest-meaningful (scalars, or guest
-         * addresses the querying guest reads back through GetAttr); the
-         * native caller gets the raw 32-bit value. */
+        /* Scalar attributes retain their guest meaning.  Reviewed flat
+         * structure attributes are rebuilt field-by-field into the native
+         * output buffer the caller supplied. */
         struct opGet *og = (struct opGet *)message;
         if (og->opg_Storage)
-            *og->opg_Storage = (IPTR)(ULONG)((p[12] << 24) | (p[13] << 16) |
-                                             (p[14] << 8) | p[15]);
+        {
+            if (attr_desc && attr_desc->kind == EMU_TAG_STRUCT_INOUT)
+                emu68k_from_guest(rs->guest0, guest_message + 12,
+                                  og->opg_Storage, attr_desc->fields,
+                                  attr_desc->nfields);
+            else
+                *og->opg_Storage = (IPTR)(ULONG)((p[12] << 24) |
+                                                 (p[13] << 16) |
+                                                 (p[14] << 8) | p[15]);
+        }
     }
     if (method == OM_NEW && result)
     {
@@ -544,14 +973,78 @@ LONG emu68k_boopsi_finish(struct Emu68kBoopsiBridge *bridge,
                           char *err, ULONG errlen)
 {
     Class *cl;
+    struct Emu68kObject *co;
 
     if (!bridge) return 0;
     cl = bridge->native_class;
     if (cl) cl->cl_Dispatcher = bridge->saved_dispatcher;
-    if (!bridge->failed) return 0;
-    if (err && errlen)
-        snprintf(err, errlen, "68k BOOPSI callback failed: %s", bridge->error);
-    return -1;
+    if (bridge->failed)
+    {
+        if (err && errlen)
+            snprintf(err, errlen, "68k BOOPSI callback failed: %s",
+                     bridge->error);
+        return -1;
+    }
+    /* NewObjectA is only the first call into a guest class. Native Intuition
+     * later dispatches input/render methods without another library crossing,
+     * so restoring a NULL native dispatcher here turns the first click into a
+     * jump through address zero. Keep one stable bridge in the class's object
+     * record; a later crossing temporarily replaces it and restores it again. */
+    co = object_by_token(bridge->state, bridge->guest_class);
+    if (cl && co && co->native == cl && co->type == EMU_OBJ_Class &&
+        !(cl->cl_Dispatcher.h_Entry == (APTR)emu68k_native_boopsi_entry &&
+          cl->cl_Dispatcher.h_Data == &co->persistent_boopsi))
+    {
+        memset(&co->persistent_boopsi, 0, sizeof co->persistent_boopsi);
+        co->persistent_boopsi.saved_dispatcher = bridge->saved_dispatcher;
+        co->persistent_boopsi.native_class = cl;
+        co->persistent_boopsi.state = bridge->state;
+        co->persistent_boopsi.guest_class = bridge->guest_class;
+        co->persistent_boopsi.entry = bridge->entry;
+        cl->cl_Dispatcher.h_Entry = (APTR)emu68k_native_boopsi_entry;
+        cl->cl_Dispatcher.h_Data = &co->persistent_boopsi;
+    }
+    return 0;
+}
+
+/* Prepare the same temporary dispatcher bridge when a method is invoked on
+ * an existing object of a guest-created class.  System/native classes have no
+ * guest dispatcher entry in their facade and intentionally produce an empty
+ * bridge. */
+LONG emu68k_boopsi_prepare_object(APTR guest0, APTR native_object,
+                                  ULONG guest_tags,
+                                  struct Emu68kBoopsiBridge *bridge,
+                                  char *err, ULONG errlen)
+{
+    struct Emu68kRunState *rs = run_state(guest0);
+    struct Emu68kObject *co;
+    Class *cl;
+    ULONG entry;
+
+    if (!bridge) return -1;
+    if (!native_object || !rs)
+    {
+        memset(bridge, 0, sizeof *bridge);
+        return native_object ? -1 : 0;
+    }
+    cl = OCLASS((Object *)native_object);
+    co = object_by_native(rs, cl);
+    if (!co || co->type != EMU_OBJ_Class ||
+        emu68k_require_guest_range(co->token, M68K_IClass_SIZEOF,
+                                   "BOOPSI Class", NULL, 0) < 0)
+    {
+        memset(bridge, 0, sizeof *bridge);
+        return 0;
+    }
+    entry = gr32(guest0, co->token + M68K_IClass_cl_Dispatcher_h_Entry);
+    if (emu68k_require_guest_range(entry, 2, "BOOPSI dispatcher",
+                                   NULL, 0) < 0)
+    {
+        memset(bridge, 0, sizeof *bridge);
+        return 0;
+    }
+    return emu68k_boopsi_prepare(guest0, co->token, cl, guest_tags,
+                                  bridge, err, errlen);
 }
 
 /* A handle crosses as a BPTR of a real guest structure, not as an opaque tag:
@@ -654,6 +1147,36 @@ static struct Emu68kObject *object_by_token(struct Emu68kRunState *rs,
     return NULL;
 }
 
+static BOOL object_token_retired(struct Emu68kRunState *rs, ULONG token)
+{
+    ULONG i;
+    if (!rs || !token) return FALSE;
+    for (i = 0; i < rs->object_tombstone_count; i++)
+        if (rs->object_tombstones[i] == token) return TRUE;
+    return FALSE;
+}
+
+static void object_retire(struct Emu68kRunState *rs,
+                          const struct Emu68kObject *object)
+{
+    ULONG token;
+    if (!rs || !object || !object->native ||
+        (object->flags & EMU68K_OBJ_GUEST_OWNED))
+        return;
+    token = object->token;
+    /* Opaque E680 tokens already cannot pass as guest memory.  Tombstones are
+     * specifically for readable facade/alias addresses, preserving capacity
+     * for the ambiguity they close. */
+    if (!token || emu68k_require_guest_range(token, 1, "retired object",
+                                              NULL, 0) < 0 ||
+        object_token_retired(rs, token))
+        return;
+    if (rs->object_tombstone_count < EMU68K_MAX_TOMBSTONES)
+        rs->object_tombstones[rs->object_tombstone_count++] = token;
+    else
+        rs->object_tombstones_full = TRUE;
+}
+
 static ULONG object_new_token(struct Emu68kRunState *rs)
 {
     ULONG token;
@@ -717,6 +1240,34 @@ static struct Emu68kObject *object_by_native(struct Emu68kRunState *rs,
     return NULL;
 }
 
+/* IntuiMessage has two application-visible pointer identities that the
+ * generated scalar layout deliberately cannot guess.  Resolve them through
+ * this run's typed-object table: windows returned by OpenWindow and gadgets
+ * created/adopted by Intuition/GadTools already have an exact guest facade or
+ * mirror token there.  Unknown native pointers remain zero; truncating one
+ * into the 32-bit arena would turn a harmless missing field into corruption.
+ *
+ * Run this again after GT_FilterIMsg: GadTools may replace the message view,
+ * but the application must still see its own Window/Gadget identities. */
+static void intui_message_to_guest(struct Emu68kRunState *rs, APTR guest0,
+                                   ULONG guest_msg,
+                                   const struct IntuiMessage *native)
+{
+    struct Emu68kObject *o;
+
+    memset((UBYTE *)guest0 + guest_msg, 0, M68K_IntuiMessage_SIZEOF);
+    emu68k_to_guest(guest0, guest_msg, native, emu_fields_IntuiMessage,
+                    EMU_NFIELDS(emu_fields_IntuiMessage));
+
+    o = object_by_native(rs, native ? (APTR)native->IDCMPWindow : NULL);
+    if (o)
+        gw32(guest0, guest_msg + M68K_IntuiMessage_IDCMPWindow, o->token);
+
+    o = object_by_native(rs, native ? native->IAddress : NULL);
+    if (o)
+        gw32(guest0, guest_msg + M68K_IntuiMessage_IAddress, o->token);
+}
+
 static void emu68k_mirror_cleanup(APTR base, APTR object)
 {
     (void)base;
@@ -735,6 +1286,245 @@ static ULONG mirror_guest_size(APTR guest0, ULONG addr, const struct EmuMirror *
     return (flags & m->flag_mask) ? m->m68k_size : m->base_size;
 }
 
+#define EMU68K_PROPINFO_SIZEOF  22
+#define EMU68K_STRINGINFO_SIZEOF 36
+#define EMU68K_STRING_Buffer       0
+#define EMU68K_STRING_UndoBuffer   4
+#define EMU68K_STRING_BufferPos    8
+#define EMU68K_STRING_MaxChars    10
+#define EMU68K_STRING_DispPos     12
+#define EMU68K_STRING_UndoPos     14
+#define EMU68K_STRING_NumChars    16
+#define EMU68K_STRING_DispCount   18
+#define EMU68K_STRING_CLeft       20
+#define EMU68K_STRING_CTop        22
+#define EMU68K_STRING_Extension   24
+#define EMU68K_STRING_LongInt     28
+#define EMU68K_STRING_AltKeyMap   32
+
+static LONG gadget_special_validate(APTR guest0, ULONG addr,
+                                    const struct EmuMirror *m,
+                                    char *err, ULONG errlen)
+{
+    ULONG special, gadget_type;
+
+    if (m != emu68k_mirror_Gadget)
+        return 0;
+    special = gr32(guest0, addr + M68K_Gadget_SpecialInfo);
+    if (!special)
+        return 0;
+    gadget_type = emu68k_scalar_from_guest(
+        guest0, addr + M68K_Gadget_GadgetType, 2) & GTYP_GTYPEMASK;
+    if (gadget_type == GTYP_PROPGADGET)
+        return emu68k_require_guest_range(special, EMU68K_PROPINFO_SIZEOF,
+                                          "Gadget PropInfo", err, errlen);
+    if (gadget_type == GTYP_STRGADGET)
+    {
+        ULONG buffer, undo, maxchars;
+        if (emu68k_require_guest_range(special, EMU68K_STRINGINFO_SIZEOF,
+                                       "Gadget StringInfo", err, errlen) < 0)
+            return -1;
+        maxchars = emu68k_scalar_from_guest(
+            guest0, special + EMU68K_STRING_MaxChars, 2);
+        buffer = gr32(guest0, special + EMU68K_STRING_Buffer);
+        undo = gr32(guest0, special + EMU68K_STRING_UndoBuffer);
+        if (!maxchars || maxchars > 65535 || !buffer ||
+            emu68k_require_guest_range(buffer, maxchars,
+                                       "StringInfo Buffer", err, errlen) < 0 ||
+            (undo && emu68k_require_guest_range(
+                undo, maxchars, "StringInfo UndoBuffer", err, errlen) < 0))
+            return -1;
+        if (gr32(guest0, special + EMU68K_STRING_Extension) ||
+            gr32(guest0, special + EMU68K_STRING_AltKeyMap))
+        {
+            if (err && errlen)
+                snprintf(err, errlen, "capability gap: StringInfo at %08lx "
+                         "uses a StringExtend or alternate KeyMap",
+                         (unsigned long)special);
+            return -1;
+        }
+        return 0;
+    }
+    if (err && errlen)
+        snprintf(err, errlen, "capability gap: Gadget at %08lx has "
+                 "SpecialInfo for unsupported gadget type %lu",
+                 (unsigned long)addr, (unsigned long)gadget_type);
+    return -1;
+}
+
+static ULONG gadget_special_alloc_size(APTR guest0, ULONG gadget,
+                                       const struct EmuMirror *m)
+{
+    ULONG gp = gr32(guest0, gadget + M68K_Gadget_SpecialInfo);
+    ULONG type = emu68k_scalar_from_guest(
+        guest0, gadget + M68K_Gadget_GadgetType, 2) & GTYP_GTYPEMASK;
+    ULONG size = m->native_size;
+
+    if (!gp) return size;
+    if (type == GTYP_PROPGADGET) return size + sizeof(struct PropInfo);
+    if (type == GTYP_STRGADGET)
+    {
+        ULONG maxchars = emu68k_scalar_from_guest(
+            guest0, gp + EMU68K_STRING_MaxChars, 2);
+        ULONG undo = gr32(guest0, gp + EMU68K_STRING_UndoBuffer);
+        return size + ((sizeof(struct StringInfo) + 7) & ~7UL) +
+               maxchars * (undo ? 2 : 1);
+    }
+    return size;
+}
+
+static UWORD gadget_special_flag(APTR guest0, ULONG gadget)
+{
+    ULONG gp = gr32(guest0, gadget + M68K_Gadget_SpecialInfo);
+    ULONG type;
+    if (!gp) return 0;
+    type = emu68k_scalar_from_guest(
+        guest0, gadget + M68K_Gadget_GadgetType, 2) & GTYP_GTYPEMASK;
+    if (type == GTYP_PROPGADGET) return EMU68K_OBJ_GADGET_PROP;
+    if (type == GTYP_STRGADGET) return EMU68K_OBJ_GADGET_STRING;
+    return 0;
+}
+
+static void gadget_special_from_guest(APTR guest0, ULONG gadget,
+                                      struct Gadget *native,
+                                      const struct EmuMirror *m)
+{
+    ULONG gp = gr32(guest0, gadget + M68K_Gadget_SpecialInfo);
+    ULONG type = emu68k_scalar_from_guest(
+        guest0, gadget + M68K_Gadget_GadgetType, 2) & GTYP_GTYPEMASK;
+
+    if (!gp)
+    {
+        native->SpecialInfo = NULL;
+        return;
+    }
+    if (type == GTYP_PROPGADGET)
+    {
+        struct PropInfo *pi = (struct PropInfo *)
+            ((UBYTE *)native + m->native_size);
+#define PROP_FROM_GUEST(field, off) \
+    pi->field = emu68k_scalar_from_guest(guest0, gp + (off), 2)
+    PROP_FROM_GUEST(Flags, 0);
+    PROP_FROM_GUEST(HorizPot, 2);
+    PROP_FROM_GUEST(VertPot, 4);
+    PROP_FROM_GUEST(HorizBody, 6);
+    PROP_FROM_GUEST(VertBody, 8);
+    PROP_FROM_GUEST(CWidth, 10);
+    PROP_FROM_GUEST(CHeight, 12);
+    PROP_FROM_GUEST(HPotRes, 14);
+    PROP_FROM_GUEST(VPotRes, 16);
+    PROP_FROM_GUEST(LeftBorder, 18);
+    PROP_FROM_GUEST(TopBorder, 20);
+#undef PROP_FROM_GUEST
+        native->SpecialInfo = pi;
+    }
+    else if (type == GTYP_STRGADGET)
+    {
+        struct StringInfo *si = (struct StringInfo *)
+            ((UBYTE *)native + m->native_size);
+        UBYTE *bytes = (UBYTE *)si + ((sizeof *si + 7) & ~7UL);
+        ULONG maxchars = emu68k_scalar_from_guest(
+            guest0, gp + EMU68K_STRING_MaxChars, 2);
+        ULONG buffer = gr32(guest0, gp + EMU68K_STRING_Buffer);
+        ULONG undo = gr32(guest0, gp + EMU68K_STRING_UndoBuffer);
+
+        si->Buffer = bytes;
+        memcpy(si->Buffer, (UBYTE *)guest0 + buffer, maxchars);
+        bytes += maxchars;
+        if (undo)
+        {
+            si->UndoBuffer = bytes;
+            memcpy(si->UndoBuffer, (UBYTE *)guest0 + undo, maxchars);
+        }
+#define STRING_FROM_GUEST(field, off) \
+    si->field = emu68k_scalar_from_guest(guest0, gp + (off), 2)
+        STRING_FROM_GUEST(BufferPos, EMU68K_STRING_BufferPos);
+        STRING_FROM_GUEST(MaxChars, EMU68K_STRING_MaxChars);
+        STRING_FROM_GUEST(DispPos, EMU68K_STRING_DispPos);
+        STRING_FROM_GUEST(UndoPos, EMU68K_STRING_UndoPos);
+        STRING_FROM_GUEST(NumChars, EMU68K_STRING_NumChars);
+        STRING_FROM_GUEST(DispCount, EMU68K_STRING_DispCount);
+        STRING_FROM_GUEST(CLeft, EMU68K_STRING_CLeft);
+        STRING_FROM_GUEST(CTop, EMU68K_STRING_CTop);
+#undef STRING_FROM_GUEST
+        si->Extension = NULL;
+        si->LongInt = (LONG)gr32(guest0, gp + EMU68K_STRING_LongInt);
+        si->AltKeyMap = NULL;
+        native->SpecialInfo = si;
+    }
+}
+
+static LONG gadget_special_to_guest(APTR guest0, ULONG gadget,
+                                    struct Gadget *native,
+                                    const struct EmuMirror *m,
+                                    char *err, ULONG errlen)
+{
+    ULONG gp = gr32(guest0, gadget + M68K_Gadget_SpecialInfo);
+    ULONG type = emu68k_scalar_from_guest(
+        guest0, gadget + M68K_Gadget_GadgetType, 2) & GTYP_GTYPEMASK;
+
+    if (!gp) return 0;
+    if (native->SpecialInfo != (APTR)((UBYTE *)native + m->native_size))
+    {
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: Intuition replaced "
+                     "Gadget %08lx SpecialInfo with an unknown native object",
+                     (unsigned long)gadget);
+        return -1;
+    }
+    if (type == GTYP_PROPGADGET)
+    {
+        struct PropInfo *pi = native->SpecialInfo;
+#define PROP_TO_GUEST(field, off) \
+    emu68k_scalar_to_guest(guest0, gp + (off), 2, pi->field)
+    PROP_TO_GUEST(Flags, 0);
+    PROP_TO_GUEST(HorizPot, 2);
+    PROP_TO_GUEST(VertPot, 4);
+    PROP_TO_GUEST(HorizBody, 6);
+    PROP_TO_GUEST(VertBody, 8);
+    PROP_TO_GUEST(CWidth, 10);
+    PROP_TO_GUEST(CHeight, 12);
+    PROP_TO_GUEST(HPotRes, 14);
+    PROP_TO_GUEST(VPotRes, 16);
+    PROP_TO_GUEST(LeftBorder, 18);
+    PROP_TO_GUEST(TopBorder, 20);
+#undef PROP_TO_GUEST
+    }
+    else if (type == GTYP_STRGADGET)
+    {
+        struct StringInfo *si = native->SpecialInfo;
+        ULONG maxchars = emu68k_scalar_from_guest(
+            guest0, gp + EMU68K_STRING_MaxChars, 2);
+        ULONG buffer = gr32(guest0, gp + EMU68K_STRING_Buffer);
+        ULONG undo = gr32(guest0, gp + EMU68K_STRING_UndoBuffer);
+        UBYTE *expected = (UBYTE *)si + ((sizeof *si + 7) & ~7UL);
+
+        if (si->Buffer != expected ||
+            (undo && si->UndoBuffer != expected + maxchars))
+        {
+            if (err && errlen)
+                snprintf(err, errlen, "capability gap: Intuition replaced "
+                         "StringInfo %08lx buffers", (unsigned long)gp);
+            return -1;
+        }
+        memcpy((UBYTE *)guest0 + buffer, si->Buffer, maxchars);
+        if (undo) memcpy((UBYTE *)guest0 + undo, si->UndoBuffer, maxchars);
+#define STRING_TO_GUEST(field, off) \
+    emu68k_scalar_to_guest(guest0, gp + (off), 2, si->field)
+        STRING_TO_GUEST(BufferPos, EMU68K_STRING_BufferPos);
+        STRING_TO_GUEST(MaxChars, EMU68K_STRING_MaxChars);
+        STRING_TO_GUEST(DispPos, EMU68K_STRING_DispPos);
+        STRING_TO_GUEST(UndoPos, EMU68K_STRING_UndoPos);
+        STRING_TO_GUEST(NumChars, EMU68K_STRING_NumChars);
+        STRING_TO_GUEST(DispCount, EMU68K_STRING_DispCount);
+        STRING_TO_GUEST(CLeft, EMU68K_STRING_CLeft);
+        STRING_TO_GUEST(CTop, EMU68K_STRING_CTop);
+#undef STRING_TO_GUEST
+        gw32(guest0, gp + EMU68K_STRING_LongInt, (ULONG)si->LongInt);
+    }
+    return 0;
+}
+
 /* Every byte of the guest structure this crossing does NOT carry must still be
  * zero. A render Image, a label, a SpecialInfo is a guest pointer with no
  * native meaning; dropping it quietly would draw nothing and blame nobody. */
@@ -747,6 +1537,16 @@ static LONG mirror_check_cover(APTR guest0, ULONG addr, const struct EmuMirror *
     {
         int covered = (m->guest_link >= 0 && (LONG)b >= m->guest_link &&
                        (LONG)b < m->guest_link + 4);
+        if (!covered && m == emu68k_mirror_Gadget &&
+            b >= M68K_Gadget_SpecialInfo &&
+            b < M68K_Gadget_SpecialInfo + 4 &&
+            ((emu68k_scalar_from_guest(guest0,
+                 addr + M68K_Gadget_GadgetType, 2) & GTYP_GTYPEMASK) ==
+                GTYP_PROPGADGET ||
+             (emu68k_scalar_from_guest(guest0,
+                 addr + M68K_Gadget_GadgetType, 2) & GTYP_GTYPEMASK) ==
+                GTYP_STRGADGET))
+            covered = 1;
         int fi;
         for (fi = 0; !covered && fi < m->field_count; fi++)
         {
@@ -816,13 +1616,26 @@ LONG emu68k_object_adopt_guest(APTR guest0, ULONG addr, UWORD type,
                          (unsigned long)addr, (unsigned long)m->limit);
             return -1;
         }
+        if (!o && (object_token_retired(rs, walk) ||
+                   rs->object_tombstones_full))
+        {
+            if (err && errlen)
+                snprintf(err, errlen, "capability gap: stale or unknown %s "
+                         "object token %08lx", type_name,
+                         (unsigned long)walk);
+            return -1;
+        }
         if (o && !(o->flags & EMU68K_OBJ_GUEST_OWNED))
         {
             /* At the head this is not adoption at all: the program is passing
              * back an object the bridge issued, which resolves normally. Deeper
              * in the chain it is a family that mixes the two, and their tokens
              * do not mean the same thing - only a mirror's is guest memory. */
-            if (count == 0 && o->type == type)
+            if (count == 0 &&
+                (o->type == type ||
+                 (type == EMU_OBJ_Gadget && o->type == EMU_OBJ_Object &&
+                  ((o->flags & EMU68K_OBJ_GADGET_VIEW) ||
+                   class_roots_in(OCLASS(o->native), "gadgetclass")))))
             {
                 if (native) *native = o->native;
                 return 0;
@@ -853,6 +1666,18 @@ LONG emu68k_object_adopt_guest(APTR guest0, ULONG addr, UWORD type,
             return -1;
         }
         span = mirror_guest_size(guest0, walk, m);
+        if (gadget_special_validate(guest0, walk, m, err, errlen) < 0)
+            return -1;
+        if (o && m == emu68k_mirror_Gadget &&
+            gadget_special_flag(guest0, walk) &&
+            !(o->flags & gadget_special_flag(guest0, walk)))
+        {
+            if (err && errlen)
+                snprintf(err, errlen, "capability gap: Gadget %08lx changed "
+                         "SpecialInfo type after its native mirror was created",
+                         (unsigned long)walk);
+            return -1;
+        }
         if (mirror_check_cover(guest0, walk, m, span, type_name, err, errlen) < 0)
             return -1;
         if (!o) needed++;
@@ -887,7 +1712,10 @@ LONG emu68k_object_adopt_guest(APTR guest0, ULONG addr, UWORD type,
             mirror = o->native;
         else
         {
-            mirror = AllocVec(m->native_size, MEMF_CLEAR);
+            ULONG alloc_size = (m == emu68k_mirror_Gadget)
+                ? gadget_special_alloc_size(guest0, walk, m)
+                : m->native_size;
+            mirror = AllocVec(alloc_size, MEMF_CLEAR);
             if (!mirror)
             {
                 mirror_rollback(rs);
@@ -904,10 +1732,15 @@ LONG emu68k_object_adopt_guest(APTR guest0, ULONG addr, UWORD type,
             o->refs    = 1;
             o->type    = type;
             o->flags   = EMU68K_OBJ_GUEST_OWNED | EMU68K_OBJ_ADOPT_FRESH;
+            if (m == emu68k_mirror_Gadget)
+                o->flags |= gadget_special_flag(guest0, walk);
         }
 
         emu68k_from_guest_sized(guest0, walk, mirror, m->fields, m->field_count,
                                 mirror_guest_size(guest0, walk, m));
+        if (m == emu68k_mirror_Gadget)
+            gadget_special_from_guest(guest0, walk,
+                                      (struct Gadget *)mirror, m);
         if (m->native_link >= 0)
             *(APTR *)((UBYTE *)mirror + m->native_link) = NULL;
         if (prev && m->native_link >= 0)
@@ -970,6 +1803,11 @@ LONG emu68k_object_sync_guest(APTR guest0, ULONG addr, UWORD type,
         emu68k_to_guest_sized(guest0, self->token, node, m->fields,
                               m->field_count,
                               mirror_guest_size(guest0, self->token, m));
+        if (m == emu68k_mirror_Gadget &&
+            gadget_special_to_guest(guest0, self->token,
+                                    (struct Gadget *)node, m,
+                                    err, errlen) < 0)
+            return -1;
         if (m->guest_link >= 0)
             emu68k_scalar_to_guest(guest0, self->token + m->guest_link, 4,
                                    next_token);
@@ -1077,6 +1915,62 @@ LONG emu68k_object_to_guest(APTR guest0, APTR native, UWORD type,
     rs->objects[free_slot].refs = 1;
     rs->objects[free_slot].type = type;
     if (token) *token = rs->objects[free_slot].token;
+    return 0;
+}
+
+/* A returned native string cannot be truncated into D0.  Copy it into the
+ * run's guest arena and return that 32-bit address.  max_count is a reviewed
+ * bound: unterminated native data fails closed instead of walking host memory. */
+LONG emu68k_cstr_result_to_guest(APTR guest0, const char *s, ULONG max_count,
+                                 ULONG *guest, char *err, ULONG errlen)
+{
+    struct Emu68kRunState *rs = run_state(guest0);
+    ULONG length = 0, address;
+
+    if (guest) *guest = 0;
+    if (!s) return 0;
+    if (!rs || !rs->guest_alloc)
+    {
+        if (err && errlen) snprintf(err, errlen, "no guest allocator for string result");
+        return -1;
+    }
+    while (length < max_count && s[length]) length++;
+    if (length == max_count)
+    {
+        if (err && errlen) snprintf(err, errlen, "native string result exceeds %lu bytes",
+                                    (unsigned long)max_count);
+        return -1;
+    }
+    address = rs->guest_alloc(rs->run, length + 1);
+    if (!address)
+    {
+        if (err && errlen) snprintf(err, errlen, "guest memory exhausted for string result");
+        return -1;
+    }
+    memcpy((UBYTE *)guest0 + address, s, length + 1);
+    if (guest) *guest = address;
+    return 0;
+}
+
+LONG emu68k_host_ptr_to_guest(APTR guest0, APTR native, ULONG *guest,
+                              const char *what, char *err, ULONG errlen)
+{
+    UQUAD delta;
+    if (guest) *guest = 0;
+    if (!native) return 0;
+    if ((IPTR)native < (IPTR)guest0)
+        goto outside;
+    delta = (UQUAD)(IPTR)native - (UQUAD)(IPTR)guest0;
+    if (delta > 0xffffffffUL ||
+        emu68k_require_guest_range((ULONG)delta, 1, what, NULL, 0) < 0)
+    {
+outside:
+        if (err && errlen)
+            snprintf(err, errlen, "%s returned a pointer outside guest memory",
+                     what ? what : "native call");
+        return -1;
+    }
+    if (guest) *guest = (ULONG)delta;
     return 0;
 }
 
@@ -1212,18 +2106,24 @@ LONG emu68k_object_alias_to_guest(APTR guest0, ULONG token, APTR native,
 
 void emu68k_object_release(APTR guest0, ULONG token, UWORD type)
 {
-    struct Emu68kObject *o = object_by_token(run_state(guest0), token);
+    struct Emu68kRunState *rs = run_state(guest0);
+    struct Emu68kObject *o = object_by_token(rs, token);
     if (!o || o->type != type) return;
     if (o->refs > 1)
         o->refs--;
     else
+    {
+        object_retire(rs, o);
         memset(o, 0, sizeof *o);
+    }
 }
 
 void emu68k_object_consume(APTR guest0, ULONG token, UWORD type)
 {
-    struct Emu68kObject *o = object_by_token(run_state(guest0), token);
+    struct Emu68kRunState *rs = run_state(guest0);
+    struct Emu68kObject *o = object_by_token(rs, token);
     if (!o || o->type != type) return;
+    object_retire(rs, o);
     memset(o, 0, sizeof *o);
 }
 
@@ -1237,7 +2137,10 @@ void emu68k_object_consume_native(APTR guest0, APTR native, UWORD type)
     if (!rs || !native) return;
     for (i = 0; i < EMU68K_MAX_OBJECTS; i++)
         if (rs->objects[i].native == native && rs->objects[i].type == type)
+        {
+            object_retire(rs, &rs->objects[i]);
             memset(&rs->objects[i], 0, sizeof rs->objects[i]);
+        }
 }
 
 /* ---- GUEST-SIDE STRUCTURE WRITES ------------------------------------------
@@ -1249,13 +2152,6 @@ static void gw8(APTR guest0, ULONG addr, UBYTE v)
 {
     ((UBYTE *)guest0)[addr] = v;
 }
-
-void emu68k_to_guest(APTR guest0, ULONG gbase, const void *native,
-                     const struct EmuField *f, int n);
-void emu68k_from_guest(APTR guest0, ULONG gbase, void *native,
-                       const struct EmuField *f, int n);
-
-#define EMU_NFIELDS(t) ((int)(sizeof (t) / sizeof (t)[0]))
 
 /* ---- ANCHORPATH: A RETAINED SHADOW ----------------------------------------
  * MatchFirst/MatchNext/MatchEnd are one operation, not three calls: the
@@ -1420,6 +2316,67 @@ static BOOL class_roots_in(Class *cl, const char *id)
     return FALSE;
 }
 
+/* A class made by the guest can be handed back to NewObjectA in either of
+ * BOOPSI's equivalent forms: directly as classPtr, or indirectly after
+ * AddClass by passing its classID.  The generated crossing already recognizes
+ * the direct form.  Find the same object-table identity for the named form so
+ * it receives the very same temporary dispatcher bridge.
+ *
+ * Merely finding a native Class with the name is not enough: system classes
+ * and native subclasses live in this table too.  A guest-created class has a
+ * readable guest IClass facade whose dispatcher entry was installed by guest
+ * code and points back into the guest arena. */
+static BOOL guest_class_by_id(struct Emu68kRunState *rs, APTR guest0,
+                              const char *id, ULONG *guest_class,
+                              Class **native_class)
+{
+    int i;
+
+    if (guest_class) *guest_class = 0;
+    if (native_class) *native_class = NULL;
+    if (!rs || !id || !*id) return FALSE;
+
+    for (i = 0; i < EMU68K_MAX_OBJECTS; i++)
+    {
+        struct Emu68kObject *o = &rs->objects[i];
+        Class *cl;
+        ULONG entry;
+
+        if (!o->native || o->type != EMU_OBJ_Class)
+            continue;
+        cl = (Class *)o->native;
+        if (!cl->cl_ID || strcmp((const char *)cl->cl_ID, id) != 0)
+            continue;
+        if (emu68k_require_guest_range(o->token, M68K_IClass_SIZEOF,
+                                       "BOOPSI Class", NULL, 0) < 0)
+            continue;
+        if (!(o->flags & EMU68K_OBJ_GUEST_CLASS))
+        {
+            entry = gr32(guest0,
+                         o->token + M68K_IClass_cl_Dispatcher_h_Entry);
+            if (emu68k_require_guest_range(entry, 2, "BOOPSI dispatcher",
+                                           NULL, 0) < 0)
+                continue;
+        }
+        if (guest_class) *guest_class = o->token;
+        if (native_class) *native_class = cl;
+        return TRUE;
+    }
+    return FALSE;
+}
+
+static void intuition_object_cleanup(APTR base, APTR object)
+{
+    struct IntuitionBase *IntuitionBase = base;
+    DisposeObject(object);
+}
+
+static void graphics_bitmap_cleanup(APTR base, APTR object)
+{
+    struct GfxBase *GfxBase = base;
+    FreeBitMap((struct BitMap *)object);
+}
+
 /* A facade of a Gadget-rooted object must READ like a Gadget to the guest:
  * guest library code walks and tests its own gadgets (FreeGadgets checks
  * GadgetType before disposing). Converted ONCE, at creation, with the same
@@ -1458,37 +2415,95 @@ static int super_dispatch(struct Emu68kRunState *rs, APTR guest0, APTR base,
     struct IntuitionBase *IntuitionBase = base;
     ULONG stub = r->a[0];                 /* CallHook A0: the stub IClass    */
     ULONG msg  = r->a[1];
-    ULONG gcls = r->a[2];                 /* OM_NEW convention: o is the cl  */
+    ULONG gobject = r->a[2];              /* OM_NEW: class; methods: object  */
     ULONG stok, method, gtags, inst_end, token = 0;
-    APTR super = NULL, nobj;
+    APTR super = NULL, current_class = NULL, nobj;
+    struct opSet native_message;
+    struct Emu68kObject *super_object;
+    struct Emu68kBoopsiBridge super_bridge;
+    BOOL bridge_super = FALSE;
     struct TagItem ntags[71];
     UQUAD scratch[192];
 
     if (emu68k_require_guest_range(stub, M68K_IClass_SIZEOF, "super stub",
                                    err, errlen) < 0 ||
-        emu68k_require_guest_range(msg, 12, "super message", err, errlen) < 0)
+        emu68k_require_guest_range(msg, 4, "super message", err, errlen) < 0)
         return 1;
     stok   = gr32(guest0, stub + M68K_IClass_cl_Dispatcher_h_Data);
     method = gr32(guest0, msg);
     bug("[emu68k/boopsi] super method=%lx stub=%lx stok=%lx gcls=%lx\n",
         (unsigned long)method, (unsigned long)stub, (unsigned long)stok,
-        (unsigned long)gcls);
-    if (method != OM_NEW)
+        (unsigned long)gobject);
+    if (method != OM_NEW && method != OM_DISPOSE)
     {
         if (err && errlen)
             snprintf(err, errlen, "capability gap: super method %08lx "
-                     "unserved (only OM_NEW crosses)", (unsigned long)method);
+                     "unserved (OM_NEW and OM_DISPOSE cross)",
+                     (unsigned long)method);
         return 1;
     }
     if (emu68k_object_from_guest(guest0, stok, EMU_OBJ_Class, 0, "Class",
                                  &super, err, errlen) < 0)
         return 1;
-    gtags = gr32(guest0, msg + 4);
-    if (emu68k_tags_to_native(guest0, gtags, emu68k_domain_intuition_new_object,
-                              ntags, 71, scratch, sizeof scratch,
-                              err, errlen) < 0)
+    if (method == OM_NEW)
+    {
+        if (emu68k_require_guest_range(msg, 12, "OM_NEW super message",
+                                       err, errlen) < 0 ||
+            emu68k_object_from_guest(guest0, gobject, EMU_OBJ_Class, 0,
+                                     "Class", &current_class,
+                                     err, errlen) < 0)
+            return 1;
+        gtags = gr32(guest0, msg + 4);
+        if (emu68k_tags_to_native_known(
+                guest0, gtags, emu68k_domain_intuition_new_object,
+                ntags, 71, scratch, sizeof scratch, err, errlen) < 0)
+            return 1;
+    }
+    else
+    {
+        gtags = 0;
+        if (emu68k_object_from_guest(guest0, gobject, EMU_OBJ_Object, 0,
+                                     "Object", &nobj, err, errlen) < 0)
+            return 1;
+    }
+    /* A guest class may inherit from another guest class.  Its native backing
+     * deliberately has no callable native dispatcher: the dispatcher lives
+     * at a 32-bit address in this run.  Calling NewObjectA on that backing
+     * directly therefore jumps through NULL.  Install the same temporary
+     * native->guest dispatcher bridge used by the outer NewObjectA; recursive
+     * super chains nest safely because each bridge restores only the class it
+     * temporarily owns. */
+    super_object = object_by_token(rs, stok);
+    if (super_object &&
+        (super_object->flags & EMU68K_OBJ_GUEST_CLASS))
+    {
+        if (emu68k_boopsi_prepare(guest0, stok, super, gtags,
+                                  &super_bridge, err, errlen) < 0)
+            return 1;
+        bridge_super = TRUE;
+    }
+    if (method == OM_DISPOSE)
+    {
+        ULONG native_method = OM_DISPOSE;
+        r->d[0] = (ULONG)CoerceMethodA((Class *)super, (Object *)nobj,
+                                      (Msg)&native_method);
+        if (bridge_super &&
+            emu68k_boopsi_finish(&super_bridge, err, errlen) < 0)
+            return 1;
+        return 0;
+    }
+    native_message.MethodID = OM_NEW;
+    native_message.ops_AttrList = gtags ? ntags : NULL;
+    native_message.ops_GInfo = NULL;
+    /* This is DoSuperMethodA, not NewObjectA(super).  During OM_NEW the
+     * object argument is the ORIGINAL subclass. rootclass uses its object size
+     * and installs it as OCLASS; allocating the superclass itself loses every
+     * guest subclass layer and, for rootclass, simply returns NULL. */
+    nobj = (APTR)CoerceMethodA((Class *)super, (Object *)current_class,
+                               (Msg)&native_message);
+    if (bridge_super &&
+        emu68k_boopsi_finish(&super_bridge, err, errlen) < 0)
         return 1;
-    nobj = NewObjectA((struct IClass *)super, NULL, gtags ? ntags : NULL);
     if (!nobj)
     {
         r->d[0] = 0;
@@ -1497,13 +2512,13 @@ static int super_dispatch(struct Emu68kRunState *rs, APTR guest0, APTR base,
     /* The annex bound comes from the guest class itself; a class that lies
      * about its instance size only corrupts its own annex. */
     inst_end = 64;
-    if (emu68k_require_guest_range(gcls, M68K_IClass_SIZEOF, "class",
+    if (emu68k_require_guest_range(gobject, M68K_IClass_SIZEOF, "class",
                                    NULL, 0) >= 0)
     {
         ULONG off = emu68k_scalar_from_guest(guest0,
-                        gcls + M68K_IClass_cl_InstOffset, 2);
+                        gobject + M68K_IClass_cl_InstOffset, 2);
         ULONG size = emu68k_scalar_from_guest(guest0,
-                        gcls + M68K_IClass_cl_InstSize, 2);
+                        gobject + M68K_IClass_cl_InstSize, 2);
         if (off + size > inst_end) inst_end = off + size;
         if (inst_end > 4096) inst_end = 4096;
     }
@@ -1581,6 +2596,25 @@ static int gen_dispatch(const char *libname, int lvo, struct Emu68kRegs *r,
     return 1;
 }
 
+static APTR gen_base_for(const char *libname, APTR DOSBase)
+{
+    unsigned i;
+    for (i = 0; i < sizeof(g_genlibs) / sizeof(g_genlibs[0]); i++)
+    {
+        struct EmuGenLib *g = &g_genlibs[i];
+        if (strcmp(libname, g->name) != 0) continue;
+        if (!g->base)
+        {
+            if (g->kind == GENBASE_DOS) g->base = DOSBase;
+            else if (g->kind == GENBASE_EXEC) g->base = SysBase;
+            else g->base = OpenLibrary(g->name, 0);
+            g->tried = 1;
+        }
+        return g->base;
+    }
+    return NULL;
+}
+
 /* Called when a guest run finishes: drop its handles and abandon any scan it
  * left open, so the slot is reusable and nothing outlives the program. */
 void Emu68k_OSCallEndRun(APTR guest0)
@@ -1611,6 +2645,56 @@ void Emu68k_OSCallEndRun(APTR guest0)
                 MatchEnd(rs->scans[j].nap);
                 FreeVec(rs->scans[j].nap);
             }
+        /* These resources are paired with guest facades, not entries in the
+         * ordinary object table.  Release them before closing windows and
+         * bitmaps: the native side still owns the real messages, list nodes
+         * and framebuffer locks. */
+        {
+            struct IntuitionBase *IntuitionBase = (struct IntuitionBase *)
+                gen_base_for("intuition.library", NULL);
+            struct Library *GadToolsBase = (struct Library *)
+                gen_base_for("gadtools.library", NULL);
+            if (IntuitionBase)
+            {
+                for (int j = 0; j < EMU68K_MAX_IMSG; j++)
+                    if (rs->imsg[j].native)
+                    {
+                        if (rs->imsg[j].original && GadToolsBase)
+                        {
+                            struct IntuiMessage *orig =
+                                GT_PostFilterIMsg(rs->imsg[j].native);
+                            if (orig) ReplyMsg((struct Message *)orig);
+                        }
+                        else if (rs->imsg[j].allocated)
+                            FreeIntuiMessage(rs->imsg[j].native);
+                        else
+                            ReplyMsg((struct Message *)rs->imsg[j].native);
+                    }
+                for (int j = 0; j < 8; j++)
+                    if (rs->monitors[j].native)
+                        FreeMonitorList(rs->monitors[j].native);
+                if (rs->pubscreen_list)
+                    UnlockPubScreenList();
+            }
+        }
+        {
+            struct Library *CyberGfxBase = (struct Library *)
+                gen_base_for("cybergraphics.library", NULL);
+            if (CyberGfxBase)
+            {
+                for (int j = 0; j < 8; j++)
+                    if (rs->cmodes[j].native)
+                        FreeCModeList(rs->cmodes[j].native);
+                for (int j = 0; j < 16; j++)
+                    if (rs->cyberlock[j].handle)
+                    {
+                        memcpy(rs->cyberlock[j].native_base,
+                               gptr(guest0, rs->cyberlock[j].guest_buffer),
+                               rs->cyberlock[j].size);
+                        UnLockBitMap(rs->cyberlock[j].handle);
+                    }
+            }
+        }
         /* Bridge-issued objects first, mirrors second. A native Window still
          * points at the mirrors of the gadgets the program gave it, so closing
          * it has to happen while those mirrors are still there. */
@@ -1676,7 +2760,7 @@ int Emu68k_OSCall(const char *libname, int lvo, APTR regs, APTR guest0,
     rs->device_base = ctx ? ctx->device_base : NULL;
     rs->call_hook = ctx ? ctx->call_hook : NULL;
 
-    /* ---- IDCMP DELIVERY -----------------------------------------------------
+    /* ---- EVENT BROKER / IDCMP ADAPTER ---------------------------------------
      *
      * A window's UserPort crosses as a facade: the guest holds a readable COPY
      * of the native MsgPort. A program then sits in GetMsg on that copy - which
@@ -1700,73 +2784,132 @@ int Emu68k_OSCall(const char *libname, int lvo, APTR regs, APTR guest0,
      * signal bit set BEFORE the wait is answered, which is exactly what a real
      * PutMsg does.
      *
-     * Only ports BOUND to a window are pumped. A worker process's own
-     * pr_MsgPort is an ordinary mailbox for the messages its dispatcher sends
-     * it, and native input must never be broadcast into one. */
-    if (strcmp(libname, "exec.library") == 0 && lvo == EXEC_LVO_PUMP)
+     * Only typed, explicitly registered sources are pumped. A worker process's
+     * own pr_MsgPort is an ordinary mailbox for its private protocol and must
+     * never receive guessed native data. A0 selects one guest destination;
+     * when it is zero D0 is the Wait signal mask. D1 reports how many sources
+     * matched even when none had a message, separating idle from unbound. */
+    if (strcmp(libname, "exec.library") == 0 && lvo == EXEC_LVO_EVENT_PUMP)
     {
-        ULONG guest_port = r->a[0];
-        struct MsgPort *native_port = NULL;
+        ULONG selected_port = r->a[0];
+        ULONG selected_mask = r->d[0];
         ULONG delivered = 0;
+        ULONG matched = 0;
         int i;
 
         r->d[0] = 0;
+        r->d[1] = 0;
         for (i = 0; i < EMU68K_MAX_IDCMP; i++)
-            if (rs->idcmp[i].guest_port == guest_port && rs->idcmp[i].window)
-            {
-                native_port = ((struct Window *)rs->idcmp[i].window)->UserPort;
-                break;
-            }
-        if (!native_port)
         {
-            struct Emu68kObject *o = object_by_token(rs, guest_port);
-            if (o && o->type == EMU_OBJ_MsgPort)
-                native_port = (struct MsgPort *)o->native;
-        }
-        if (!native_port) return 0;          /* an ordinary guest mailbox     */
+            ULONG guest_port = rs->idcmp[i].guest_port;
+            struct MsgPort *native_port;
+            ULONG bit;
 
-        for (;;)
-        {
-            struct IntuiMessage *im;
-            ULONG guest_msg, list, tailpred, task;
-            int slot;
-
-            im = (struct IntuiMessage *)GetMsg(native_port);
-            if (!im) break;
-            for (slot = 0; slot < EMU68K_MAX_IMSG; slot++)
-                if (!rs->imsg[slot].native) break;
-            if (slot == EMU68K_MAX_IMSG || !rs->guest_alloc ||
-                !(guest_msg = rs->guest_alloc(rs->run, M68K_IntuiMessage_SIZEOF)))
-            {
-                ReplyMsg((struct Message *)im);  /* never strand Intuition's  */
-                break;
+            if (!guest_port || !rs->idcmp[i].window)
+                continue;
+            bit = *((UBYTE *)guest0 + guest_port + M68K_MsgPort_mp_SigBit);
+            if (selected_port) {
+                if (guest_port != selected_port) continue;
+            } else {
+                if (bit >= 32 || !(selected_mask & (1UL << bit))) continue;
             }
-            memset((UBYTE *)guest0 + guest_msg, 0, M68K_IntuiMessage_SIZEOF);
-            emu68k_to_guest(guest0, guest_msg, im, emu_fields_IntuiMessage,
-                            EMU_NFIELDS(emu_fields_IntuiMessage));
-            rs->imsg[slot].native = im;
-            rs->imsg[slot].guest  = guest_msg;
+            native_port = ((struct Window *)rs->idcmp[i].window)->UserPort;
+            if (!native_port) continue;
+            matched++;
 
-            /* AddTail on the guest port's own list, byte for byte as exec
-             * leaves it, so the program's GetMsg is the ordinary path. */
-            list = guest_port + M68K_MsgPort_mp_MsgList_lh_Head;
-            tailpred = gr32(guest0, list + M68K_List_lh_TailPred);
-            gw32(guest0, guest_msg, list + M68K_List_lh_Tail);
-            gw32(guest0, guest_msg + 4, tailpred);
-            gw32(guest0, tailpred, guest_msg);
-            gw32(guest0, list + M68K_List_lh_TailPred, guest_msg);
-            delivered++;
-
-            task = gr32(guest0, guest_port + M68K_MsgPort_mp_SigTask);
+            for (;;)
             {
-                ULONG bit = *((UBYTE *)guest0 + guest_port +
-                              M68K_MsgPort_mp_SigBit);
+                struct IntuiMessage *im;
+                ULONG guest_msg, list, tailpred, task;
+                int slot;
+
+                im = (struct IntuiMessage *)GetMsg(native_port);
+                if (!im) break;
+                for (slot = 0; slot < EMU68K_MAX_IMSG; slot++)
+                    if (!rs->imsg[slot].native) break;
+                if (slot == EMU68K_MAX_IMSG || !rs->guest_alloc ||
+                    !(guest_msg = rs->guest_alloc(rs->run,
+                                                  M68K_IntuiMessage_SIZEOF)))
+                {
+                    ReplyMsg((struct Message *)im);
+                    break;
+                }
+                intui_message_to_guest(rs, guest0, guest_msg, im);
+                rs->imsg[slot].native = im;
+                rs->imsg[slot].guest  = guest_msg;
+                rs->imsg[slot].allocated = FALSE;
+
+                /* Guest AddTail plus the signal a native PutMsg would set. */
+                list = guest_port + M68K_MsgPort_mp_MsgList_lh_Head;
+                tailpred = gr32(guest0, list + M68K_List_lh_TailPred);
+                gw32(guest0, guest_msg, list + M68K_List_lh_Tail);
+                gw32(guest0, guest_msg + 4, tailpred);
+                gw32(guest0, tailpred, guest_msg);
+                gw32(guest0, list + M68K_List_lh_TailPred, guest_msg);
+                delivered++;
+
+                task = gr32(guest0, guest_port + M68K_MsgPort_mp_SigTask);
                 if (task && bit < 32)
                     gw32(guest0, task + M68K_Task_tc_SigRecvd,
                          gr32(guest0, task + M68K_Task_tc_SigRecvd) | (1u << bit));
             }
         }
         r->d[0] = delivered;
+        r->d[1] = matched;
+        return 0;
+    }
+    /* GadTools filters a native IntuiMessage before the application sees it.
+     * The broker has already removed and paired that native message with a
+     * guest facade, so filter the remembered original and rewrite the SAME
+     * facade. This retains GadTools' private filter context until GT_ReplyIMsg
+     * performs the paired post-filter and native reply. */
+    if (strcmp(libname, "gadtools.library") == 0 &&
+        lvo == GADTOOLS_LVO_GT_GETIMSG)
+    {
+        struct Library *GadToolsBase = (struct Library *)
+            gen_base_for("gadtools.library", NULL);
+        ULONG guest_msg = r->a[1];
+        int i;
+        if (!GadToolsBase) return 1;
+        for (i = 0; i < EMU68K_MAX_IMSG; i++)
+            if (rs->imsg[i].native && rs->imsg[i].guest == guest_msg)
+            {
+                struct IntuiMessage *orig = rs->imsg[i].native;
+                struct IntuiMessage *filtered = GT_FilterIMsg(orig);
+                if (!filtered)
+                {
+                    ReplyMsg((struct Message *)orig);
+                    memset(&rs->imsg[i], 0, sizeof rs->imsg[i]);
+                    r->d[0] = 0;
+                    return 0;
+                }
+                rs->imsg[i].native = filtered;
+                rs->imsg[i].original = orig;
+                intui_message_to_guest(rs, guest0, guest_msg, filtered);
+                r->d[0] = guest_msg;
+                return 0;
+            }
+        r->d[0] = 0;
+        return 0;
+    }
+    if (strcmp(libname, "gadtools.library") == 0 &&
+        lvo == GADTOOLS_LVO_GT_REPLYIMSG)
+    {
+        struct Library *GadToolsBase = (struct Library *)
+            gen_base_for("gadtools.library", NULL);
+        int i;
+        if (!GadToolsBase) return 1;
+        for (i = 0; i < EMU68K_MAX_IMSG; i++)
+            if (rs->imsg[i].native && rs->imsg[i].guest == r->a[1])
+            {
+                struct IntuiMessage *orig =
+                    GT_PostFilterIMsg(rs->imsg[i].native);
+                if (orig) ReplyMsg((struct Message *)orig);
+                memset(&rs->imsg[i], 0, sizeof rs->imsg[i]);
+                r->d[0] = 0;
+                return 0;
+            }
+        r->d[0] = 0;
         return 0;
     }
     /* A reply has to reach the message Intuition is waiting to get back, so the
@@ -1777,9 +2920,17 @@ int Emu68k_OSCall(const char *libname, int lvo, APTR regs, APTR guest0,
         for (i = 0; i < EMU68K_MAX_IMSG; i++)
             if (rs->imsg[i].native && rs->imsg[i].guest == r->a[1])
             {
-                ReplyMsg((struct Message *)rs->imsg[i].native);
-                rs->imsg[i].native = NULL;
-                rs->imsg[i].guest = 0;
+                if (rs->imsg[i].original)
+                {
+                    struct Library *GadToolsBase = (struct Library *)
+                        gen_base_for("gadtools.library", NULL);
+                    struct IntuiMessage *orig = GadToolsBase ?
+                        GT_PostFilterIMsg(rs->imsg[i].native) : NULL;
+                    if (orig) ReplyMsg((struct Message *)orig);
+                }
+                else
+                    ReplyMsg((struct Message *)rs->imsg[i].native);
+                memset(&rs->imsg[i], 0, sizeof rs->imsg[i]);
                 return 0;
             }
         return 1;                        /* the guest's own message: not ours */
@@ -1977,6 +3128,13 @@ int Emu68k_OSCall(const char *libname, int lvo, APTR regs, APTR guest0,
             r->d[0] = handle_token(rs, CreateDir((CONST_STRPTR)gptr(guest0, r->d[1])));
             return 0;
 
+        case DOS_LVO_MAKELINK:
+            r->d[0] = (ULONG)MakeLink((CONST_STRPTR)gptr(guest0, r->d[1]),
+                r->d[3] ? (SIPTR)gptr(guest0, r->d[2])
+                        : (SIPTR)handle_bptr(rs, r->d[2]),
+                (LONG)r->d[3]);
+            return 0;
+
         /* FilePart/PathPart return a pointer INTO the string they were given.
          * A native pointer is meaningless to the guest and does not fit a 68k
          * register, but the OFFSET is exactly the same on both sides, so the
@@ -2109,29 +3267,6 @@ int Emu68k_OSCall(const char *libname, int lvo, APTR regs, APTR guest0,
         }
     }
 
-    if (strcmp(libname, "intuition.library") == 0)
-    {
-        /* The requesters. Both ASK THE USER, and a 68k program driven from a
-         * script or headlessly has nobody to ask - which is the same situation
-         * pr_WindowPtr = -1 already handles for dos, so the answer is the same:
-         * do not display anything, and give the negative reply.
-         *
-         * AutoRequest returns FALSE for the negative gadget; EasyRequestArgs
-         * returns 0, which is its rightmost gadget and conventionally Cancel.
-         * A program that asks "proceed?" therefore stops, which is the safe
-         * reading of no answer - it does not silently proceed on the user's
-         * behalf. Showing the text would mean converting IntuiText/EasyStruct
-         * and formatting a RAWARG list, which is separate work.
-         */
-        if (lvo == 58) { r->d[0] = DOSFALSE; return 0; }   /* AutoRequest      */
-        if (lvo == 98)                                     /* EasyRequestArgs  */
-        {
-            report_easyrequest(guest0, r->a[1]);
-            r->d[0] = 0;
-            return 0;
-        }
-    }
-
     if (strcmp(libname, "workbench.library") == 0)
     {
         /* Registering with Workbench asks it to SEND the program messages, on
@@ -2165,6 +3300,361 @@ int Emu68k_OSCall(const char *libname, int lvo, APTR regs, APTR guest0,
 
     if (strcmp(libname, "graphics.library") == 0)
     {
+        if (lvo == GRAPHICS_LVO_BLTBITMAPRASTPORT)
+        {
+            struct BitMap srcshadow, dstbmshadow, *srcbm;
+            struct RastPort dstshadow, *dstrp;
+
+            if (guest_bitmap_view(rs, guest0, r->a[0], &srcshadow, &srcbm,
+                                  "BltBitMapRastPort source", err,
+                                  errlen) < 0 ||
+                guest_render_rastport(rs, guest0, r->a[1], &dstshadow,
+                                      &dstbmshadow, &dstrp, err, errlen) < 0)
+                return 1;
+            BltBitMapRastPort(srcbm, (WORD)r->d[0], (WORD)r->d[1], dstrp,
+                              (WORD)r->d[2], (WORD)r->d[3],
+                              (WORD)r->d[4], (WORD)r->d[5], r->d[6]);
+            return 0;
+        }
+
+        if (lvo == GRAPHICS_LVO_SETRAST)
+        {
+            struct Emu68kObject *rpo = object_by_token(rs, r->a[1]);
+            ULONG bitmap, bytesperrow, rows, depth, plane, size;
+
+            if (!r->a[1] || (rpo && rpo->type != EMU_OBJ_RastPort))
+                return 1;
+            if (rpo)
+            {
+                SetRast((struct RastPort *)rpo->native, r->d[0]);
+                return 0;
+            }
+            if (emu68k_require_guest_range(r->a[1], M68K_RastPort_SIZEOF,
+                                           "SetRast RastPort", err,
+                                           errlen) < 0)
+                return 1;
+            bitmap = gr32(guest0, r->a[1] + M68K_RastPort_BitMap);
+            if (!bitmap || emu68k_require_guest_range(
+                    bitmap, M68K_BitMap_SIZEOF, "SetRast BitMap",
+                    err, errlen) < 0)
+                return 1;
+            bytesperrow = emu68k_scalar_from_guest(
+                guest0, bitmap + M68K_BitMap_BytesPerRow, 2);
+            rows = emu68k_scalar_from_guest(
+                guest0, bitmap + M68K_BitMap_Rows, 2);
+            depth = *((UBYTE *)guest0 + bitmap + M68K_BitMap_Depth);
+            if (!bytesperrow || !rows || !depth || depth > 8 ||
+                (UQUAD)bytesperrow * rows > 0xffffffffUL)
+            {
+                if (err && errlen)
+                    snprintf(err, errlen, "SetRast invalid guest BitMap "
+                             "geometry %lux%lu depth %lu",
+                             (unsigned long)bytesperrow,
+                             (unsigned long)rows, (unsigned long)depth);
+                return 1;
+            }
+            size = bytesperrow * rows;
+            for (plane = 0; plane < depth; plane++)
+            {
+                ULONG pixels = gr32(guest0, bitmap + M68K_BitMap_Planes +
+                                     plane * 4);
+                if (!pixels || emu68k_require_guest_range(
+                        pixels, size, "SetRast plane", err, errlen) < 0)
+                    return 1;
+                memset((UBYTE *)guest0 + pixels,
+                       (r->d[0] & (1UL << plane)) ? 0xff : 0x00, size);
+            }
+            return 0;
+        }
+
+        if (lvo == GRAPHICS_LVO_TEXTLENGTH ||
+            lvo == GRAPHICS_LVO_TEXTEXTENT ||
+            lvo == GRAPHICS_LVO_TEXTFIT)
+        {
+            struct RastPort shadow, *rp;
+            struct TextExtent extent, constraint;
+
+            if (guest_text_rastport(rs, guest0, r->a[1], &shadow, &rp,
+                                    err, errlen) < 0 ||
+                emu68k_require_guest_range(r->a[0], r->d[0],
+                                           "text bytes", err, errlen) < 0)
+                return 1;
+            if (lvo == GRAPHICS_LVO_TEXTLENGTH)
+            {
+                r->d[0] = TextLength(rp, gptr(guest0, r->a[0]), r->d[0]);
+                return 0;
+            }
+            if (emu68k_require_guest_range(r->a[2], M68K_TextExtent_SIZEOF,
+                                           "TextExtent output", err,
+                                           errlen) < 0)
+                return 1;
+            if (lvo == GRAPHICS_LVO_TEXTEXTENT)
+            {
+                TextExtent(rp, gptr(guest0, r->a[0]), r->d[0], &extent);
+                guest_text_extent_from_native(guest0, r->a[2], &extent);
+                return 0;
+            }
+            if (emu68k_require_guest_range(r->a[3], M68K_TextExtent_SIZEOF,
+                                           "TextFit constraint", err,
+                                           errlen) < 0)
+                return 1;
+            guest_text_extent_to_native(guest0, r->a[3], &constraint);
+            r->d[0] = TextFit(rp, gptr(guest0, r->a[0]), r->d[0],
+                              &extent, &constraint, (LONG)r->d[1],
+                              r->d[2], r->d[3]);
+            guest_text_extent_from_native(guest0, r->a[2], &extent);
+            return 0;
+        }
+
+        if (lvo == GRAPHICS_LVO_SETAPEN ||
+            lvo == GRAPHICS_LVO_SETBPEN ||
+            lvo == GRAPHICS_LVO_SETDRMD ||
+            lvo == GRAPHICS_LVO_SETABPENDRMD ||
+            lvo == GRAPHICS_LVO_SETOUTLINEPEN ||
+            lvo == GRAPHICS_LVO_SETWRITEMASK ||
+            lvo == GRAPHICS_LVO_SETMAXPEN ||
+            lvo == GRAPHICS_LVO_SETSOFTSTYLE)
+        {
+            ULONG rp = (lvo == GRAPHICS_LVO_SETAPEN ||
+                        lvo == GRAPHICS_LVO_SETBPEN ||
+                        lvo == GRAPHICS_LVO_SETDRMD ||
+                        lvo == GRAPHICS_LVO_SETABPENDRMD ||
+                        lvo == GRAPHICS_LVO_SETSOFTSTYLE) ? r->a[1] : r->a[0];
+            ULONG value0 = r->d[0];
+            struct Emu68kObject *rpo = object_by_token(rs, rp);
+            UBYTE *g = (UBYTE *)guest0;
+
+            if (!rp || (rpo && rpo->type != EMU_OBJ_RastPort) ||
+                emu68k_require_guest_range(rp, M68K_RastPort_SIZEOF,
+                                           "graphics setter RastPort", err,
+                                           errlen) < 0)
+                return 1;
+
+            if (rpo)
+            {
+                struct RastPort *native = (struct RastPort *)rpo->native;
+                switch (lvo)
+                {
+                case GRAPHICS_LVO_SETAPEN: SetAPen(native, r->d[0]); break;
+                case GRAPHICS_LVO_SETBPEN: SetBPen(native, r->d[0]); break;
+                case GRAPHICS_LVO_SETDRMD: SetDrMd(native, r->d[0]); break;
+                case GRAPHICS_LVO_SETABPENDRMD:
+                    SetABPenDrMd(native, r->d[0], r->d[1], r->d[2]); break;
+                case GRAPHICS_LVO_SETOUTLINEPEN:
+                    r->d[0] = SetOutlinePen(native, r->d[0]); break;
+                case GRAPHICS_LVO_SETWRITEMASK:
+                    r->d[0] = SetWriteMask(native, r->d[0]); break;
+                case GRAPHICS_LVO_SETMAXPEN: SetMaxPen(native, r->d[0]); break;
+                case GRAPHICS_LVO_SETSOFTSTYLE:
+                    r->d[0] = SetSoftStyle(native, r->d[0], r->d[1]); break;
+                }
+            }
+
+            switch (lvo)
+            {
+            case GRAPHICS_LVO_SETAPEN:
+                g[rp + M68K_RastPort_FgPen] = (UBYTE)value0;
+                g[rp + M68K_RastPort_linpatcnt] = 15;
+                guest_rastport_enable_pens(guest0, rp);
+                break;
+            case GRAPHICS_LVO_SETBPEN:
+                g[rp + M68K_RastPort_BgPen] = (UBYTE)value0;
+                g[rp + M68K_RastPort_linpatcnt] = 15;
+                guest_rastport_enable_pens(guest0, rp);
+                guest_rastport_minterms(guest0, rp);
+                break;
+            case GRAPHICS_LVO_SETDRMD:
+                g[rp + M68K_RastPort_DrawMode] = (UBYTE)value0;
+                g[rp + M68K_RastPort_linpatcnt] = 15;
+                guest_rastport_minterms(guest0, rp);
+                break;
+            case GRAPHICS_LVO_SETABPENDRMD:
+                g[rp + M68K_RastPort_FgPen] = (UBYTE)value0;
+                g[rp + M68K_RastPort_BgPen] = (UBYTE)r->d[1];
+                g[rp + M68K_RastPort_DrawMode] = (UBYTE)r->d[2];
+                g[rp + M68K_RastPort_linpatcnt] = 15;
+                guest_rastport_enable_pens(guest0, rp);
+                guest_rastport_minterms(guest0, rp);
+                break;
+            case GRAPHICS_LVO_SETOUTLINEPEN:
+            {
+                ULONG oldpen = g[rp + M68K_RastPort_AOlPen];
+                g[rp + M68K_RastPort_AOlPen] = (UBYTE)value0;
+                g[rp + M68K_RastPort_Flags + 1] |= AREAOUTLINE;
+                if (!rpo) r->d[0] = oldpen;
+                break;
+            }
+            case GRAPHICS_LVO_SETWRITEMASK:
+                g[rp + M68K_RastPort_Mask] = (UBYTE)value0;
+                if (!rpo) r->d[0] = 0xffffffffUL;
+                break;
+            case GRAPHICS_LVO_SETMAXPEN:
+                if (value0)
+                {
+                    ULONG v = value0;
+                    v |= v >> 1; v |= v >> 2; v |= v >> 4;
+                    g[rp + M68K_RastPort_Mask] = (UBYTE)v;
+                }
+                break;
+            case GRAPHICS_LVO_SETSOFTSTYLE:
+            {
+                ULONG fontp = emu68k_scalar_from_guest(guest0,
+                    rp + M68K_RastPort_Font, 4);
+                ULONG fontstyle, realenable;
+                UBYTE algostyle;
+
+                if (!fontp || emu68k_require_guest_range(
+                        fontp, M68K_TextFont_SIZEOF,
+                        "SetSoftStyle TextFont", err, errlen) < 0)
+                    return 1;
+                fontstyle = g[fontp + M68K_TextFont_tf_Style];
+                realenable = r->d[1] & ~fontstyle;
+                algostyle = g[rp + M68K_RastPort_AlgoStyle];
+                algostyle = (UBYTE)((~realenable & algostyle) |
+                                    (realenable & value0));
+                g[rp + M68K_RastPort_AlgoStyle] = algostyle;
+                if (!rpo) r->d[0] = algostyle | fontstyle;
+                break;
+            }
+            }
+            return 0;
+        }
+
+        if (lvo == GRAPHICS_LVO_SETFONT)
+        {
+            struct Emu68kObject *rpo = object_by_token(rs, r->a[1]);
+            struct Emu68kObject *tfo = object_by_token(rs, r->a[0]);
+            struct TextFont *font;
+
+            if (!r->a[1] || (rpo && rpo->type != EMU_OBJ_RastPort) ||
+                (tfo && tfo->type != EMU_OBJ_TextFont))
+                return 1;
+            if (r->a[0] && !tfo)
+            {
+                if (err && errlen)
+                    snprintf(err, errlen, "SetFont received unknown TextFont %08lx",
+                             (unsigned long)r->a[0]);
+                return 1;
+            }
+            font = tfo ? (struct TextFont *)tfo->native : NULL;
+
+            if (rpo)
+                SetFont((struct RastPort *)rpo->native, font);
+            else if (emu68k_require_guest_range(r->a[1], M68K_RastPort_SIZEOF,
+                                                "SetFont RastPort", err,
+                                                errlen) < 0)
+                return 1;
+
+            /* graphics/SetFont has only four observable mutations.  Keeping
+             * those in the guest structure is both sufficient for a
+             * program-owned RastPort and necessary for an issued facade that
+             * guest code subsequently reads. */
+            if (!font)
+            {
+                if (err && errlen)
+                    snprintf(err, errlen, "SetFont(NULL) on a guest-owned RastPort "
+                             "needs a guest token for the native default font");
+                return 1;
+            }
+            emu68k_scalar_to_guest(guest0, r->a[1] + M68K_RastPort_Font,
+                                   4, r->a[0]);
+            emu68k_scalar_to_guest(guest0, r->a[1] + M68K_RastPort_TxWidth,
+                                   2, font->tf_XSize);
+            emu68k_scalar_to_guest(guest0, r->a[1] + M68K_RastPort_TxHeight,
+                                   2, font->tf_YSize);
+            emu68k_scalar_to_guest(guest0, r->a[1] + M68K_RastPort_TxBaseline,
+                                   2, font->tf_Baseline);
+            return 0;
+        }
+
+        if (lvo == GRAPHICS_LVO_BLTMASKBITMAPRASTPORT)
+        {
+            struct GfxBase *GfxBase = (struct GfxBase *)gen_base_for(
+                "graphics.library", DOSBase);
+            struct Emu68kObject *srco = object_by_token(rs, r->a[0]);
+            struct Emu68kObject *dsto = object_by_token(rs, r->a[1]);
+            struct BitMap guestbm, *srcbm;
+            ULONG maskbytes = 0;
+            PLANEPTR mask;
+
+            if (!GfxBase || !dsto || dsto->type != EMU_OBJ_RastPort)
+                return 1;
+            if (srco && srco->type == EMU_OBJ_BitMap)
+                srcbm = srco->native;
+            else
+            {
+                ULONG gp = r->a[0], rows, bytesperrow, depth, i;
+                if (emu68k_require_guest_range(gp, M68K_BitMap_SIZEOF,
+                                               "BltMask source BitMap",
+                                               err, errlen) < 0)
+                    return 1;
+                memset(&guestbm, 0, sizeof guestbm);
+                bytesperrow = emu68k_scalar_from_guest(guest0,
+                    gp + M68K_BitMap_BytesPerRow, 2);
+                rows = emu68k_scalar_from_guest(guest0,
+                    gp + M68K_BitMap_Rows, 2);
+                depth = *((UBYTE *)guest0 + gp + M68K_BitMap_Depth);
+                if (depth > 8 || (UQUAD)bytesperrow * rows > 0xffffffffUL)
+                    return 1;
+                guestbm.BytesPerRow = bytesperrow;
+                guestbm.Rows = rows;
+                guestbm.Flags = *((UBYTE *)guest0 + gp + M68K_BitMap_Flags);
+                guestbm.Depth = depth;
+                for (i = 0; i < depth; i++)
+                {
+                    ULONG plane = gr32(guest0, gp + M68K_BitMap_Planes + i * 4);
+                    if (emu68k_require_guest_range(plane, bytesperrow * rows,
+                                                   "BitMap plane", err,
+                                                   errlen) < 0)
+                        return 1;
+                    guestbm.Planes[i] = gptr(guest0, plane);
+                }
+                maskbytes = bytesperrow * rows;
+                srcbm = &guestbm;
+            }
+            if (!maskbytes)
+                maskbytes = (ULONG)srcbm->BytesPerRow * srcbm->Rows;
+            if (emu68k_require_guest_range(r->a[2], maskbytes,
+                                           "BltMask mask", err, errlen) < 0)
+                return 1;
+            mask = gptr(guest0, r->a[2]);
+            BltMaskBitMapRastPort(srcbm, (WORD)r->d[0], (WORD)r->d[1],
+                (struct RastPort *)dsto->native, (WORD)r->d[2], (WORD)r->d[3],
+                (WORD)r->d[4], (WORD)r->d[5], r->d[6], mask);
+            return 0;
+        }
+
+        if (lvo == GRAPHICS_LVO_WRITEPIXELS8)
+        {
+            struct GfxBase *GfxBase = (struct GfxBase *)gen_base_for(
+                "graphics.library", DOSBase);
+            struct Emu68kObject *rpo = object_by_token(rs, r->a[0]);
+            LONG height = (WORD)r->d[4] - (WORD)r->d[2] + 1;
+            ULONG bytes, i;
+            ULONG pixlut[256];
+            if (!GfxBase || !rpo || rpo->type != EMU_OBJ_RastPort ||
+                height <= 0 || (UQUAD)r->d[0] * (ULONG)height > 0xffffffffUL)
+            { r->d[0] = 0; return 0; }
+            bytes = r->d[0] * (ULONG)height;
+            if (emu68k_require_guest_range(r->a[1], bytes, "WritePixels8 array",
+                                           err, errlen) < 0)
+                return 1;
+            if (r->a[2])
+            {
+                if (emu68k_require_guest_range(r->a[2], sizeof pixlut,
+                                               "WritePixels8 pixlut",
+                                               err, errlen) < 0)
+                    return 1;
+                for (i = 0; i < 256; i++)
+                    pixlut[i] = gr32(guest0, r->a[2] + i * 4);
+            }
+            r->d[0] = WritePixels8((struct RastPort *)rpo->native,
+                gptr(guest0, r->a[1]), r->d[0], (WORD)r->d[1],
+                (WORD)r->d[2], (WORD)r->d[3], (WORD)r->d[4],
+                r->a[2] ? pixlut : NULL, r->d[5]);
+            return 0;
+        }
+
         /* AllocBitMap returns a STRUCTURE the program reads and writes, and
          * that structure in turn contains plane pointers the program follows.
          * A native BitMap cannot cross either boundary: its address and its
@@ -2176,8 +3666,9 @@ int Emu68k_OSCall(const char *libname, int lvo, APTR regs, APTR guest0,
          * request, not a demand for AROS's native HIDD representation.  The
          * guest arena is its chip-addressable world, so the classic planar
          * facade is the compatible answer.  RTG/special-format and friend
-         * bitmaps do have driver-owned semantics and deliberately remain
-         * capability gaps. */
+         * bitmaps have driver-owned semantics, so those stay native and cross
+         * as typed tokens: guest code may pass them back to graphics/cybergfx,
+         * but can never mistake their 64-bit internals for a classic BitMap. */
         if (lvo == GFX_LVO_ALLOCBITMAP)
         {
             UWORD width = (UWORD)r->d[0], height = (UWORD)r->d[1];
@@ -2195,12 +3686,24 @@ int Emu68k_OSCall(const char *libname, int lvo, APTR regs, APTR guest0,
                 (flags & ~(BMF_CLEAR | BMF_DISPLAYABLE | BMF_INTERLEAVED |
                            BMF_STANDARD | BMF_MINPLANES)))
             {
-                if (err && errlen)
-                    snprintf(err, errlen,
-                             "AllocBitMap needs native display/RTG/friend semantics "
-                             "(depth=%lu flags=%08lx friend=%08lx)",
-                             depth, flags, r->a[0]);
-                return 1;
+                struct BitMap friend_shadow, *friend = NULL, *native;
+                struct GfxBase *GfxBase = (struct GfxBase *)gen_base_for(
+                    "graphics.library", DOSBase);
+                ULONG token = 0;
+
+                if (!GfxBase || (r->a[0] &&
+                    guest_bitmap_view(rs, guest0, r->a[0], &friend_shadow,
+                                      &friend, "AllocBitMap friend",
+                                      err, errlen) < 0))
+                    return 1;
+                native = AllocBitMap(width, height, depth, flags, friend);
+                if (emu68k_object_to_guest(guest0, native, EMU_OBJ_BitMap,
+                                            GfxBase, graphics_bitmap_cleanup,
+                                            "BitMap", &token,
+                                            err, errlen) < 0)
+                    return 1;
+                r->d[0] = token;
+                return 0;
             }
 
             for (slot = 0; slot < EMU68K_MAX_BITMAPS; slot++)
@@ -2259,9 +3762,25 @@ int Emu68k_OSCall(const char *libname, int lvo, APTR regs, APTR guest0,
 
         if (lvo == GFX_LVO_FREEBITMAP)
         {
+            struct Emu68kObject *o;
             int i;
             if (!r->a[0])
             {
+                r->d[0] = 0;
+                return 0;
+            }
+            o = object_by_token(rs, r->a[0]);
+            if (o && o->type == EMU_OBJ_BitMap)
+            {
+                if (o->cleanup != graphics_bitmap_cleanup)
+                {
+                    if (err && errlen)
+                        snprintf(err, errlen,
+                                 "FreeBitMap received a borrowed native BitMap");
+                    return 1;
+                }
+                graphics_bitmap_cleanup(o->base, o->native);
+                emu68k_object_consume(guest0, r->a[0], EMU_OBJ_BitMap);
                 r->d[0] = 0;
                 return 0;
             }
@@ -2306,6 +3825,671 @@ int Emu68k_OSCall(const char *libname, int lvo, APTR regs, APTR guest0,
         if (lvo == GFX_LVO_FREERASTER)
         {
             r->d[0] = 0;
+            return 0;
+        }
+    }
+
+    if (strcmp(libname, "intuition.library") == 0)
+    {
+        struct IntuitionBase *IntuitionBase = (struct IntuitionBase *)
+            gen_base_for("intuition.library", DOSBase);
+
+        /* A hosted run may load a guest implementation of a library whose
+         * native implementation has already registered the same public BOOPSI
+         * class ID. Native MakeClass quite correctly rejects that duplicate,
+         * but the two classes live in different execution domains: native
+         * code cannot execute the guest dispatcher, and guest code must not be
+         * handed the native class as if it could replace its own class.
+         *
+         * Make a private native class for storage/allocation, retain the guest
+         * ID on it, and register the public name only in this run's object
+         * table. Named NewObjectA and FindClass below consult that table first.
+         * AddClass/RemoveClass are consequently no-ops for such a shadow: adding
+         * it to Intuition's native ClassList would create the duplicate whose
+         * meaning is undefined there. */
+        if (lvo == INTUITION_LVO_MAKECLASS && r->a[0])
+        {
+            ULONG class_id_guest = r->a[0], existing = 0;
+            const char *class_id = guest_cstr(guest0, class_id_guest, 256);
+            struct Emu68kObject *co;
+            int rc;
+
+            if (!class_id)
+            {
+                if (err && errlen)
+                    snprintf(err, errlen,
+                             "MakeClass classID is not a bounded guest string");
+                return 1;
+            }
+            if (guest_class_by_id(rs, guest0, class_id, &existing, NULL))
+            {
+                r->d[0] = 0;
+                return 0;
+            }
+            r->a[0] = 0;
+            rc = gen_dispatch("intuition.library", lvo, r, guest0, DOSBase,
+                              err, errlen);
+            r->a[0] = class_id_guest;
+            if (rc != 0 || !r->d[0])
+                return rc;
+            co = object_by_token(rs, r->d[0]);
+            if (!co || co->type != EMU_OBJ_Class)
+            {
+                if (err && errlen)
+                    snprintf(err, errlen,
+                             "MakeClass returned an untracked class facade");
+                return 1;
+            }
+            ((Class *)co->native)->cl_ID = (ClassID)class_id;
+            co->flags |= EMU68K_OBJ_GUEST_CLASS;
+            emu68k_scalar_to_guest(guest0,
+                                   co->token + M68K_IClass_cl_ID, 4,
+                                   class_id_guest);
+            return 0;
+        }
+
+        if ((lvo == INTUITION_LVO_ADDCLASS ||
+             lvo == INTUITION_LVO_REMOVECLASS) && r->a[0])
+        {
+            struct Emu68kObject *co = object_by_token(rs, r->a[0]);
+            /* MakeClass facades own their native backing class (FindClass
+             * facades do not). AROS class startup commonly makes one private,
+             * writes cl_ID through the returned 68k IClass, then calls
+             * AddClass. Import that late ID before registering it per-run.
+             * Never add the backing class to the native global list: its
+             * dispatcher lives in guest code and native callers cannot invoke
+             * it. A missing ID is a private class mistakenly passed to
+             * AddClass; a harmless no-op avoids poisoning native FindClass
+             * with a list node whose cl_ID is NULL. */
+            if (co && co->type == EMU_OBJ_Class && co->cleanup)
+            {
+                if (lvo == INTUITION_LVO_ADDCLASS &&
+                    !(co->flags & EMU68K_OBJ_GUEST_CLASS))
+                {
+                    ULONG guest_id = gr32(guest0,
+                        co->token + M68K_IClass_cl_ID);
+                    if (guest_id)
+                    {
+                        const char *class_id = guest_cstr(guest0, guest_id, 256);
+                        if (!class_id)
+                        {
+                            if (err && errlen)
+                                snprintf(err, errlen,
+                                    "AddClass cl_ID is not a bounded guest string");
+                            return 1;
+                        }
+                        ((Class *)co->native)->cl_ID = (ClassID)class_id;
+                        co->flags |= EMU68K_OBJ_GUEST_CLASS;
+                    }
+                }
+                r->d[0] = 0;
+                return 0;
+            }
+        }
+
+        if (lvo == INTUITION_LVO_FINDCLASS && r->a[0])
+        {
+            const char *class_id = guest_cstr(guest0, r->a[0], 256);
+            ULONG guest_class = 0;
+            if (!class_id)
+            {
+                if (err && errlen)
+                    snprintf(err, errlen,
+                             "FindClass classID is not a bounded guest string");
+                return 1;
+            }
+            if (guest_class_by_id(rs, guest0, class_id, &guest_class, NULL))
+            {
+                r->d[0] = guest_class;
+                return 0;
+            }
+        }
+
+        /* NewObjectA's named form may resolve to a class the guest registered
+         * with AddClass.  Native Intuition cannot call that class's 68k
+         * dispatcher directly, so resolve its existing class facade and use
+         * the same callback bridge as the pointer form.  Passing the native
+         * class pointer deliberately bypasses a second name lookup; the empty
+         * native taglist starts the method while the bridge supplies the
+         * original guest taglist to OM_NEW. */
+        if (lvo == INTUITION_LVO_NEWOBJECTA && !r->a[0] && r->a[1])
+        {
+            const char *class_id = guest_cstr(guest0, r->a[1], 256);
+            ULONG guest_class = 0, object_token = 0;
+            Class *native_class = NULL;
+
+            if (!class_id)
+            {
+                if (err && errlen)
+                    snprintf(err, errlen,
+                             "NewObjectA classID is not a bounded guest string");
+                return 1;
+            }
+            if (guest_class_by_id(rs, guest0, class_id, &guest_class,
+                                  &native_class))
+            {
+                struct Emu68kBoopsiBridge bridge;
+                struct TagItem empty_tags[1] = { { TAG_DONE, 0 } };
+                APTR object;
+
+                bug("[emu68k/boopsi] named guest class %s -> %08lx/%p\n",
+                    class_id, (unsigned long)guest_class, native_class);
+                if (!IntuitionBase ||
+                    emu68k_boopsi_prepare(guest0, guest_class, native_class,
+                                           r->a[2], &bridge,
+                                           err, errlen) < 0)
+                    return 1;
+                object = NewObjectA(native_class, NULL, empty_tags);
+                if (emu68k_boopsi_finish(&bridge, err, errlen) < 0)
+                    return 1;
+                if (emu68k_object_to_guest(guest0, object, EMU_OBJ_Object,
+                                            IntuitionBase,
+                                            intuition_object_cleanup,
+                                            "Object", &object_token,
+                                            err, errlen) < 0)
+                    return 1;
+                r->d[0] = object_token;
+                return 0;
+            }
+        }
+
+        if (lvo == INTUITION_LVO_SETWINDOWTITLES)
+        {
+            struct Emu68kObject *wo = object_by_token(rs, r->a[0]);
+            CONST_STRPTR window_title, screen_title;
+
+            if (!IntuitionBase || (r->a[0] &&
+                (!wo || wo->type != EMU_OBJ_Window)))
+                return 1;
+            if (err && errlen) err[0] = 0;
+            window_title = retained_guest_title(rs, guest0, r->a[1],
+                                                 err, errlen);
+            if (r->a[1] && !window_title) return 1;
+            screen_title = retained_guest_title(rs, guest0, r->a[2],
+                                                 err, errlen);
+            if (r->a[2] && !screen_title) return 1;
+            SetWindowTitles(wo ? (struct Window *)wo->native : NULL,
+                            window_title, screen_title);
+            return 0;
+        }
+
+        if (lvo == INTUITION_LVO_EASYREQUESTARGS)
+        {
+            struct Emu68kObject *wo = object_by_token(rs, r->a[0]);
+            struct EasyStruct easy;
+            ULONG title, text, gadgets, idcmp = 0;
+            char formatted[4096];
+
+            if (!IntuitionBase || (r->a[0] &&
+                (!wo || wo->type != EMU_OBJ_Window)) ||
+                emu68k_require_guest_range(r->a[1], M68K_EasyStruct_SIZEOF,
+                    "EasyRequestArgs.easyStruct", err, errlen) < 0)
+                return 1;
+            memset(&easy, 0, sizeof easy);
+            emu68k_from_guest_sized(guest0, r->a[1], &easy,
+                emu_fields_EasyStruct, EMU_NFIELDS(emu_fields_EasyStruct),
+                M68K_EasyStruct_SIZEOF);
+            title = gr32(guest0, r->a[1] + M68K_EasyStruct_es_Title);
+            text = gr32(guest0, r->a[1] + M68K_EasyStruct_es_TextFormat);
+            gadgets = gr32(guest0, r->a[1] + M68K_EasyStruct_es_GadgetFormat);
+            easy.es_Title = guest_cstr(guest0, title, 65536);
+            easy.es_GadgetFormat = guest_cstr(guest0, gadgets, 65536);
+            if ((title && !easy.es_Title) || !text ||
+                (gadgets && !easy.es_GadgetFormat) ||
+                easy_text_from_guest(guest0, text, r->a[3], formatted,
+                                     sizeof formatted, err, errlen) < 0)
+                return 1;
+            easy.es_StructSize = sizeof easy;
+            easy.es_TextFormat = formatted;
+            if (r->a[2])
+            {
+                if (emu68k_require_guest_range(r->a[2], 4,
+                        "EasyRequestArgs.IDCMP_ptr", err, errlen) < 0)
+                    return 1;
+                idcmp = gr32(guest0, r->a[2]);
+            }
+            r->d[0] = (ULONG)EasyRequestArgs(
+                wo ? (struct Window *)wo->native : NULL, &easy,
+                r->a[2] ? &idcmp : NULL, NULL);
+            if (r->a[2]) gw32(guest0, r->a[2], idcmp);
+            return 0;
+        }
+
+        if (lvo == INTUITION_LVO_SETPOINTER)
+        {
+            struct Emu68kObject *wo = object_by_token(rs, r->a[0]);
+            LONG height = (WORD)r->d[0], width = (WORD)r->d[1];
+            ULONG words, i;
+            UWORD *shadow;
+            if (!IntuitionBase || !wo || wo->type != EMU_OBJ_Window ||
+                height < 0 || width < 0 || width > 16)
+                return 1;
+            words = (ULONG)height * 2u + 4u;
+            if (words > 65536u || emu68k_require_guest_range(r->a[1], words * 2u,
+                    "SetPointer sprite words", err, errlen) < 0)
+                return 1;
+            shadow = emu68k_persist_from_run(words * sizeof(UWORD));
+            if (!shadow) return 1;
+            for (i = 0; i < words; i++)
+                shadow[i] = (UWORD)emu68k_scalar_from_guest(guest0,
+                                                            r->a[1] + i * 2, 2);
+            SetPointer((struct Window *)wo->native, shadow, height, width,
+                       (WORD)r->d[2], (WORD)r->d[3]);
+            return 0;
+        }
+
+        if (lvo == INTUITION_LVO_GETSCREENDATA)
+        {
+            struct Screen native_screen;
+            struct Emu68kObject *so = object_by_token(rs, r->a[1]);
+            ULONG size = (UWORD)r->d[0];
+            if (!IntuitionBase || size > 84u ||
+                emu68k_require_guest_range(r->a[0], size, "GetScreenData buffer",
+                                           err, errlen) < 0)
+            { r->d[0] = 0; return 0; }
+            memset(&native_screen, 0, sizeof native_screen);
+            r->d[0] = GetScreenData(&native_screen, sizeof native_screen,
+                (UWORD)r->d[1], so && so->type == EMU_OBJ_Screen ? so->native : NULL);
+            if (r->d[0])
+                emu68k_to_guest_sized(guest0, r->a[0], &native_screen,
+                    emu_fields_Screen, EMU_NFIELDS(emu_fields_Screen), size);
+            return 0;
+        }
+
+        if (lvo == INTUITION_LVO_LOCKPUBSCREENLIST)
+        {
+            if (!IntuitionBase) return 1;
+            if (!rs->pubscreen_list)
+                rs->pubscreen_list = LockPubScreenList();
+            if (rs->pubscreen_list && !rs->pubscreen_guest && rs->guest_alloc)
+            {
+                rs->pubscreen_guest = rs->guest_alloc(rs->run, M68K_List_SIZEOF);
+                if (rs->pubscreen_guest)
+                {
+                    memset(gptr(guest0, rs->pubscreen_guest), 0, M68K_List_SIZEOF);
+                    gw32(guest0, rs->pubscreen_guest + M68K_List_lh_Head,
+                         rs->pubscreen_guest + M68K_List_lh_Tail);
+                    gw32(guest0, rs->pubscreen_guest + M68K_List_lh_TailPred,
+                         rs->pubscreen_guest + M68K_List_lh_Head);
+                }
+            }
+            r->d[0] = rs->pubscreen_guest;
+            return 0;
+        }
+
+        if (lvo == INTUITION_LVO_UNLOCKPUBSCREENLIST)
+        {
+            if (IntuitionBase && rs->pubscreen_list) UnlockPubScreenList();
+            rs->pubscreen_list = NULL;
+            return 0;
+        }
+
+        if (lvo == INTUITION_LVO_NEXTPUBSCREEN)
+        {
+            struct Emu68kObject *so = object_by_token(rs, r->a[0]);
+            UBYTE *name;
+            if (!IntuitionBase || emu68k_require_guest_range(r->a[1],
+                    MAXPUBSCREENNAME + 1, "NextPubScreen name buffer",
+                    err, errlen) < 0)
+                return 1;
+            name = NextPubScreen(so && so->type == EMU_OBJ_Screen ? so->native : NULL,
+                                 gptr(guest0, r->a[1]));
+            r->d[0] = name ? r->a[1] : 0;
+            return 0;
+        }
+
+        if (lvo == INTUITION_LVO_ALLOCINTUIMESSAGE)
+        {
+            struct Emu68kObject *wo = object_by_token(rs, r->a[0]);
+            struct IntuiMessage *native;
+            ULONG guest;
+            int slot;
+            if (!IntuitionBase || !rs->guest_alloc) return 1;
+            native = AllocIntuiMessage(wo && wo->type == EMU_OBJ_Window ?
+                                       wo->native : NULL);
+            if (!native) { r->d[0] = 0; return 0; }
+            for (slot = 0; slot < EMU68K_MAX_IMSG; slot++)
+                if (!rs->imsg[slot].native) break;
+            guest = slot < EMU68K_MAX_IMSG ?
+                    rs->guest_alloc(rs->run, M68K_IntuiMessage_SIZEOF) : 0;
+            if (!guest) { FreeIntuiMessage(native); r->d[0] = 0; return 0; }
+            intui_message_to_guest(rs, guest0, guest, native);
+            rs->imsg[slot].native = native;
+            rs->imsg[slot].guest = guest;
+            rs->imsg[slot].allocated = TRUE;
+            r->d[0] = guest;
+            return 0;
+        }
+
+        if (lvo == INTUITION_LVO_FREEINTUIMESSAGE ||
+            lvo == INTUITION_LVO_SENDINTUIMESSAGE)
+        {
+            int slot;
+            for (slot = 0; slot < EMU68K_MAX_IMSG; slot++)
+                if (rs->imsg[slot].native && rs->imsg[slot].guest ==
+                    (lvo == INTUITION_LVO_FREEINTUIMESSAGE ? r->a[0] : r->a[1]))
+                    break;
+            if (slot == EMU68K_MAX_IMSG) return 1;
+            emu68k_from_guest(guest0, rs->imsg[slot].guest,
+                rs->imsg[slot].native, emu_fields_IntuiMessage,
+                EMU_NFIELDS(emu_fields_IntuiMessage));
+            if (lvo == INTUITION_LVO_FREEINTUIMESSAGE)
+            {
+                FreeIntuiMessage(rs->imsg[slot].native);
+                rs->imsg[slot].native = NULL; rs->imsg[slot].guest = 0;
+                rs->imsg[slot].allocated = FALSE;
+            }
+            else
+            {
+                struct Emu68kObject *wo = object_by_token(rs, r->a[0]);
+                if (!wo || wo->type != EMU_OBJ_Window) return 1;
+                SendIntuiMessage(wo->native, rs->imsg[slot].native);
+                /* SendIntuiMessage transfers the native message to the
+                 * window.  If it comes back through the IDCMP pump it gets a
+                 * fresh guest pairing there; this allocation slot no longer
+                 * owns it. */
+                rs->imsg[slot].native = NULL; rs->imsg[slot].guest = 0;
+                rs->imsg[slot].allocated = FALSE;
+            }
+            return 0;
+        }
+
+        if (lvo == INTUITION_LVO_GETDRAWINFOATTR)
+        {
+            struct Emu68kObject *dio = object_by_token(rs, r->a[0]);
+            IPTR native_result;
+            IPTR ok = FALSE;
+            ULONG kind = r->d[0] & 0x00f00000u;
+            if (!IntuitionBase || (r->a[0] &&
+                (!dio || dio->type != EMU_OBJ_DrawInfo))) return 1;
+            native_result = GetDrawInfoAttr(dio ? dio->native : NULL,
+                                            r->d[0], &ok);
+            if (r->a[1])
+            {
+                if (emu68k_require_guest_range(r->a[1], 4,
+                        "GetDrawInfoAttr result", err, errlen) < 0) return 1;
+                gw32(guest0, r->a[1], ok ? 0xffffffffUL : 0);
+            }
+            if (ok && (kind == GDIA_Font || kind == GDIA_CheckMark ||
+                       kind == GDIA_MenuKey))
+            {
+                UWORD type = kind == GDIA_Font ? EMU_OBJ_TextFont : EMU_OBJ_Image;
+                if (emu68k_object_to_guest(guest0, (APTR)native_result, type,
+                        NULL, NULL, kind == GDIA_Font ? "TextFont" : "Image",
+                        &r->d[0], err, errlen) < 0) return 1;
+            }
+            else r->d[0] = (ULONG)native_result;
+            return 0;
+        }
+
+        if (lvo == INTUITION_LVO_GETMONITORLIST)
+        {
+            struct TagItem native_tags[2] = {{TAG_DONE, 0}, {TAG_DONE, 0}};
+            Object **list;
+            ULONG guest, count = 0, display = 0xffffffffUL;
+            int slot;
+            if (!IntuitionBase || !rs->guest_alloc) return 1;
+            if (r->a[1])
+            {
+                ULONG p = r->a[1];
+                for (unsigned guard = 0; guard < 64; guard++, p += 8)
+                {
+                    ULONG tag, data;
+                    if (emu68k_require_guest_range(p, 8, "GetMonitorList tags",
+                                                   err, errlen) < 0) return 1;
+                    tag = gr32(guest0, p); data = gr32(guest0, p + 4);
+                    if (!tag) break;
+                    if (tag == GMLA_DisplayID) display = data;
+                }
+            }
+            if (display != 0xffffffffUL)
+            { native_tags[0].ti_Tag = GMLA_DisplayID; native_tags[0].ti_Data = display; }
+            list = GetMonitorList(native_tags);
+            if (!list) { r->d[0] = 0; return 0; }
+            while (list[count] && count < 4096u) count++;
+            if (count == 4096u) { FreeMonitorList(list); return 1; }
+            guest = rs->guest_alloc(rs->run, (count + 1u) * 4u);
+            if (!guest) { FreeMonitorList(list); r->d[0] = 0; return 0; }
+            for (ULONG i = 0; i < count; i++)
+            {
+                ULONG token;
+                if (emu68k_object_to_guest(guest0, list[i], EMU_OBJ_Object,
+                        NULL, NULL, "Object", &token, err, errlen) < 0)
+                { FreeMonitorList(list); return 1; }
+                gw32(guest0, guest + i * 4u, token);
+            }
+            gw32(guest0, guest + count * 4u, 0);
+            for (slot = 0; slot < 8; slot++) if (!rs->monitors[slot].native) break;
+            if (slot == 8) { FreeMonitorList(list); return 1; }
+            rs->monitors[slot].native = list; rs->monitors[slot].guest = guest;
+            r->d[0] = guest;
+            return 0;
+        }
+
+        if (lvo == INTUITION_LVO_FREEMONITORLIST)
+        {
+            for (int i = 0; i < 8; i++) if (rs->monitors[i].guest == r->a[1])
+            {
+                FreeMonitorList(rs->monitors[i].native);
+                rs->monitors[i].native = NULL; rs->monitors[i].guest = 0;
+                break;
+            }
+            return 0;
+        }
+    }
+
+    if (strcmp(libname, "cybergraphics.library") == 0)
+    {
+        struct Library *CyberGfxBase = (struct Library *)gen_base_for(
+            "cybergraphics.library", DOSBase);
+
+        if (lvo == CYBERGRAPHICS_LVO_ALLOCCMODELISTTAGLIST)
+        {
+            struct TagItem ntags[16];
+            struct List *native;
+            struct CyberModeNode *node;
+            ULONG guest, glist, count = 0, ntag = 0;
+            int slot;
+            if (!CyberGfxBase || !rs->guest_alloc) return 1;
+            if (r->a[1])
+            {
+                ULONG p = r->a[1];
+                for (unsigned guard = 0; guard < 64 && ntag < 15; guard++, p += 8)
+                {
+                    ULONG tag, data;
+                    if (emu68k_require_guest_range(p, 8, "CModeList tags",
+                                                   err, errlen) < 0) return 1;
+                    tag = gr32(guest0, p); data = gr32(guest0, p + 4);
+                    if (!tag) break;
+                    if (tag >= CYBRMREQ_MinDepth && tag <= CYBRMREQ_MaxHeight)
+                    { ntags[ntag].ti_Tag = tag; ntags[ntag++].ti_Data = data; }
+                }
+            }
+            ntags[ntag].ti_Tag = TAG_DONE; ntags[ntag].ti_Data = 0;
+            native = AllocCModeListTagList(ntags);
+            if (!native) { r->d[0] = 0; return 0; }
+            for (node = (struct CyberModeNode *)native->lh_Head;
+                 node && node->Node.ln_Succ; node =
+                 (struct CyberModeNode *)node->Node.ln_Succ)
+                if (++count > 4096u) { FreeCModeList(native); return 1; }
+            guest = rs->guest_alloc(rs->run,
+                M68K_List_SIZEOF + count * M68K_CyberModeNode_SIZEOF);
+            if (!guest) { FreeCModeList(native); r->d[0] = 0; return 0; }
+            glist = guest;
+            memset(gptr(guest0, guest), 0,
+                   M68K_List_SIZEOF + count * M68K_CyberModeNode_SIZEOF);
+            node = (struct CyberModeNode *)native->lh_Head;
+            for (ULONG i = 0; i < count; i++, node =
+                 (struct CyberModeNode *)node->Node.ln_Succ)
+            {
+                ULONG gn = guest + M68K_List_SIZEOF +
+                           i * M68K_CyberModeNode_SIZEOF;
+                ULONG prev = i ? gn - M68K_CyberModeNode_SIZEOF :
+                                   glist + M68K_List_lh_Head;
+                ULONG next = i + 1u < count ? gn + M68K_CyberModeNode_SIZEOF :
+                                              glist + M68K_List_lh_Tail;
+                gw32(guest0, gn + M68K_CyberModeNode_Node_ln_Succ, next);
+                gw32(guest0, gn + M68K_CyberModeNode_Node_ln_Pred, prev);
+                gw32(guest0, gn + M68K_CyberModeNode_Node_ln_Name,
+                     gn + M68K_CyberModeNode_ModeText);
+                memcpy(gptr(guest0, gn + M68K_CyberModeNode_ModeText),
+                       node->ModeText, DISPLAYNAMELEN);
+                gw32(guest0, gn + M68K_CyberModeNode_DisplayID, node->DisplayID);
+                emu68k_scalar_to_guest(guest0, gn + M68K_CyberModeNode_Width,
+                                       2, node->Width);
+                emu68k_scalar_to_guest(guest0, gn + M68K_CyberModeNode_Height,
+                                       2, node->Height);
+                emu68k_scalar_to_guest(guest0, gn + M68K_CyberModeNode_Depth,
+                                       2, node->Depth);
+            }
+            gw32(guest0, glist + M68K_List_lh_Head,
+                 count ? guest + M68K_List_SIZEOF : glist + M68K_List_lh_Tail);
+            gw32(guest0, glist + M68K_List_lh_Tail, 0);
+            gw32(guest0, glist + M68K_List_lh_TailPred,
+                 count ? guest + M68K_List_SIZEOF +
+                         (count - 1u) * M68K_CyberModeNode_SIZEOF :
+                         glist + M68K_List_lh_Head);
+            for (slot = 0; slot < 8; slot++) if (!rs->cmodes[slot].native) break;
+            if (slot == 8) { FreeCModeList(native); return 1; }
+            rs->cmodes[slot].native = native; rs->cmodes[slot].guest = glist;
+            r->d[0] = glist;
+            return 0;
+        }
+
+        if (lvo == CYBERGRAPHICS_LVO_FREECMODELIST)
+        {
+            for (int i = 0; i < 8; i++) if (rs->cmodes[i].guest == r->a[0])
+            {
+                FreeCModeList(rs->cmodes[i].native);
+                rs->cmodes[i].native = NULL; rs->cmodes[i].guest = 0;
+                break;
+            }
+            return 0;
+        }
+
+        if (lvo == CYBERGRAPHICS_LVO_LOCKBITMAPTAGLIST)
+        {
+            struct Emu68kObject *bo = object_by_token(rs, r->a[0]);
+            ULONG width = 0, height = 0, depth = 0, pixfmt = 0;
+            ULONG bpp = 0, bpr = 0;
+            APTR base = NULL, handle;
+            struct TagItem tags[] = {
+                {LBMI_WIDTH, (IPTR)&width}, {LBMI_HEIGHT, (IPTR)&height},
+                {LBMI_DEPTH, (IPTR)&depth}, {LBMI_PIXFMT, (IPTR)&pixfmt},
+                {LBMI_BYTESPERPIX, (IPTR)&bpp}, {LBMI_BYTESPERROW, (IPTR)&bpr},
+                {LBMI_BASEADDRESS, (IPTR)&base}, {TAG_DONE, 0}
+            };
+            ULONG size, guest_buffer, guest_handle;
+            int slot;
+            if (!CyberGfxBase || !bo || bo->type != EMU_OBJ_BitMap ||
+                !rs->guest_alloc) return 1;
+            handle = LockBitMapTagList(bo->native, tags);
+            if (!handle || !base || !height ||
+                (UQUAD)bpr * height > 128u * 1024u * 1024u)
+            { r->d[0] = 0; return 0; }
+            size = bpr * height;
+            guest_buffer = rs->guest_alloc(rs->run, size);
+            guest_handle = rs->guest_alloc(rs->run, 4);
+            if (!guest_buffer || !guest_handle)
+            { UnLockBitMap(handle); r->d[0] = 0; return 0; }
+            memcpy(gptr(guest0, guest_buffer), base, size);
+            for (slot = 0; slot < 16; slot++) if (!rs->cyberlock[slot].handle) break;
+            if (slot == 16) { UnLockBitMap(handle); return 1; }
+            rs->cyberlock[slot].handle = handle;
+            rs->cyberlock[slot].native_base = base;
+            rs->cyberlock[slot].guest_handle = guest_handle;
+            rs->cyberlock[slot].guest_buffer = guest_buffer;
+            rs->cyberlock[slot].size = size;
+            if (r->a[1])
+            {
+                ULONG p = r->a[1];
+                for (unsigned guard = 0; guard < 64; guard++, p += 8)
+                {
+                    ULONG tag, dst, value = 0;
+                    if (emu68k_require_guest_range(p, 8, "LockBitMap tags",
+                                                   err, errlen) < 0) return 1;
+                    tag = gr32(guest0, p); dst = gr32(guest0, p + 4);
+                    if (!tag) break;
+                    switch (tag) {
+                    case LBMI_WIDTH: value = width; break;
+                    case LBMI_HEIGHT: value = height; break;
+                    case LBMI_DEPTH: value = depth; break;
+                    case LBMI_PIXFMT: value = pixfmt; break;
+                    case LBMI_BYTESPERPIX: value = bpp; break;
+                    case LBMI_BYTESPERROW: value = bpr; break;
+                    case LBMI_BASEADDRESS: value = guest_buffer; break;
+                    default: continue;
+                    }
+                    if (emu68k_require_guest_range(dst, 4, "LockBitMap result",
+                                                   err, errlen) < 0) return 1;
+                    gw32(guest0, dst, value);
+                }
+            }
+            r->d[0] = guest_handle;
+            return 0;
+        }
+
+        if (lvo == CYBERGRAPHICS_LVO_UNLOCKBITMAP ||
+            lvo == CYBERGRAPHICS_LVO_UNLOCKBITMAPTAGLIST)
+        {
+            for (int i = 0; i < 16; i++)
+                if (rs->cyberlock[i].handle &&
+                    rs->cyberlock[i].guest_handle == r->a[0])
+                {
+                    memcpy(rs->cyberlock[i].native_base,
+                           gptr(guest0, rs->cyberlock[i].guest_buffer),
+                           rs->cyberlock[i].size);
+                    UnLockBitMap(rs->cyberlock[i].handle);
+                    memset(&rs->cyberlock[i], 0, sizeof rs->cyberlock[i]);
+                    return 0;
+                }
+            return 0;
+        }
+
+        if (lvo == CYBERGRAPHICS_LVO_DOCDRAWMETHODTAGLIST)
+        {
+            struct Emu68kObject *rpo = object_by_token(rs, r->a[1]);
+            struct RastPort *rp;
+            ULONG width = 0, height = 0, pixfmt = 0, bpp = 0, bpr = 0;
+            APTR base = NULL, handle;
+            struct TagItem tags[] = {
+                {LBMI_WIDTH, (IPTR)&width}, {LBMI_HEIGHT, (IPTR)&height},
+                {LBMI_PIXFMT, (IPTR)&pixfmt}, {LBMI_BYTESPERPIX, (IPTR)&bpp},
+                {LBMI_BYTESPERROW, (IPTR)&bpr}, {LBMI_BASEADDRESS, (IPTR)&base},
+                {TAG_DONE, 0}
+            };
+            ULONG size, buffer, msg, entry;
+            unsigned result = 0;
+            if (!CyberGfxBase || !rpo || rpo->type != EMU_OBJ_RastPort ||
+                !rs->guest_alloc || !rs->call_hook ||
+                emu68k_require_guest_range(r->a[0], M68K_Hook_SIZEOF,
+                                           "CDraw Hook", err, errlen) < 0)
+                return 1;
+            rp = rpo->native;
+            handle = LockBitMapTagList(rp->BitMap, tags);
+            if (!handle || !base || (UQUAD)bpr * height > 128u * 1024u * 1024u)
+                return 0;
+            size = bpr * height;
+            buffer = rs->guest_alloc(rs->run, size);
+            msg = rs->guest_alloc(rs->run, M68K_CDrawMsg_SIZEOF);
+            if (!buffer || !msg) { UnLockBitMap(handle); return 1; }
+            memcpy(gptr(guest0, buffer), base, size);
+            memset(gptr(guest0, msg), 0, M68K_CDrawMsg_SIZEOF);
+            gw32(guest0, msg + M68K_CDrawMsg_cdm_MemPtr, buffer);
+            gw32(guest0, msg + M68K_CDrawMsg_cdm_xsize, width);
+            gw32(guest0, msg + M68K_CDrawMsg_cdm_ysize, height);
+            emu68k_scalar_to_guest(guest0, msg + M68K_CDrawMsg_cdm_BytesPerRow,
+                                   2, bpr);
+            emu68k_scalar_to_guest(guest0, msg + M68K_CDrawMsg_cdm_BytesPerPix,
+                                   2, bpp);
+            emu68k_scalar_to_guest(guest0, msg + M68K_CDrawMsg_cdm_ColorModel,
+                                   2, pixfmt);
+            entry = gr32(guest0, r->a[0] + M68K_Hook_h_Entry);
+            if (rs->call_hook(rs->run, entry, r->a[0], r->a[1], msg,
+                              &result, err, errlen) != 0)
+            { UnLockBitMap(handle); return 1; }
+            memcpy(base, gptr(guest0, buffer), size);
+            UnLockBitMap(handle);
             return 0;
         }
     }

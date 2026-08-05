@@ -17,6 +17,8 @@
 #include <intuition/imageclass.h>
 #include <intuition/pointerclass.h>
 #include <intuition/gadgetclass.h>
+#include <intuition/icclass.h>
+#include <gadgets/colorwheel.h>
 
 #include "emu68k_gen.h"
 #include "emu68k_layouts.h"
@@ -31,6 +33,16 @@ static const struct EmuMirror emu_mirror_Gadget =
     offsetof(struct ExtGadget, NextGadget), M68K_ExtGadget_NextGadget, 4096
 };
 const struct EmuMirror *const emu68k_mirror_Gadget = &emu_mirror_Gadget;
+
+/* A BitMap the program allocated itself: mirrored natively under its
+ * guest address, converted in and back out around every call. */
+static const struct EmuMirror emu_mirror_BitMap =
+{
+    emu_fields_BitMap, EMU_NFIELDS(emu_fields_BitMap),
+    sizeof(struct BitMap), M68K_BitMap_SIZEOF,
+    0, -1, 0,
+    -1, -1, 1
+};
 
 static const struct EmuTagDesc emu_tagdesc_intuition_open_window[] =
 {
@@ -53,6 +65,9 @@ static const struct EmuTagDesc emu_tagdesc_intuition_open_window[] =
     { WA_InnerHeight, EMU_TAG_U32, "WA_InnerHeight", NULL, 0, 0, 0, 0, 0 },
     { WA_PubScreenName, EMU_TAG_CSTR, "WA_PubScreenName", NULL, 0, 0, 0, 0, 0 },
     { WA_PubScreen, EMU_TAG_OBJECT, "WA_PubScreen", NULL, 0, 0, 0, EMU_OBJ_Screen, 1 },
+    { WA_PubScreenFallBack, EMU_TAG_U32, "WA_PubScreenFallBack", NULL, 0, 0, 0, 0, 0 },
+    { WA_Zoom, EMU_TAG_STRUCT, "WA_Zoom", emu_fields_Rectangle, EMU_NFIELDS(emu_fields_Rectangle),
+      M68K_Rectangle_SIZEOF, sizeof(struct Rectangle), 0, 0 },
     { WA_MouseQueue, EMU_TAG_U32, "WA_MouseQueue", NULL, 0, 0, 0, 0, 0 },
     { WA_RptQueue, EMU_TAG_U32, "WA_RptQueue", NULL, 0, 0, 0, 0, 0 },
     { WA_DragBar, EMU_TAG_U32, "WA_DragBar", NULL, 0, 0, 0, 0, 0 },
@@ -90,14 +105,15 @@ static const struct EmuTagDesc emu_tagdesc_intuition_open_window[] =
     { WA_ExtraGadget_PopUp, EMU_TAG_U32, "WA_ExtraGadget_PopUp", NULL, 0, 0, 0, 0, 0 },
     { WA_ExtraGadget_Snapshot, EMU_TAG_U32, "WA_ExtraGadget_Snapshot", NULL, 0, 0, 0, 0, 0 },
     { WA_ExtraGadget_Jump, EMU_TAG_U32, "WA_ExtraGadget_Jump", NULL, 0, 0, 0, 0, 0 },
-    { WA_Gadgets, EMU_TAG_OBJECT, "WA_Gadgets", NULL, 0, 0, 0, EMU_OBJ_Gadget, 1 },
+    { WA_Gadgets, EMU_TAG_OBJECT, "WA_Gadgets", NULL, 0, 0, 0, EMU_OBJ_Gadget, 1,
+      NULL, 0, &emu_mirror_Gadget },
     { WA_BackFill, EMU_TAG_REFUSE, "WA_BackFill", NULL, 0, 0, 0, 0, 0 },
     { WA_ShapeHook, EMU_TAG_REFUSE, "WA_ShapeHook", NULL, 0, 0, 0, 0, 0 },
     { WA_ShapeRegion, EMU_TAG_REFUSE, "WA_ShapeRegion", NULL, 0, 0, 0, 0, 0 },
 };
 static const struct EmuTagDomain emu_tagdomain_intuition_open_window =
 {
-    emu_tagdesc_intuition_open_window, 60, "intuition.open_window"
+    emu_tagdesc_intuition_open_window, 62, "intuition.open_window"
 };
 
 static const struct EmuTagDesc emu_tagdesc_intuition_open_screen[] =
@@ -152,6 +168,36 @@ static const struct EmuTagDesc emu_tagdesc_intuition_new_object[] =
     { IA_SupportsDisable, EMU_TAG_U32, "IA_SupportsDisable", NULL, 0, 0, 0, 0, 0 },
     { IA_FrameType, EMU_TAG_U32, "IA_FrameType", NULL, 0, 0, 0, 0, 0 },
     { SYSIA_Depth, EMU_TAG_U32, "SYSIA_Depth", NULL, 0, 0, 0, 0, 0 },
+    { ICA_TARGET, EMU_TAG_OBJECT_OR_FFFF, "ICA_TARGET", NULL, 0, 0, 0, EMU_OBJ_Object, 1 },
+    { PGA_Freedom, EMU_TAG_U32, "PGA_Freedom", NULL, 0, 0, 0, 0, 0 },
+    { PGA_Borderless, EMU_TAG_U32, "PGA_Borderless", NULL, 0, 0, 0, 0, 0 },
+    { PGA_HorizPot, EMU_TAG_U32, "PGA_HorizPot", NULL, 0, 0, 0, 0, 0 },
+    { PGA_HorizBody, EMU_TAG_U32, "PGA_HorizBody", NULL, 0, 0, 0, 0, 0 },
+    { PGA_VertPot, EMU_TAG_U32, "PGA_VertPot", NULL, 0, 0, 0, 0, 0 },
+    { PGA_VertBody, EMU_TAG_U32, "PGA_VertBody", NULL, 0, 0, 0, 0, 0 },
+    { PGA_Total, EMU_TAG_U32, "PGA_Total", NULL, 0, 0, 0, 0, 0 },
+    { PGA_Visible, EMU_TAG_U32, "PGA_Visible", NULL, 0, 0, 0, 0, 0 },
+    { PGA_Top, EMU_TAG_U32, "PGA_Top", NULL, 0, 0, 0, 0, 0 },
+    { PGA_NewLook, EMU_TAG_U32, "PGA_NewLook", NULL, 0, 0, 0, 0, 0 },
+    { PGA_DisplayHook, EMU_TAG_REFUSE, "PGA_DisplayHook", NULL, 0, 0, 0, 0, 0 },
+    { PGA_NotifyBehaviour, EMU_TAG_U32, "PGA_NotifyBehaviour", NULL, 0, 0, 0, 0, 0 },
+    { PGA_RenderBehaviour, EMU_TAG_U32, "PGA_RenderBehaviour", NULL, 0, 0, 0, 0, 0 },
+    { WHEEL_Hue, EMU_TAG_U32, "WHEEL_Hue", NULL, 0, 0, 0, 0, 0 },
+    { WHEEL_Saturation, EMU_TAG_U32, "WHEEL_Saturation", NULL, 0, 0, 0, 0, 0 },
+    { WHEEL_Brightness, EMU_TAG_U32, "WHEEL_Brightness", NULL, 0, 0, 0, 0, 0 },
+    { WHEEL_HSB, EMU_TAG_STRUCT_INOUT, "WHEEL_HSB", emu_fields_ColorWheelHSB, EMU_NFIELDS(emu_fields_ColorWheelHSB),
+      M68K_ColorWheelHSB_SIZEOF, sizeof(struct ColorWheelHSB), 0, 0 },
+    { WHEEL_Red, EMU_TAG_U32, "WHEEL_Red", NULL, 0, 0, 0, 0, 0 },
+    { WHEEL_Green, EMU_TAG_U32, "WHEEL_Green", NULL, 0, 0, 0, 0, 0 },
+    { WHEEL_Blue, EMU_TAG_U32, "WHEEL_Blue", NULL, 0, 0, 0, 0, 0 },
+    { WHEEL_RGB, EMU_TAG_STRUCT_INOUT, "WHEEL_RGB", emu_fields_ColorWheelRGB, EMU_NFIELDS(emu_fields_ColorWheelRGB),
+      M68K_ColorWheelRGB_SIZEOF, sizeof(struct ColorWheelRGB), 0, 0 },
+    { WHEEL_Screen, EMU_TAG_OBJECT, "WHEEL_Screen", NULL, 0, 0, 0, EMU_OBJ_Screen, 1 },
+    { WHEEL_Abbrv, EMU_TAG_CSTR, "WHEEL_Abbrv", NULL, 0, 0, 0, 0, 0 },
+    { WHEEL_Donation, EMU_TAG_REFUSE, "WHEEL_Donation", NULL, 0, 0, 0, 0, 0 },
+    { WHEEL_BevelBox, EMU_TAG_U32, "WHEEL_BevelBox", NULL, 0, 0, 0, 0, 0 },
+    { WHEEL_GradientSlider, EMU_TAG_OBJECT, "WHEEL_GradientSlider", NULL, 0, 0, 0, EMU_OBJ_Object, 1 },
+    { WHEEL_MaxPens, EMU_TAG_U32, "WHEEL_MaxPens", NULL, 0, 0, 0, 0, 0 },
     { GA_Left, EMU_TAG_U32, "GA_Left", NULL, 0, 0, 0, 0, 0 },
     { GA_RelRight, EMU_TAG_U32, "GA_RelRight", NULL, 0, 0, 0, 0, 0 },
     { GA_Top, EMU_TAG_U32, "GA_Top", NULL, 0, 0, 0, 0, 0 },
@@ -195,9 +241,29 @@ static const struct EmuTagDesc emu_tagdesc_intuition_new_object[] =
 };
 static const struct EmuTagDomain emu_tagdomain_intuition_new_object =
 {
-    emu_tagdesc_intuition_new_object, 62, "intuition.new_object"
+    emu_tagdesc_intuition_new_object, 90, "intuition.new_object"
 };
 const struct EmuTagDomain *const emu68k_domain_intuition_new_object = &emu_tagdomain_intuition_new_object;
+
+static const struct EmuTagDesc emu_tagdesc_intuition_window_pointer[] =
+{
+    { WA_Pointer, EMU_TAG_OBJECT, "WA_Pointer", NULL, 0, 0, 0, EMU_OBJ_Object, 1 },
+    { WA_BusyPointer, EMU_TAG_U32, "WA_BusyPointer", NULL, 0, 0, 0, 0, 0 },
+    { WA_PointerDelay, EMU_TAG_U32, "WA_PointerDelay", NULL, 0, 0, 0, 0, 0 },
+};
+static const struct EmuTagDomain emu_tagdomain_intuition_window_pointer =
+{
+    emu_tagdesc_intuition_window_pointer, 3, "intuition.window_pointer"
+};
+
+static const struct EmuTagDesc emu_tagdesc_intuition_ignored_tags[] =
+{
+    { 0, EMU_TAG_REFUSE, NULL, NULL, 0, 0, 0, 0, 0 },
+};
+static const struct EmuTagDomain emu_tagdomain_intuition_ignored_tags =
+{
+    emu_tagdesc_intuition_ignored_tags, 0, "intuition.ignored_tags"
+};
 
 static void emu_object_cleanup_Window(APTR emu_base, APTR emu_object)
 {
@@ -290,6 +356,15 @@ int emu68k_gen_intuition(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
             (ULONG)emu68k_scalar_from_guest(guest0, r->a[0] + M68K_Screen_ViewPort_ColorMap, 4),
             EMU_OBJ_ColorMap);
         emu68k_object_release(guest0,
+            (ULONG)emu68k_scalar_from_guest(guest0, r->a[0] + M68K_Screen_Font, 4),
+            EMU_OBJ_TextAttr);
+        emu68k_object_release(guest0,
+            (ULONG)emu68k_scalar_from_guest(guest0, r->a[0] + M68K_Screen_RastPort_Layer + M68K_RastPort_Layer, 4),
+            EMU_OBJ_Layer);
+        emu68k_object_release(guest0,
+            (ULONG)emu68k_scalar_from_guest(guest0, r->a[0] + M68K_Screen_RastPort_Layer + M68K_RastPort_BitMap, 4),
+            EMU_OBJ_BitMap);
+        emu68k_object_release(guest0,
             r->a[0] + M68K_Screen_RastPort_Layer,
             EMU_OBJ_RastPort);
         emu68k_object_consume(guest0, r->a[0], EMU_OBJ_Screen);
@@ -365,16 +440,38 @@ int emu68k_gen_intuition(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
               (ULONG)r->d[2],
               (ULONG)r->d[3]);
         return 0;
-    case 18:  /* DrawBorder: no crossing [-108] */
-        if (err && errlen)
-            snprintf(err, errlen, "capability gap: intuition.library.DrawBorder needs struct Border *, struct RastPort * described");
-        r->d[0] = 0;
-        return 1;
-    case 19:  /* DrawImage: no crossing [-114] */
-        if (err && errlen)
-            snprintf(err, errlen, "capability gap: intuition.library.DrawImage needs struct Image *, struct RastPort * described");
-        r->d[0] = 0;
-        return 1;
+    case 18:  /* DrawBorder(struct RastPort * rp, struct Border * border, LONG leftOffset, LONG topOffset) -> void  [-108] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_RastPort, 1,
+                                        "RastPort", &emu_object_0, err, errlen) < 0)
+            return 1;
+        APTR emu_object_1;
+        if (emu68k_object_from_guest(guest0, r->a[1], EMU_OBJ_Border, 1,
+                                        "Border", &emu_object_1, err, errlen) < 0)
+            return 1;
+            DrawBorder((struct RastPort *)emu_object_0,
+              (struct Border *)emu_object_1,
+              (LONG)r->d[0],
+              (LONG)r->d[1]);
+            return 0;
+    }
+    case 19:  /* DrawImage(struct RastPort * rp, struct Image * image, LONG leftOffset, LONG topOffset) -> void  [-114] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_RastPort, 1,
+                                        "RastPort", &emu_object_0, err, errlen) < 0)
+            return 1;
+        APTR emu_object_1;
+        if (emu68k_object_from_guest(guest0, r->a[1], EMU_OBJ_Image, 1,
+                                        "Image", &emu_object_1, err, errlen) < 0)
+            return 1;
+            DrawImage((struct RastPort *)emu_object_0,
+              (struct Image *)emu_object_1,
+              (LONG)r->d[0],
+              (LONG)r->d[1]);
+            return 0;
+    }
     case 20:  /* EndRequest(struct Requester * requester, struct Window * window) -> void  [-120] */
     {
         struct Requester emu_struct_0;
@@ -643,24 +740,307 @@ int emu68k_gen_intuition(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
               (UWORD)r->d[0]);
             return 0;
     }
-    case 33:  /* OpenScreen: no crossing [-198] */
-        if (err && errlen)
-            snprintf(err, errlen, "capability gap: intuition.library.OpenScreen needs returns a pointer (struct Screen *) described");
-        r->d[0] = 0;
-        return 1;
-    case 34:  /* OpenWindow: no crossing [-204] */
-        if (err && errlen)
-            snprintf(err, errlen, "capability gap: intuition.library.OpenWindow needs returns a pointer (struct Window *) described");
-        r->d[0] = 0;
-        return 1;
+    case 33:  /* OpenScreen(struct NewScreen * newScreen) -> struct Screen *  [-198] */
+    {
+        struct NewScreen emu_struct_0;
+        if (!r->a[0])
+        {
+            if (err && errlen)
+                snprintf(err, errlen, "capability gap: OpenScreen.newScreen requires a structure");
+            return 1;
+        }
+        if (emu68k_require_guest_range(r->a[0], M68K_NewScreen_SIZEOF,
+                                         "OpenScreen.newScreen", err, errlen) < 0)
+            return 1;
+        memset(&emu_struct_0, 0, sizeof(emu_struct_0));
+        emu68k_from_guest_sized(guest0, r->a[0], &emu_struct_0,
+                             emu_fields_NewScreen, EMU_NFIELDS(emu_fields_NewScreen), M68K_NewScreen_SIZEOF);
+        ULONG emu_struct_field_0_0 = (ULONG)
+            emu68k_scalar_from_guest(guest0, r->a[0] + M68K_NewScreen_Font, 4);
+        struct TextAttr emu_struct_nested_0_0;
+        memset(&emu_struct_nested_0_0, 0, sizeof(emu_struct_nested_0_0));
+        if (emu_struct_field_0_0)
+        {
+            if (emu68k_require_guest_range(emu_struct_field_0_0,
+                    M68K_TextAttr_SIZEOF, "OpenScreen.newScreen.Font", err, errlen) < 0)
+                return 1;
+            emu68k_from_guest_sized(guest0, emu_struct_field_0_0,
+                &emu_struct_nested_0_0, emu_fields_TextAttr,
+                EMU_NFIELDS(emu_fields_TextAttr), M68K_TextAttr_SIZEOF);
+            ULONG emu_struct_nested_field_0_0_0 = (ULONG)
+                emu68k_scalar_from_guest(guest0, emu_struct_field_0_0 + M68K_TextAttr_ta_Name, 4);
+            if (emu_struct_nested_field_0_0_0 &&
+                emu68k_require_guest_range(emu_struct_nested_field_0_0_0, 1,
+                    "OpenScreen.newScreen.Font.ta_Name", err, errlen) < 0)
+                return 1;
+            if (!emu_struct_nested_field_0_0_0)
+            {
+                if (err && errlen)
+                    snprintf(err, errlen, "OpenScreen.newScreen.Font.ta_Name requires non-NULL");
+                return 1;
+            }
+            emu_struct_nested_0_0.ta_Name = (__typeof__(emu_struct_nested_0_0.ta_Name))EMU_GPTR(guest0, emu_struct_nested_field_0_0_0);
+            emu_struct_0.Font = &emu_struct_nested_0_0;
+        }
+        ULONG emu_struct_field_0_1 = (ULONG)
+            emu68k_scalar_from_guest(guest0, r->a[0] + M68K_NewScreen_DefaultTitle, 4);
+        if (emu_struct_field_0_1 &&
+            emu68k_require_guest_range(emu_struct_field_0_1, 1,
+                "OpenScreen.newScreen.DefaultTitle", err, errlen) < 0)
+            return 1;
+        emu_struct_0.DefaultTitle = (__typeof__(emu_struct_0.DefaultTitle))EMU_GPTR(guest0, emu_struct_field_0_1);
+        ULONG emu_struct_field_0_2 = (ULONG)
+            emu68k_scalar_from_guest(guest0, r->a[0] + M68K_NewScreen_Gadgets, 4);
+        APTR emu_struct_object_0_2;
+        if (emu68k_object_adopt_guest(guest0, emu_struct_field_0_2,
+                EMU_OBJ_Gadget, "Gadget", &emu_mirror_Gadget,
+                &emu_struct_object_0_2, err, errlen) < 0)
+            return 1;
+        emu_struct_0.Gadgets = (__typeof__(emu_struct_0.Gadgets))emu_struct_object_0_2;
+        ULONG emu_struct_field_0_3 = (ULONG)
+            emu68k_scalar_from_guest(guest0, r->a[0] + M68K_NewScreen_CustomBitMap, 4);
+        APTR emu_struct_object_0_3;
+        if (emu68k_object_adopt_guest(guest0, emu_struct_field_0_3,
+                EMU_OBJ_BitMap, "BitMap", &emu_mirror_BitMap,
+                &emu_struct_object_0_3, err, errlen) < 0)
+            return 1;
+        emu_struct_0.CustomBitMap = (__typeof__(emu_struct_0.CustomBitMap))emu_struct_object_0_3;
+        APTR emu_result = (APTR)OpenScreen((struct NewScreen *)&emu_struct_0);
+        if (emu68k_object_to_guest_facade(guest0, emu_result, EMU_OBJ_Screen,
+                                             base, emu_object_cleanup_Screen,
+                                             "Screen", 184,
+                                             emu_fields_Screen, EMU_NFIELDS(emu_fields_Screen),
+                                             &r->d[0], err, errlen) < 0)
+            return 1;
+        if (emu_result && r->d[0])
+        {
+            struct Screen *emu_facade_native = (struct Screen *)emu_result;
+            ULONG emu_nested_token_0 =
+                r->d[0] + M68K_Screen_ViewPort_Next;
+            if (emu68k_object_alias_to_guest(guest0,
+                    emu_nested_token_0, &emu_facade_native->ViewPort,
+                    EMU_OBJ_ViewPort, "ViewPort", err, errlen) < 0)
+                return 1;
+            ULONG emu_nested_token_1 = 0;
+            if (emu68k_object_to_guest(guest0,
+                    emu_facade_native->ViewPort.ColorMap, EMU_OBJ_ColorMap,
+                    NULL, NULL, "ColorMap",
+                    &emu_nested_token_1, err, errlen) < 0)
+                return 1;
+            emu68k_scalar_to_guest(guest0,
+                r->d[0] + M68K_Screen_ViewPort_ColorMap, 4, emu_nested_token_1);
+            ULONG emu_nested_token_2 = 0;
+            if (emu68k_object_to_guest_facade(guest0,
+                    emu_facade_native->Font, EMU_OBJ_TextAttr,
+                    NULL, NULL, "TextAttr", M68K_TextAttr_SIZEOF + 64,
+                    emu_fields_TextAttr, EMU_NFIELDS(emu_fields_TextAttr),
+                    &emu_nested_token_2, err, errlen) < 0)
+                return 1;
+            emu68k_scalar_to_guest(guest0,
+                r->d[0] + M68K_Screen_Font, 4, emu_nested_token_2);
+            if (emu_facade_native->Font && emu_nested_token_2)
+            {
+                ULONG emu_sub_guest_2_0 =
+                    emu_nested_token_2 + M68K_TextAttr_SIZEOF;
+                emu68k_cstr_to_guest(guest0, emu_sub_guest_2_0,
+                    emu_facade_native->Font->ta_Name, 64);
+                emu68k_scalar_to_guest(guest0,
+                    emu_nested_token_2 + M68K_TextAttr_ta_Name, 4,
+                    emu_facade_native->Font->ta_Name ? emu_sub_guest_2_0 : 0);
+            }
+            ULONG emu_nested_token_3 =
+                r->d[0] + M68K_Screen_RastPort_Layer;
+            emu68k_to_guest_sized(guest0, emu_nested_token_3,
+                &emu_facade_native->RastPort,
+                emu_fields_RastPort, EMU_NFIELDS(emu_fields_RastPort),
+                M68K_RastPort_SIZEOF);
+            if (emu68k_object_alias_to_guest(guest0,
+                    emu_nested_token_3, &emu_facade_native->RastPort,
+                    EMU_OBJ_RastPort, "RastPort", err, errlen) < 0)
+                return 1;
+            ULONG emu_embedded_token_3_0 = 0;
+            if (emu68k_object_to_guest(guest0,
+                    emu_facade_native->RastPort.Layer, EMU_OBJ_Layer,
+                    NULL, NULL, "Layer",
+                    &emu_embedded_token_3_0, err, errlen) < 0)
+                return 1;
+            emu68k_scalar_to_guest(guest0,
+                emu_nested_token_3 + M68K_RastPort_Layer, 4,
+                emu_embedded_token_3_0);
+            ULONG emu_embedded_token_3_1 = 0;
+            if (emu68k_object_to_guest(guest0,
+                    emu_facade_native->RastPort.BitMap, EMU_OBJ_BitMap,
+                    NULL, NULL, "BitMap",
+                    &emu_embedded_token_3_1, err, errlen) < 0)
+                return 1;
+            emu68k_scalar_to_guest(guest0,
+                emu_nested_token_3 + M68K_RastPort_BitMap, 4,
+                emu_embedded_token_3_1);
+        }
+            return 0;
+    }
+    case 34:  /* OpenWindow(struct NewWindow * newWindow) -> struct Window *  [-204] */
+    {
+        struct NewWindow emu_struct_0;
+        if (!r->a[0])
+        {
+            if (err && errlen)
+                snprintf(err, errlen, "capability gap: OpenWindow.newWindow requires a structure");
+            return 1;
+        }
+        if (emu68k_require_guest_range(r->a[0], M68K_NewWindow_SIZEOF,
+                                         "OpenWindow.newWindow", err, errlen) < 0)
+            return 1;
+        memset(&emu_struct_0, 0, sizeof(emu_struct_0));
+        emu68k_from_guest_sized(guest0, r->a[0], &emu_struct_0,
+                             emu_fields_NewWindow, EMU_NFIELDS(emu_fields_NewWindow), M68K_NewWindow_SIZEOF);
+        ULONG emu_struct_field_0_0 = (ULONG)
+            emu68k_scalar_from_guest(guest0, r->a[0] + M68K_NewWindow_FirstGadget, 4);
+        APTR emu_struct_object_0_0;
+        if (emu68k_object_adopt_guest(guest0, emu_struct_field_0_0,
+                EMU_OBJ_Gadget, "Gadget", &emu_mirror_Gadget,
+                &emu_struct_object_0_0, err, errlen) < 0)
+            return 1;
+        emu_struct_0.FirstGadget = (__typeof__(emu_struct_0.FirstGadget))emu_struct_object_0_0;
+        ULONG emu_struct_field_0_1 = (ULONG)
+            emu68k_scalar_from_guest(guest0, r->a[0] + M68K_NewWindow_CheckMark, 4);
+        APTR emu_struct_object_0_1;
+        if (emu68k_object_from_guest(guest0, emu_struct_field_0_1,
+                EMU_OBJ_Image, 1, "Image", &emu_struct_object_0_1,
+                err, errlen) < 0)
+            return 1;
+        emu_struct_0.CheckMark = (__typeof__(emu_struct_0.CheckMark))emu_struct_object_0_1;
+        ULONG emu_struct_field_0_2 = (ULONG)
+            emu68k_scalar_from_guest(guest0, r->a[0] + M68K_NewWindow_Title, 4);
+        if (emu_struct_field_0_2 &&
+            emu68k_require_guest_range(emu_struct_field_0_2, 1,
+                "OpenWindow.newWindow.Title", err, errlen) < 0)
+            return 1;
+        emu_struct_0.Title = (__typeof__(emu_struct_0.Title))EMU_GPTR(guest0, emu_struct_field_0_2);
+        ULONG emu_struct_field_0_3 = (ULONG)
+            emu68k_scalar_from_guest(guest0, r->a[0] + M68K_NewWindow_Screen, 4);
+        APTR emu_struct_object_0_3;
+        if (emu68k_object_from_guest(guest0, emu_struct_field_0_3,
+                EMU_OBJ_Screen, 1, "Screen", &emu_struct_object_0_3,
+                err, errlen) < 0)
+            return 1;
+        emu_struct_0.Screen = (__typeof__(emu_struct_0.Screen))emu_struct_object_0_3;
+        ULONG emu_struct_field_0_4 = (ULONG)
+            emu68k_scalar_from_guest(guest0, r->a[0] + M68K_NewWindow_BitMap, 4);
+        APTR emu_struct_object_0_4;
+        if (emu68k_object_adopt_guest(guest0, emu_struct_field_0_4,
+                EMU_OBJ_BitMap, "BitMap", &emu_mirror_BitMap,
+                &emu_struct_object_0_4, err, errlen) < 0)
+            return 1;
+        emu_struct_0.BitMap = (__typeof__(emu_struct_0.BitMap))emu_struct_object_0_4;
+        APTR emu_result = (APTR)OpenWindow((struct NewWindow *)&emu_struct_0);
+        if (emu68k_object_to_guest_facade(guest0, emu_result, EMU_OBJ_Window,
+                                             base, emu_object_cleanup_Window,
+                                             "Window", 156,
+                                             emu_fields_Window, EMU_NFIELDS(emu_fields_Window),
+                                             &r->d[0], err, errlen) < 0)
+            return 1;
+        if (emu_result && r->d[0])
+        {
+            struct Window *emu_facade_native = (struct Window *)emu_result;
+            ULONG emu_nested_token_0 = 0;
+            if (emu68k_object_to_guest_facade(guest0,
+                    emu_facade_native->MenuStrip, EMU_OBJ_Menu,
+                    NULL, NULL, "Menu", M68K_Menu_SIZEOF,
+                    emu_fields_Menu, EMU_NFIELDS(emu_fields_Menu),
+                    &emu_nested_token_0, err, errlen) < 0)
+                return 1;
+            emu68k_scalar_to_guest(guest0,
+                r->d[0] + M68K_Window_MenuStrip, 4, emu_nested_token_0);
+            ULONG emu_nested_token_1 = 0;
+            if (emu68k_object_to_guest_facade(guest0,
+                    emu_facade_native->WScreen, EMU_OBJ_Screen,
+                    NULL, NULL, "Screen", M68K_Screen_SIZEOF,
+                    emu_fields_Screen, EMU_NFIELDS(emu_fields_Screen),
+                    &emu_nested_token_1, err, errlen) < 0)
+                return 1;
+            emu68k_scalar_to_guest(guest0,
+                r->d[0] + M68K_Window_WScreen, 4, emu_nested_token_1);
+            ULONG emu_nested_token_2 = 0;
+            if (emu68k_object_to_guest_facade(guest0,
+                    emu_facade_native->RPort, EMU_OBJ_RastPort,
+                    NULL, NULL, "RastPort", M68K_RastPort_SIZEOF,
+                    emu_fields_RastPort, EMU_NFIELDS(emu_fields_RastPort),
+                    &emu_nested_token_2, err, errlen) < 0)
+                return 1;
+            emu68k_scalar_to_guest(guest0,
+                r->d[0] + M68K_Window_RPort, 4, emu_nested_token_2);
+            ULONG emu_nested_token_3 = 0;
+            if (emu68k_object_to_guest_facade(guest0,
+                    emu_facade_native->BorderRPort, EMU_OBJ_RastPort,
+                    NULL, NULL, "RastPort", M68K_RastPort_SIZEOF,
+                    emu_fields_RastPort, EMU_NFIELDS(emu_fields_RastPort),
+                    &emu_nested_token_3, err, errlen) < 0)
+                return 1;
+            emu68k_scalar_to_guest(guest0,
+                r->d[0] + M68K_Window_BorderRPort, 4, emu_nested_token_3);
+            ULONG emu_nested_token_4 = 0;
+            if (emu68k_object_to_guest_facade(guest0,
+                    emu_facade_native->UserPort, EMU_OBJ_MsgPort,
+                    NULL, NULL, "MsgPort", M68K_MsgPort_SIZEOF,
+                    emu_fields_MsgPort, EMU_NFIELDS(emu_fields_MsgPort),
+                    &emu_nested_token_4, err, errlen) < 0)
+                return 1;
+            emu68k_scalar_to_guest(guest0,
+                r->d[0] + M68K_Window_UserPort, 4, emu_nested_token_4);
+            ULONG emu_nested_token_5 = 0;
+            if (emu68k_object_to_guest_facade(guest0,
+                    emu_facade_native->WindowPort, EMU_OBJ_MsgPort,
+                    NULL, NULL, "MsgPort", M68K_MsgPort_SIZEOF,
+                    emu_fields_MsgPort, EMU_NFIELDS(emu_fields_MsgPort),
+                    &emu_nested_token_5, err, errlen) < 0)
+                return 1;
+            emu68k_scalar_to_guest(guest0,
+                r->d[0] + M68K_Window_WindowPort, 4, emu_nested_token_5);
+            ULONG emu_nested_token_6 = 0;
+            if (emu68k_object_to_guest_facade(guest0,
+                    emu_facade_native->IFont, EMU_OBJ_TextFont,
+                    NULL, NULL, "TextFont", M68K_TextFont_SIZEOF + 64,
+                    emu_fields_TextFont, EMU_NFIELDS(emu_fields_TextFont),
+                    &emu_nested_token_6, err, errlen) < 0)
+                return 1;
+            emu68k_scalar_to_guest(guest0,
+                r->d[0] + M68K_Window_IFont, 4, emu_nested_token_6);
+            if (emu_facade_native->IFont && emu_nested_token_6)
+            {
+                ULONG emu_sub_guest_6_0 =
+                    emu_nested_token_6 + M68K_TextFont_SIZEOF;
+                emu68k_cstr_to_guest(guest0, emu_sub_guest_6_0,
+                    emu_facade_native->IFont->tf_Message.mn_Node.ln_Name, 64);
+                emu68k_scalar_to_guest(guest0,
+                    emu_nested_token_6 + M68K_TextFont_tf_Message_mn_Node_ln_Name, 4,
+                    emu_facade_native->IFont->tf_Message.mn_Node.ln_Name ? emu_sub_guest_6_0 : 0);
+            }
+        }
+            return 0;
+    }
     case 35:  /* OpenWorkBench(void) -> IPTR  [-210] */
         r->d[0] = (ULONG)OpenWorkBench();   /* narrowed: an integer, never an address */
         return 0;
-    case 36:  /* PrintIText: no crossing [-216] */
-        if (err && errlen)
-            snprintf(err, errlen, "capability gap: intuition.library.PrintIText needs struct IntuiText *, struct RastPort * described");
-        r->d[0] = 0;
-        return 1;
+    case 36:  /* PrintIText(struct RastPort * rp, struct IntuiText * iText, LONG leftOffset, LONG topOffset) -> void  [-216] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_RastPort, 0,
+                                        "RastPort", &emu_object_0, err, errlen) < 0)
+            return 1;
+        APTR emu_deep_1 = NULL;
+        if (r->a[1])
+        {
+            emu_deep_1 = emu68k_struct_graph_to_native(guest0, r->a[1],
+                emu_sdescs, EMU_SDESC_IntuiText, "PrintIText.iText", err, errlen);
+            if (!emu_deep_1) return 1;
+        }
+            PrintIText((struct RastPort *)emu_object_0,
+              (struct IntuiText *)emu_deep_1,
+              (LONG)r->d[0],
+              (LONG)r->d[1]);
+            return 0;
+    }
     case 37:  /* RefreshGadgets(struct Gadget * gadgets, struct Window * window, struct Requester * requester) -> void  [-222] */
     {
         APTR emu_object_0;
@@ -807,22 +1187,16 @@ int emu68k_gen_intuition(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
               (struct Menu *)emu_object_1);
             return 0;
     }
-    case 45:  /* SetPointer: no crossing [-270] */
+    case 45:  /* SetPointer: explicit reviewed refusal [-270] */
         if (err && errlen)
-            snprintf(err, errlen, "capability gap: intuition.library.SetPointer needs const UWORD *, struct Window * described");
+            snprintf(err, errlen, "capability gap: intuition.library.SetPointer refused: retains endian-sensitive chipset pointer words after return; they require a per-window native shadow through ClearPointer");
         r->d[0] = 0;
         return 1;
-    case 46:  /* SetWindowTitles(struct Window * window, CONST_STRPTR windowTitle, CONST_STRPTR screenTitle) -> void  [-276] */
-    {
-        APTR emu_object_0;
-        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_Window, 1,
-                                        "Window", &emu_object_0, err, errlen) < 0)
-            return 1;
-            SetWindowTitles((struct Window *)emu_object_0,
-              (CONST_STRPTR)EMU_GPTR(guest0, r->a[1]),
-              (CONST_STRPTR)EMU_GPTR(guest0, r->a[2]));
-            return 0;
-    }
+    case 46:  /* SetWindowTitles: explicit reviewed refusal [-276] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: intuition.library.SetWindowTitles refused: served by the OS-side retained-string adapter because (STRPTR)-1 is a native sentinel, not a guest address, and Intuition retains real title pointers after return");
+        r->d[0] = 0;
+        return 1;
     case 47:  /* ShowTitle(struct Screen * screen, BOOL ShowIt) -> void  [-282] */
     {
         APTR emu_object_0;
@@ -844,11 +1218,15 @@ int emu68k_gen_intuition(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
               (LONG)r->d[1]);
             return 0;
     }
-    case 49:  /* ViewAddress: no crossing [-294] */
-        if (err && errlen)
-            snprintf(err, errlen, "capability gap: intuition.library.ViewAddress needs returns a pointer (struct View *) described");
-        r->d[0] = 0;
-        return 1;
+    case 49:  /* ViewAddress(void) -> struct View *  [-294] */
+    {
+        APTR emu_result = (APTR)ViewAddress();
+        if (emu68k_object_to_guest(guest0, emu_result, EMU_OBJ_View,
+                                      base, NULL,
+                                      "View", &r->d[0], err, errlen) < 0)
+            return 1;
+            return 0;
+    }
     case 50:  /* ViewPortAddress(struct Window * Window) -> struct ViewPort *  [-300] */
     {
         APTR emu_object_0;
@@ -893,25 +1271,56 @@ int emu68k_gen_intuition(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
               (UWORD)r->d[3]);
             return 0;
     }
-    case 54:  /* SetPrefs: no crossing [-324] */
-        if (err && errlen)
-            snprintf(err, errlen, "capability gap: intuition.library.SetPrefs needs returns a pointer (struct Preferences *) described");
-        r->d[0] = 0;
-        return 1;
-    case 55:  /* IntuiTextLength: no crossing [-330] */
-        if (err && errlen)
-            snprintf(err, errlen, "capability gap: intuition.library.IntuiTextLength needs struct IntuiText * described");
-        r->d[0] = 0;
-        return 1;
+    case 54:  /* SetPrefs(struct Preferences * prefbuffer, LONG size, BOOL inform) -> struct Preferences *  [-324] */
+    {
+        ULONG emu_limit_1 = (ULONG)r->d[0];
+        if (emu_limit_1 > M68K_Preferences_SIZEOF) emu_limit_1 = M68K_Preferences_SIZEOF;
+        struct Preferences emu_struct_0;
+        if (!r->a[0])
+        {
+            if (err && errlen)
+                snprintf(err, errlen, "capability gap: SetPrefs.prefbuffer requires a structure");
+            return 1;
+        }
+        if (emu68k_require_guest_range(r->a[0], emu_limit_1,
+                                         "SetPrefs.prefbuffer", err, errlen) < 0)
+            return 1;
+        memset(&emu_struct_0, 0, sizeof(emu_struct_0));
+        emu68k_from_guest_sized(guest0, r->a[0], &emu_struct_0,
+                             emu_fields_Preferences, EMU_NFIELDS(emu_fields_Preferences), emu_limit_1);
+        APTR emu_result = (APTR)SetPrefs((struct Preferences *)&emu_struct_0,
+              (LONG)emu_limit_1,
+              (BOOL)r->d[1]);
+        r->d[0] = emu_result ? r->a[0] : 0;
+            return 0;
+    }
+    case 55:  /* IntuiTextLength(struct IntuiText * iText) -> LONG  [-330] */
+    {
+        if (!r->a[0])
+        {
+            if (err && errlen)
+                snprintf(err, errlen, "IntuiTextLength.iText requires a non-NULL structure");
+            return 1;
+        }
+        APTR emu_deep_0 = NULL;
+        if (r->a[0])
+        {
+            emu_deep_0 = emu68k_struct_graph_to_native(guest0, r->a[0],
+                emu_sdescs, EMU_SDESC_IntuiText, "IntuiTextLength.iText", err, errlen);
+            if (!emu_deep_0) return 1;
+        }
+            r->d[0] = (ULONG)IntuiTextLength((struct IntuiText *)emu_deep_0);
+            return 0;
+    }
     case 56:  /* WBenchToBack(void) -> BOOL  [-336] */
         r->d[0] = (ULONG)WBenchToBack();
         return 0;
     case 57:  /* WBenchToFront(void) -> BOOL  [-342] */
         r->d[0] = (ULONG)WBenchToFront();
         return 0;
-    case 58:  /* AutoRequest: no crossing [-348] */
+    case 58:  /* AutoRequest: explicit reviewed refusal [-348] */
         if (err && errlen)
-            snprintf(err, errlen, "capability gap: intuition.library.AutoRequest needs struct IntuiText *, struct Window * described");
+            snprintf(err, errlen, "capability gap: intuition.library.AutoRequest refused: served by the handwritten hosted requester policy with the documented negative answer");
         r->d[0] = 0;
         return 1;
     case 59:  /* BeginRefresh(struct Window * window) -> void  [-354] */
@@ -923,9 +1332,9 @@ int emu68k_gen_intuition(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
             BeginRefresh((struct Window *)emu_object_0);
             return 0;
     }
-    case 60:  /* BuildSysRequest: no crossing [-360] */
+    case 60:  /* BuildSysRequest: explicit reviewed refusal [-360] */
         if (err && errlen)
-            snprintf(err, errlen, "capability gap: intuition.library.BuildSysRequest needs returns a pointer (struct Window *) described");
+            snprintf(err, errlen, "capability gap: intuition.library.BuildSysRequest refused: served by the handwritten hosted requester policy without creating process-global UI");
         r->d[0] = 0;
         return 1;
     case 61:  /* EndRefresh(struct Window * window, BOOL complete) -> void  [-366] */
@@ -962,9 +1371,9 @@ int emu68k_gen_intuition(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
     case 65:  /* RethinkDisplay(void) -> LONG  [-390] */
         r->d[0] = (ULONG)RethinkDisplay();
         return 0;
-    case 66:  /* AllocRemember: no crossing [-396] */
+    case 66:  /* AllocRemember: explicit reviewed refusal [-396] */
         if (err && errlen)
-            snprintf(err, errlen, "capability gap: intuition.library.AllocRemember needs returns a pointer (APTR) described");
+            snprintf(err, errlen, "capability gap: intuition.library.AllocRemember refused: served in guest memory by the handwritten Intuition handler so both allocation and Remember chain are guest-addressable");
         r->d[0] = 0;
         return 1;
     case 67:  /* AlohaWorkbench(struct MsgPort * wbmsgport) -> void  [-402] */
@@ -976,9 +1385,9 @@ int emu68k_gen_intuition(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
             AlohaWorkbench((struct MsgPort *)emu_object_0);
             return 0;
     }
-    case 68:  /* FreeRemember: no crossing [-408] */
+    case 68:  /* FreeRemember: explicit reviewed refusal [-408] */
         if (err && errlen)
-            snprintf(err, errlen, "capability gap: intuition.library.FreeRemember needs struct Remember ** described");
+            snprintf(err, errlen, "capability gap: intuition.library.FreeRemember refused: paired handwritten release for run-owned guest Remember allocations");
         r->d[0] = 0;
         return 1;
     case 69:  /* LockIBase(ULONG What) -> ULONG  [-414] */
@@ -987,9 +1396,9 @@ int emu68k_gen_intuition(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
     case 70:  /* UnlockIBase(ULONG ibLock) -> void  [-420] */
         UnlockIBase((ULONG)r->a[0]);
         return 0;
-    case 71:  /* GetScreenData: no crossing [-426] */
+    case 71:  /* GetScreenData: explicit reviewed refusal [-426] */
         if (err && errlen)
-            snprintf(err, errlen, "capability gap: intuition.library.GetScreenData needs APTR buffer, struct Screen * described");
+            snprintf(err, errlen, "capability gap: intuition.library.GetScreenData refused: writes one of several size-selected screen structure contracts into an untyped buffer and may expose native pointers");
         r->d[0] = 0;
         return 1;
     case 72:  /* RefreshGList(struct Gadget * gadgets, struct Window * window, struct Requester * requester, LONG numGad) -> void  [-432] */
@@ -1226,9 +1635,9 @@ int emu68k_gen_intuition(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
               (LONG)r->d[3]);
             return 0;
     }
-    case 82:  /* SetEditHook: no crossing [-492] */
+    case 82:  /* SetEditHook: explicit reviewed refusal [-492] */
         if (err && errlen)
-            snprintf(err, errlen, "capability gap: intuition.library.SetEditHook needs returns a pointer (struct Hook *) described");
+            snprintf(err, errlen, "capability gap: intuition.library.SetEditHook refused: installs a retained 68k edit callback and returns the previous native Hook pointer");
         r->d[0] = 0;
         return 1;
     case 83:  /* SetMouseQueue(struct Window * window, UWORD queuelength) -> LONG  [-498] */
@@ -1276,16 +1685,53 @@ int emu68k_gen_intuition(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
                 return 1;
             emu68k_scalar_to_guest(guest0,
                 r->d[0] + M68K_Screen_ViewPort_ColorMap, 4, emu_nested_token_1);
-            ULONG emu_nested_token_2 =
+            ULONG emu_nested_token_2 = 0;
+            if (emu68k_object_to_guest_facade(guest0,
+                    emu_facade_native->Font, EMU_OBJ_TextAttr,
+                    NULL, NULL, "TextAttr", M68K_TextAttr_SIZEOF + 64,
+                    emu_fields_TextAttr, EMU_NFIELDS(emu_fields_TextAttr),
+                    &emu_nested_token_2, err, errlen) < 0)
+                return 1;
+            emu68k_scalar_to_guest(guest0,
+                r->d[0] + M68K_Screen_Font, 4, emu_nested_token_2);
+            if (emu_facade_native->Font && emu_nested_token_2)
+            {
+                ULONG emu_sub_guest_2_0 =
+                    emu_nested_token_2 + M68K_TextAttr_SIZEOF;
+                emu68k_cstr_to_guest(guest0, emu_sub_guest_2_0,
+                    emu_facade_native->Font->ta_Name, 64);
+                emu68k_scalar_to_guest(guest0,
+                    emu_nested_token_2 + M68K_TextAttr_ta_Name, 4,
+                    emu_facade_native->Font->ta_Name ? emu_sub_guest_2_0 : 0);
+            }
+            ULONG emu_nested_token_3 =
                 r->d[0] + M68K_Screen_RastPort_Layer;
-            emu68k_to_guest_sized(guest0, emu_nested_token_2,
+            emu68k_to_guest_sized(guest0, emu_nested_token_3,
                 &emu_facade_native->RastPort,
                 emu_fields_RastPort, EMU_NFIELDS(emu_fields_RastPort),
                 M68K_RastPort_SIZEOF);
             if (emu68k_object_alias_to_guest(guest0,
-                    emu_nested_token_2, &emu_facade_native->RastPort,
+                    emu_nested_token_3, &emu_facade_native->RastPort,
                     EMU_OBJ_RastPort, "RastPort", err, errlen) < 0)
                 return 1;
+            ULONG emu_embedded_token_3_0 = 0;
+            if (emu68k_object_to_guest(guest0,
+                    emu_facade_native->RastPort.Layer, EMU_OBJ_Layer,
+                    NULL, NULL, "Layer",
+                    &emu_embedded_token_3_0, err, errlen) < 0)
+                return 1;
+            emu68k_scalar_to_guest(guest0,
+                emu_nested_token_3 + M68K_RastPort_Layer, 4,
+                emu_embedded_token_3_0);
+            ULONG emu_embedded_token_3_1 = 0;
+            if (emu68k_object_to_guest(guest0,
+                    emu_facade_native->RastPort.BitMap, EMU_OBJ_BitMap,
+                    NULL, NULL, "BitMap",
+                    &emu_embedded_token_3_1, err, errlen) < 0)
+                return 1;
+            emu68k_scalar_to_guest(guest0,
+                emu_nested_token_3 + M68K_RastPort_BitMap, 4,
+                emu_embedded_token_3_1);
         }
             return 0;
     }
@@ -1304,22 +1750,33 @@ int emu68k_gen_intuition(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
             (ULONG)emu68k_scalar_from_guest(guest0, r->a[1] + M68K_Screen_ViewPort_ColorMap, 4),
             EMU_OBJ_ColorMap);
         emu68k_object_release(guest0,
+            (ULONG)emu68k_scalar_from_guest(guest0, r->a[1] + M68K_Screen_Font, 4),
+            EMU_OBJ_TextAttr);
+        emu68k_object_release(guest0,
+            (ULONG)emu68k_scalar_from_guest(guest0, r->a[1] + M68K_Screen_RastPort_Layer + M68K_RastPort_Layer, 4),
+            EMU_OBJ_Layer);
+        emu68k_object_release(guest0,
+            (ULONG)emu68k_scalar_from_guest(guest0, r->a[1] + M68K_Screen_RastPort_Layer + M68K_RastPort_BitMap, 4),
+            EMU_OBJ_BitMap);
+        emu68k_object_release(guest0,
             r->a[1] + M68K_Screen_RastPort_Layer,
             EMU_OBJ_RastPort);
         emu68k_object_release(guest0, r->a[1], EMU_OBJ_Screen);
             return 0;
     }
-    case 87:  /* LockPubScreenList: no crossing [-522] */
+    case 87:  /* LockPubScreenList: explicit reviewed refusal [-522] */
         if (err && errlen)
-            snprintf(err, errlen, "capability gap: intuition.library.LockPubScreenList needs returns a pointer (struct List *) described");
+            snprintf(err, errlen, "capability gap: intuition.library.LockPubScreenList refused: returns a native List whose nodes and public-screen records have no guest linked facade");
         r->d[0] = 0;
         return 1;
-    case 88:  /* UnlockPubScreenList(void) -> void  [-528] */
-        UnlockPubScreenList();
-        return 0;
-    case 89:  /* NextPubScreen: no crossing [-534] */
+    case 88:  /* UnlockPubScreenList: explicit reviewed refusal [-528] */
         if (err && errlen)
-            snprintf(err, errlen, "capability gap: intuition.library.NextPubScreen needs returns a pointer (UBYTE *) described");
+            snprintf(err, errlen, "capability gap: intuition.library.UnlockPubScreenList refused: paired unlock for the refused native public-screen List lock; forwarding it alone would release an unheld semaphore");
+        r->d[0] = 0;
+        return 1;
+    case 89:  /* NextPubScreen: explicit reviewed refusal [-534] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: intuition.library.NextPubScreen refused: enumerates the native public-screen List under LockPubScreenList, whose linked records have no guest facade");
         r->d[0] = 0;
         return 1;
     case 90:  /* SetDefaultPubScreen(UBYTE * name) -> void  [-540] */
@@ -1338,11 +1795,41 @@ int emu68k_gen_intuition(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
               (UWORD)r->d[0]);
             return 0;
     }
-    case 93:  /* ObtainGIRPort: no crossing [-558] */
-        if (err && errlen)
-            snprintf(err, errlen, "capability gap: intuition.library.ObtainGIRPort needs returns a pointer (struct RastPort *) described");
-        r->d[0] = 0;
-        return 1;
+    case 93:  /* ObtainGIRPort(struct GadgetInfo * gInfo) -> struct RastPort *  [-558] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_GadgetInfo, 1,
+                                        "GadgetInfo", &emu_object_0, err, errlen) < 0)
+            return 1;
+        APTR emu_result = (APTR)ObtainGIRPort((struct GadgetInfo *)emu_object_0);
+        if (emu68k_object_to_guest_facade(guest0, emu_result, EMU_OBJ_RastPort,
+                                             base, NULL,
+                                             "RastPort", M68K_RastPort_SIZEOF,
+                                             emu_fields_RastPort, EMU_NFIELDS(emu_fields_RastPort),
+                                             &r->d[0], err, errlen) < 0)
+            return 1;
+        if (emu_result && r->d[0])
+        {
+            struct RastPort *emu_facade_native = (struct RastPort *)emu_result;
+            ULONG emu_nested_token_0 = 0;
+            if (emu68k_object_to_guest(guest0,
+                    emu_facade_native->Layer, EMU_OBJ_Layer,
+                    NULL, NULL, "Layer",
+                    &emu_nested_token_0, err, errlen) < 0)
+                return 1;
+            emu68k_scalar_to_guest(guest0,
+                r->d[0] + M68K_RastPort_Layer, 4, emu_nested_token_0);
+            ULONG emu_nested_token_1 = 0;
+            if (emu68k_object_to_guest(guest0,
+                    emu_facade_native->BitMap, EMU_OBJ_BitMap,
+                    NULL, NULL, "BitMap",
+                    &emu_nested_token_1, err, errlen) < 0)
+                return 1;
+            emu68k_scalar_to_guest(guest0,
+                r->d[0] + M68K_RastPort_BitMap, 4, emu_nested_token_1);
+        }
+            return 0;
+    }
     case 94:  /* ReleaseGIRPort(struct RastPort * rp) -> void  [-564] */
     {
         APTR emu_object_0;
@@ -1352,34 +1839,139 @@ int emu68k_gen_intuition(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
             ReleaseGIRPort((struct RastPort *)emu_object_0);
             return 0;
     }
-    case 95:  /* GadgetMouse: no crossing [-570] */
+    case 95:  /* GadgetMouse: explicit reviewed refusal [-570] */
         if (err && errlen)
-            snprintf(err, errlen, "capability gap: intuition.library.GadgetMouse needs WORD *, struct Gadget *, struct GadgetInfo * described");
+            snprintf(err, errlen, "capability gap: intuition.library.GadgetMouse refused: GadgetInfo is a transient native callback structure; no native-to-68k gadget callback facade issues it");
         r->d[0] = 0;
         return 1;
-    case 96:  /* SetIPrefs: no crossing [-576] */
+    case 96:  /* SetIPrefs(APTR data, ULONG length, ULONG type) -> ULONG  [-576] */
+    {
+        UQUAD emu_buffer_size_0 = 1;
+        UQUAD emu_buffer_factor_0_0 = (ULONG)r->d[0];
+        if (emu_buffer_factor_0_0 && emu_buffer_size_0 >
+            0xffffffffUL / emu_buffer_factor_0_0)
+        {
+            if (err && errlen)
+                snprintf(err, errlen, "SetIPrefs.data extent overflows guest memory");
+            return 1;
+        }
+        emu_buffer_size_0 *= emu_buffer_factor_0_0;
+        if (!r->a[0])
+        {
+            if (err && errlen)
+                snprintf(err, errlen, "SetIPrefs.data requires a non-NULL buffer");
+            return 1;
+        }
+        if (r->a[0] && emu68k_require_guest_range(r->a[0],
+                (ULONG)emu_buffer_size_0, "SetIPrefs.data", err, errlen) < 0)
+            return 1;
+            r->d[0] = (ULONG)SetIPrefs((APTR)EMU_GPTR(guest0, r->a[0]),
+              (ULONG)r->d[0],
+              (ULONG)r->d[1]);
+            return 0;
+    }
+    case 97:  /* GetDefaultPubScreen(UBYTE * nameBuffer) -> struct Screen *  [-582] */
+    {
+        UQUAD emu_buffer_size_0 = 1;
+        UQUAD emu_buffer_factor_0_0 = 139;
+        if (emu_buffer_factor_0_0 && emu_buffer_size_0 >
+            0xffffffffUL / emu_buffer_factor_0_0)
+        {
+            if (err && errlen)
+                snprintf(err, errlen, "GetDefaultPubScreen.nameBuffer extent overflows guest memory");
+            return 1;
+        }
+        emu_buffer_size_0 *= emu_buffer_factor_0_0;
+        if (r->a[0] && emu68k_require_guest_range(r->a[0],
+                (ULONG)emu_buffer_size_0, "GetDefaultPubScreen.nameBuffer", err, errlen) < 0)
+            return 1;
+        APTR emu_result = (APTR)GetDefaultPubScreen((UBYTE *)EMU_GPTR(guest0, r->a[0]));
+        if (emu68k_object_to_guest_facade(guest0, emu_result, EMU_OBJ_Screen,
+                                             base, NULL,
+                                             "Screen", 184,
+                                             emu_fields_Screen, EMU_NFIELDS(emu_fields_Screen),
+                                             &r->d[0], err, errlen) < 0)
+            return 1;
+        if (emu_result && r->d[0])
+        {
+            struct Screen *emu_facade_native = (struct Screen *)emu_result;
+            ULONG emu_nested_token_0 =
+                r->d[0] + M68K_Screen_ViewPort_Next;
+            if (emu68k_object_alias_to_guest(guest0,
+                    emu_nested_token_0, &emu_facade_native->ViewPort,
+                    EMU_OBJ_ViewPort, "ViewPort", err, errlen) < 0)
+                return 1;
+            ULONG emu_nested_token_1 = 0;
+            if (emu68k_object_to_guest(guest0,
+                    emu_facade_native->ViewPort.ColorMap, EMU_OBJ_ColorMap,
+                    NULL, NULL, "ColorMap",
+                    &emu_nested_token_1, err, errlen) < 0)
+                return 1;
+            emu68k_scalar_to_guest(guest0,
+                r->d[0] + M68K_Screen_ViewPort_ColorMap, 4, emu_nested_token_1);
+            ULONG emu_nested_token_2 = 0;
+            if (emu68k_object_to_guest_facade(guest0,
+                    emu_facade_native->Font, EMU_OBJ_TextAttr,
+                    NULL, NULL, "TextAttr", M68K_TextAttr_SIZEOF + 64,
+                    emu_fields_TextAttr, EMU_NFIELDS(emu_fields_TextAttr),
+                    &emu_nested_token_2, err, errlen) < 0)
+                return 1;
+            emu68k_scalar_to_guest(guest0,
+                r->d[0] + M68K_Screen_Font, 4, emu_nested_token_2);
+            if (emu_facade_native->Font && emu_nested_token_2)
+            {
+                ULONG emu_sub_guest_2_0 =
+                    emu_nested_token_2 + M68K_TextAttr_SIZEOF;
+                emu68k_cstr_to_guest(guest0, emu_sub_guest_2_0,
+                    emu_facade_native->Font->ta_Name, 64);
+                emu68k_scalar_to_guest(guest0,
+                    emu_nested_token_2 + M68K_TextAttr_ta_Name, 4,
+                    emu_facade_native->Font->ta_Name ? emu_sub_guest_2_0 : 0);
+            }
+            ULONG emu_nested_token_3 =
+                r->d[0] + M68K_Screen_RastPort_Layer;
+            emu68k_to_guest_sized(guest0, emu_nested_token_3,
+                &emu_facade_native->RastPort,
+                emu_fields_RastPort, EMU_NFIELDS(emu_fields_RastPort),
+                M68K_RastPort_SIZEOF);
+            if (emu68k_object_alias_to_guest(guest0,
+                    emu_nested_token_3, &emu_facade_native->RastPort,
+                    EMU_OBJ_RastPort, "RastPort", err, errlen) < 0)
+                return 1;
+            ULONG emu_embedded_token_3_0 = 0;
+            if (emu68k_object_to_guest(guest0,
+                    emu_facade_native->RastPort.Layer, EMU_OBJ_Layer,
+                    NULL, NULL, "Layer",
+                    &emu_embedded_token_3_0, err, errlen) < 0)
+                return 1;
+            emu68k_scalar_to_guest(guest0,
+                emu_nested_token_3 + M68K_RastPort_Layer, 4,
+                emu_embedded_token_3_0);
+            ULONG emu_embedded_token_3_1 = 0;
+            if (emu68k_object_to_guest(guest0,
+                    emu_facade_native->RastPort.BitMap, EMU_OBJ_BitMap,
+                    NULL, NULL, "BitMap",
+                    &emu_embedded_token_3_1, err, errlen) < 0)
+                return 1;
+            emu68k_scalar_to_guest(guest0,
+                emu_nested_token_3 + M68K_RastPort_BitMap, 4,
+                emu_embedded_token_3_1);
+        }
+            return 0;
+    }
+    case 98:  /* EasyRequestArgs: explicit reviewed refusal [-588] */
         if (err && errlen)
-            snprintf(err, errlen, "capability gap: intuition.library.SetIPrefs needs APTR data described");
+            snprintf(err, errlen, "capability gap: intuition.library.EasyRequestArgs refused: served by the OS-side requester adapter, which converts EasyStruct, formats the 68k RAWARG stream, and opens a real native requester");
         r->d[0] = 0;
         return 1;
-    case 97:  /* GetDefaultPubScreen: no crossing [-582] */
+    case 99:  /* BuildEasyRequestArgs: explicit reviewed refusal [-594] */
         if (err && errlen)
-            snprintf(err, errlen, "capability gap: intuition.library.GetDefaultPubScreen needs returns a pointer (struct Screen *) described");
+            snprintf(err, errlen, "capability gap: intuition.library.BuildEasyRequestArgs refused: served by the handwritten hosted requester policy without creating process-global UI");
         r->d[0] = 0;
         return 1;
-    case 98:  /* EasyRequestArgs: no crossing [-588] */
+    case 100:  /* SysReqHandler: explicit reviewed refusal [-600] */
         if (err && errlen)
-            snprintf(err, errlen, "capability gap: intuition.library.EasyRequestArgs needs RAWARG argList, ULONG *, struct EasyStruct *, struct Window * described");
-        r->d[0] = 0;
-        return 1;
-    case 99:  /* BuildEasyRequestArgs: no crossing [-594] */
-        if (err && errlen)
-            snprintf(err, errlen, "capability gap: intuition.library.BuildEasyRequestArgs needs returns a pointer (struct Window *) described");
-        r->d[0] = 0;
-        return 1;
-    case 100:  /* SysReqHandler: no crossing [-600] */
-        if (err && errlen)
-            snprintf(err, errlen, "capability gap: intuition.library.SysReqHandler needs ULONG *, struct Window * described");
+            snprintf(err, errlen, "capability gap: intuition.library.SysReqHandler refused: served by the handwritten hosted requester policy as the cancel/error completion");
         r->d[0] = 0;
         return 1;
     case 101:  /* OpenWindowTagList(struct NewWindow * newWindow, struct TagItem * tagList) -> struct Window *  [-606] */
@@ -1391,7 +1983,8 @@ int emu68k_gen_intuition(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
             return 1;
         }
         struct TagItem emu_tags_1[65];
-        if (emu68k_tags_to_native(guest0, r->a[1], &emu_tagdomain_intuition_open_window, emu_tags_1, 65, NULL, 0, err, errlen) < 0)
+        UQUAD emu_tagscratch_1[(sizeof(struct Rectangle) + 7) / 8];
+        if (emu68k_tags_to_native(guest0, r->a[1], &emu_tagdomain_intuition_open_window, emu_tags_1, 65, emu_tagscratch_1, sizeof emu_tagscratch_1, err, errlen) < 0)
             return 1;
         APTR emu_result = (APTR)OpenWindowTagList((struct NewWindow *)NULL,
               (struct TagItem *)(r->a[1] ? emu_tags_1 : NULL));
@@ -1559,34 +2152,104 @@ int emu68k_gen_intuition(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
                 return 1;
             emu68k_scalar_to_guest(guest0,
                 r->d[0] + M68K_Screen_ViewPort_ColorMap, 4, emu_nested_token_1);
-            ULONG emu_nested_token_2 =
+            ULONG emu_nested_token_2 = 0;
+            if (emu68k_object_to_guest_facade(guest0,
+                    emu_facade_native->Font, EMU_OBJ_TextAttr,
+                    NULL, NULL, "TextAttr", M68K_TextAttr_SIZEOF + 64,
+                    emu_fields_TextAttr, EMU_NFIELDS(emu_fields_TextAttr),
+                    &emu_nested_token_2, err, errlen) < 0)
+                return 1;
+            emu68k_scalar_to_guest(guest0,
+                r->d[0] + M68K_Screen_Font, 4, emu_nested_token_2);
+            if (emu_facade_native->Font && emu_nested_token_2)
+            {
+                ULONG emu_sub_guest_2_0 =
+                    emu_nested_token_2 + M68K_TextAttr_SIZEOF;
+                emu68k_cstr_to_guest(guest0, emu_sub_guest_2_0,
+                    emu_facade_native->Font->ta_Name, 64);
+                emu68k_scalar_to_guest(guest0,
+                    emu_nested_token_2 + M68K_TextAttr_ta_Name, 4,
+                    emu_facade_native->Font->ta_Name ? emu_sub_guest_2_0 : 0);
+            }
+            ULONG emu_nested_token_3 =
                 r->d[0] + M68K_Screen_RastPort_Layer;
-            emu68k_to_guest_sized(guest0, emu_nested_token_2,
+            emu68k_to_guest_sized(guest0, emu_nested_token_3,
                 &emu_facade_native->RastPort,
                 emu_fields_RastPort, EMU_NFIELDS(emu_fields_RastPort),
                 M68K_RastPort_SIZEOF);
             if (emu68k_object_alias_to_guest(guest0,
-                    emu_nested_token_2, &emu_facade_native->RastPort,
+                    emu_nested_token_3, &emu_facade_native->RastPort,
                     EMU_OBJ_RastPort, "RastPort", err, errlen) < 0)
                 return 1;
+            ULONG emu_embedded_token_3_0 = 0;
+            if (emu68k_object_to_guest(guest0,
+                    emu_facade_native->RastPort.Layer, EMU_OBJ_Layer,
+                    NULL, NULL, "Layer",
+                    &emu_embedded_token_3_0, err, errlen) < 0)
+                return 1;
+            emu68k_scalar_to_guest(guest0,
+                emu_nested_token_3 + M68K_RastPort_Layer, 4,
+                emu_embedded_token_3_0);
+            ULONG emu_embedded_token_3_1 = 0;
+            if (emu68k_object_to_guest(guest0,
+                    emu_facade_native->RastPort.BitMap, EMU_OBJ_BitMap,
+                    NULL, NULL, "BitMap",
+                    &emu_embedded_token_3_1, err, errlen) < 0)
+                return 1;
+            emu68k_scalar_to_guest(guest0,
+                emu_nested_token_3 + M68K_RastPort_BitMap, 4,
+                emu_embedded_token_3_1);
         }
             return 0;
     }
-    case 103:  /* DrawImageState: no crossing [-618] */
-        if (err && errlen)
-            snprintf(err, errlen, "capability gap: intuition.library.DrawImageState needs struct DrawInfo *, struct Image *, struct RastPort * described");
-        r->d[0] = 0;
-        return 1;
-    case 104:  /* PointInImage: no crossing [-624] */
-        if (err && errlen)
-            snprintf(err, errlen, "capability gap: intuition.library.PointInImage needs struct Image * described");
-        r->d[0] = 0;
-        return 1;
-    case 105:  /* EraseImage: no crossing [-630] */
-        if (err && errlen)
-            snprintf(err, errlen, "capability gap: intuition.library.EraseImage needs struct Image *, struct RastPort * described");
-        r->d[0] = 0;
-        return 1;
+    case 103:  /* DrawImageState(struct RastPort * rp, struct Image * image, LONG leftOffset, LONG topOffset, ULONG state, struct DrawInfo * drawInfo) -> void  [-618] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_RastPort, 1,
+                                        "RastPort", &emu_object_0, err, errlen) < 0)
+            return 1;
+        APTR emu_object_1;
+        if (emu68k_object_from_guest(guest0, r->a[1], EMU_OBJ_Image, 1,
+                                        "Image", &emu_object_1, err, errlen) < 0)
+            return 1;
+        APTR emu_object_5;
+        if (emu68k_object_from_guest(guest0, r->a[2], EMU_OBJ_DrawInfo, 1,
+                                        "DrawInfo", &emu_object_5, err, errlen) < 0)
+            return 1;
+            DrawImageState((struct RastPort *)emu_object_0,
+              (struct Image *)emu_object_1,
+              (LONG)r->d[0],
+              (LONG)r->d[1],
+              (ULONG)r->d[2],
+              (struct DrawInfo *)emu_object_5);
+            return 0;
+    }
+    case 104:  /* PointInImage(ULONG point, struct Image * image) -> BOOL  [-624] */
+    {
+        APTR emu_object_1;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_Image, 1,
+                                        "Image", &emu_object_1, err, errlen) < 0)
+            return 1;
+            r->d[0] = (ULONG)PointInImage((ULONG)r->d[0],
+              (struct Image *)emu_object_1);
+            return 0;
+    }
+    case 105:  /* EraseImage(struct RastPort * rp, struct Image * image, LONG leftOffset, LONG topOffset) -> void  [-630] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_RastPort, 1,
+                                        "RastPort", &emu_object_0, err, errlen) < 0)
+            return 1;
+        APTR emu_object_1;
+        if (emu68k_object_from_guest(guest0, r->a[1], EMU_OBJ_Image, 1,
+                                        "Image", &emu_object_1, err, errlen) < 0)
+            return 1;
+            EraseImage((struct RastPort *)emu_object_0,
+              (struct Image *)emu_object_1,
+              (LONG)r->d[0],
+              (LONG)r->d[1]);
+            return 0;
+    }
     case 106:  /* NewObjectA(struct IClass * classPtr, UBYTE * classID, struct TagItem * tagList) -> APTR  [-636] */
     {
         APTR emu_object_0;
@@ -1595,8 +2258,13 @@ int emu68k_gen_intuition(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
             return 1;
         struct Emu68kBoopsiBridge emu_boopsi_0;
         struct TagItem emu_tags_2[71];
-        UQUAD emu_tagscratch_2[(sizeof(struct BitMap) + 7) / 8 + (sizeof(struct TextAttr) + 7) / 8 + (sizeof(struct IntuiText) + 7) / 8];
-        if (emu68k_tags_to_native(guest0, r->a[2], &emu_tagdomain_intuition_new_object, emu_tags_2, 71, emu_tagscratch_2, sizeof emu_tagscratch_2, err, errlen) < 0)
+        UQUAD emu_tagscratch_2[(sizeof(struct BitMap) + 7) / 8 + (sizeof(struct ColorWheelHSB) + 7) / 8 + (sizeof(struct ColorWheelRGB) + 7) / 8 + (sizeof(struct TextAttr) + 7) / 8 + (sizeof(struct IntuiText) + 7) / 8];
+        if (r->a[0])
+        {
+            emu_tags_2[0].ti_Tag = TAG_DONE;
+            emu_tags_2[0].ti_Data = 0;
+        }
+        else if (emu68k_tags_to_native(guest0, r->a[2], &emu_tagdomain_intuition_new_object, emu_tags_2, 71, emu_tagscratch_2, sizeof emu_tagscratch_2, err, errlen) < 0)
             return 1;
         if (emu68k_boopsi_prepare(guest0, r->a[0], emu_object_0,
                                    r->a[2], &emu_boopsi_0, err, errlen) < 0)
@@ -1618,7 +2286,13 @@ int emu68k_gen_intuition(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
         if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_Object, 1,
                                         "Object", &emu_object_0, err, errlen) < 0)
             return 1;
+        struct Emu68kBoopsiBridge emu_boopsi_0;
+        if (emu68k_boopsi_prepare_object(guest0, emu_object_0, 0,
+                    &emu_boopsi_0, err, errlen) < 0)
+            return 1;
             DisposeObject((APTR)emu_object_0);
+        if (emu68k_boopsi_finish(&emu_boopsi_0, err, errlen) < 0)
+            return 1;
         emu68k_object_consume(guest0, r->a[0], EMU_OBJ_Object);
             return 0;
     }
@@ -1628,12 +2302,18 @@ int emu68k_gen_intuition(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
         if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_Object, 1,
                                         "Object", &emu_object_0, err, errlen) < 0)
             return 1;
+        struct Emu68kBoopsiBridge emu_boopsi_0;
         struct TagItem emu_tags_1[71];
-        UQUAD emu_tagscratch_1[(sizeof(struct BitMap) + 7) / 8 + (sizeof(struct TextAttr) + 7) / 8 + (sizeof(struct IntuiText) + 7) / 8];
+        UQUAD emu_tagscratch_1[(sizeof(struct BitMap) + 7) / 8 + (sizeof(struct ColorWheelHSB) + 7) / 8 + (sizeof(struct ColorWheelRGB) + 7) / 8 + (sizeof(struct TextAttr) + 7) / 8 + (sizeof(struct IntuiText) + 7) / 8];
         if (emu68k_tags_to_native(guest0, r->a[1], &emu_tagdomain_intuition_new_object, emu_tags_1, 71, emu_tagscratch_1, sizeof emu_tagscratch_1, err, errlen) < 0)
+            return 1;
+        if (emu68k_boopsi_prepare_object(guest0, emu_object_0, 0,
+                    &emu_boopsi_0, err, errlen) < 0)
             return 1;
             r->d[0] = (ULONG)SetAttrsA((APTR)emu_object_0,
               (struct TagItem *)(r->a[1] ? emu_tags_1 : NULL));   /* narrowed: an integer, never an address */
+        if (emu68k_boopsi_finish(&emu_boopsi_0, err, errlen) < 0)
+            return 1;
             return 0;
     }
     case 109:  /* GetAttr(ULONG attrID, Object * object, IPTR * storagePtr) -> ULONG  [-654] */
@@ -1645,40 +2325,103 @@ int emu68k_gen_intuition(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
         const struct EmuTagDesc *emu_attr =
             emu68k_tag_lookup(&emu_tagdomain_intuition_new_object, r->d[0]);
         if (!emu_attr || (emu_attr->kind != EMU_TAG_U32 &&
-                          emu_attr->kind != EMU_TAG_OUT_U32))
+                          emu_attr->kind != EMU_TAG_OUT_U32 &&
+                          emu_attr->kind != EMU_TAG_STRUCT_INOUT))
         {
             if (err && errlen)
                 snprintf(err, errlen, "capability gap: attribute "
-                         "%08lx is not a served scalar in intuition.new_object",
+                         "%08lx is not a served output in intuition.new_object",
                          (unsigned long)r->d[0]);
             return 1;
+        }
+        struct Emu68kBoopsiBridge emu_attr_boopsi;
+        if (emu_attr->kind == EMU_TAG_STRUCT_INOUT)
+        {
+            APTR emu_attr_struct;
+            if (emu68k_require_guest_range(r->a[1], emu_attr->guest_size,
+                                             "GetAttr storage", err, errlen) < 0)
+                return 1;
+            emu_attr_struct = emu68k_scratch_alloc(emu_attr->native_size,
+                                                     err, errlen);
+            if (!emu_attr_struct) return 1;
+            memset(emu_attr_struct, 0, emu_attr->native_size);
+            if (emu68k_boopsi_prepare_object(guest0, emu_object_1, 0,
+                    &emu_attr_boopsi, err, errlen) < 0)
+            {
+                emu68k_scratch_free(emu_attr_struct, emu_attr->native_size);
+                return 1;
+            }
+            r->d[0] = (ULONG)GetAttr((ULONG)r->d[0], (Object *)emu_object_1, (IPTR *)emu_attr_struct);
+            if (emu68k_boopsi_finish(&emu_attr_boopsi, err, errlen) < 0)
+            {
+                emu68k_scratch_free(emu_attr_struct, emu_attr->native_size);
+                return 1;
+            }
+            if (r->d[0])
+                emu68k_to_guest(guest0, r->a[1], emu_attr_struct,
+                                  emu_attr->fields, emu_attr->nfields);
+            emu68k_scratch_free(emu_attr_struct, emu_attr->native_size);
+            return 0;
         }
         if (emu68k_require_guest_range(r->a[1], 4, "GetAttr storage",
                                        err, errlen) < 0)
             return 1;
         {
             IPTR emu_attr_value = 0;
+            if (emu68k_boopsi_prepare_object(guest0, emu_object_1, 0,
+                    &emu_attr_boopsi, err, errlen) < 0)
+                return 1;
             r->d[0] = (ULONG)GetAttr((ULONG)r->d[0], (Object *)emu_object_1, &emu_attr_value);
+            if (emu68k_boopsi_finish(&emu_attr_boopsi, err, errlen) < 0)
+                return 1;
             emu68k_scalar_to_guest(guest0, r->a[1], 4,
                                    (ULONG)emu_attr_value);
         }
         return 0;
     }
-    case 110:  /* SetGadgetAttrsA: no crossing [-660] */
+    case 110:  /* SetGadgetAttrsA(struct Gadget * gadget, struct Window * window, struct Requester * requester, struct TagItem * tagList) -> IPTR  [-660] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_adopt_guest(guest0, r->a[0], EMU_OBJ_Gadget,
+                        "Gadget", &emu_mirror_Gadget, &emu_object_0, err, errlen) < 0)
+            return 1;
+        APTR emu_object_1;
+        if (emu68k_object_from_guest(guest0, r->a[1], EMU_OBJ_Window, 1,
+                                        "Window", &emu_object_1, err, errlen) < 0)
+            return 1;
+        APTR emu_object_2;
+        if (emu68k_object_from_guest(guest0, r->a[2], EMU_OBJ_Requester, 1,
+                                        "Requester", &emu_object_2, err, errlen) < 0)
+            return 1;
+        struct TagItem emu_tags_3[71];
+        UQUAD emu_tagscratch_3[(sizeof(struct BitMap) + 7) / 8 + (sizeof(struct ColorWheelHSB) + 7) / 8 + (sizeof(struct ColorWheelRGB) + 7) / 8 + (sizeof(struct TextAttr) + 7) / 8 + (sizeof(struct IntuiText) + 7) / 8];
+        if (emu68k_tags_to_native(guest0, r->a[3], &emu_tagdomain_intuition_new_object, emu_tags_3, 71, emu_tagscratch_3, sizeof emu_tagscratch_3, err, errlen) < 0)
+            return 1;
+            r->d[0] = (ULONG)SetGadgetAttrsA((struct Gadget *)emu_object_0,
+              (struct Window *)emu_object_1,
+              (struct Requester *)emu_object_2,
+              (struct TagItem *)(r->a[3] ? emu_tags_3 : NULL));   /* narrowed: an integer, never an address */
+        if (emu68k_object_sync_guest(guest0, r->a[0], EMU_OBJ_Gadget,
+                                     "Gadget", &emu_mirror_Gadget, err, errlen) < 0)
+            return 1;
+            return 0;
+    }
+    case 111:  /* NextObject: explicit reviewed refusal [-666] */
         if (err && errlen)
-            snprintf(err, errlen, "capability gap: intuition.library.SetGadgetAttrsA needs struct Gadget *, struct Requester *, struct TagItem *, struct Window * described");
+            snprintf(err, errlen, "capability gap: intuition.library.NextObject refused: mutates a pointer-to-pointer into BOOPSI's private native list-node representation");
         r->d[0] = 0;
         return 1;
-    case 111:  /* NextObject: no crossing [-666] */
-        if (err && errlen)
-            snprintf(err, errlen, "capability gap: intuition.library.NextObject needs returns a pointer (APTR) described");
-        r->d[0] = 0;
-        return 1;
-    case 112:  /* FindClass: no crossing [-672] */
-        if (err && errlen)
-            snprintf(err, errlen, "capability gap: intuition.library.FindClass needs returns a pointer (struct IClass *) described");
-        r->d[0] = 0;
-        return 1;
+    case 112:  /* FindClass(ClassID classID) -> struct IClass *  [-672] */
+    {
+        APTR emu_result = (APTR)FindClass((ClassID)EMU_GPTR(guest0, r->a[0]));
+        if (emu68k_object_to_guest_facade(guest0, emu_result, EMU_OBJ_Class,
+                                             base, NULL,
+                                             "Class", M68K_IClass_SIZEOF,
+                                             emu_fields_IClass, EMU_NFIELDS(emu_fields_IClass),
+                                             &r->d[0], err, errlen) < 0)
+            return 1;
+            return 0;
+    }
     case 113:  /* MakeClass(ClassID classID, ClassID superClassID, struct IClass * superClassPtr, ULONG instanceSize, ULONG flags) -> struct IClass *  [-678] */
     {
         APTR emu_object_2;
@@ -1814,26 +2557,73 @@ int emu68k_gen_intuition(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
         emu68k_object_consume(guest0, r->a[0], EMU_OBJ_Class);
             return 0;
     }
-    case 128:  /* AllocScreenBuffer: no crossing [-768] */
-        if (err && errlen)
-            snprintf(err, errlen, "capability gap: intuition.library.AllocScreenBuffer needs returns a pointer (struct ScreenBuffer *) described");
-        r->d[0] = 0;
-        return 1;
-    case 129:  /* FreeScreenBuffer: no crossing [-774] */
-        if (err && errlen)
-            snprintf(err, errlen, "capability gap: intuition.library.FreeScreenBuffer needs struct Screen *, struct ScreenBuffer * described");
-        r->d[0] = 0;
-        return 1;
-    case 130:  /* ChangeScreenBuffer: no crossing [-780] */
-        if (err && errlen)
-            snprintf(err, errlen, "capability gap: intuition.library.ChangeScreenBuffer needs struct Screen *, struct ScreenBuffer * described");
-        r->d[0] = 0;
-        return 1;
-    case 131:  /* ScreenDepth: no crossing [-786] */
-        if (err && errlen)
-            snprintf(err, errlen, "capability gap: intuition.library.ScreenDepth needs APTR reserved, struct Screen * described");
-        r->d[0] = 0;
-        return 1;
+    case 128:  /* AllocScreenBuffer(struct Screen * screen, struct BitMap * bitmap, ULONG flags) -> struct ScreenBuffer *  [-768] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_Screen, 1,
+                                        "Screen", &emu_object_0, err, errlen) < 0)
+            return 1;
+        APTR emu_object_1;
+        if (emu68k_object_adopt_guest(guest0, r->a[1], EMU_OBJ_BitMap,
+                        "BitMap", &emu_mirror_BitMap, &emu_object_1, err, errlen) < 0)
+            return 1;
+        APTR emu_result = (APTR)AllocScreenBuffer((struct Screen *)emu_object_0,
+              (struct BitMap *)emu_object_1,
+              (ULONG)r->d[0]);
+        if (emu68k_object_sync_guest(guest0, r->a[1], EMU_OBJ_BitMap,
+                                     "BitMap", &emu_mirror_BitMap, err, errlen) < 0)
+            return 1;
+        if (emu68k_object_to_guest(guest0, emu_result, EMU_OBJ_ScreenBuffer,
+                                      base, NULL,
+                                      "ScreenBuffer", &r->d[0], err, errlen) < 0)
+            return 1;
+            return 0;
+    }
+    case 129:  /* FreeScreenBuffer(struct Screen * screen, struct ScreenBuffer * screenbuffer) -> void  [-774] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_Screen, 1,
+                                        "Screen", &emu_object_0, err, errlen) < 0)
+            return 1;
+        APTR emu_object_1;
+        if (emu68k_object_from_guest(guest0, r->a[1], EMU_OBJ_ScreenBuffer, 1,
+                                        "ScreenBuffer", &emu_object_1, err, errlen) < 0)
+            return 1;
+            FreeScreenBuffer((struct Screen *)emu_object_0,
+              (struct ScreenBuffer *)emu_object_1);
+            return 0;
+    }
+    case 130:  /* ChangeScreenBuffer(struct Screen * screen, struct ScreenBuffer * screenbuffer) -> ULONG  [-780] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_Screen, 1,
+                                        "Screen", &emu_object_0, err, errlen) < 0)
+            return 1;
+        APTR emu_object_1;
+        if (emu68k_object_from_guest(guest0, r->a[1], EMU_OBJ_ScreenBuffer, 1,
+                                        "ScreenBuffer", &emu_object_1, err, errlen) < 0)
+            return 1;
+            r->d[0] = (ULONG)ChangeScreenBuffer((struct Screen *)emu_object_0,
+              (struct ScreenBuffer *)emu_object_1);
+            return 0;
+    }
+    case 131:  /* ScreenDepth(struct Screen * screen, ULONG flags, APTR reserved) -> void  [-786] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_Screen, 0,
+                                        "Screen", &emu_object_0, err, errlen) < 0)
+            return 1;
+        if (r->a[1])
+        {
+            if (err && errlen)
+                snprintf(err, errlen, "ScreenDepth.reserved currently requires NULL");
+            return 1;
+        }
+            ScreenDepth((struct Screen *)emu_object_0,
+              (ULONG)r->d[0],
+              (APTR)NULL);
+            return 0;
+    }
     case 132:  /* ScreenPosition(struct Screen * screen, ULONG flags, LONG x1, LONG y1, LONG x2, LONG y2) -> void  [-792] */
     {
         APTR emu_object_0;
@@ -1877,16 +2667,24 @@ int emu68k_gen_intuition(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
               (struct Window *)emu_object_1);
             return 0;
     }
-    case 135:  /* DoGadgetMethodA: no crossing [-810] */
+    case 135:  /* DoGadgetMethodA: explicit reviewed refusal [-810] */
         if (err && errlen)
-            snprintf(err, errlen, "capability gap: intuition.library.DoGadgetMethodA needs Msg msg, struct Gadget *, struct Requester *, struct Window * described");
+            snprintf(err, errlen, "capability gap: intuition.library.DoGadgetMethodA refused: the untyped BOOPSI message is method-specific and may contain guest pointers or invoke guest dispatchers");
         r->d[0] = 0;
         return 1;
-    case 136:  /* SetWindowPointerA: no crossing [-816] */
-        if (err && errlen)
-            snprintf(err, errlen, "capability gap: intuition.library.SetWindowPointerA needs struct TagItem *, struct Window * described");
-        r->d[0] = 0;
-        return 1;
+    case 136:  /* SetWindowPointerA(struct Window * window, struct TagItem * taglist) -> void  [-816] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_Window, 1,
+                                        "Window", &emu_object_0, err, errlen) < 0)
+            return 1;
+        struct TagItem emu_tags_1[7];
+        if (emu68k_tags_to_native(guest0, r->a[1], &emu_tagdomain_intuition_window_pointer, emu_tags_1, 7, NULL, 0, err, errlen) < 0)
+            return 1;
+            SetWindowPointerA((struct Window *)emu_object_0,
+              (struct TagItem *)(r->a[1] ? emu_tags_1 : NULL));
+            return 0;
+    }
     case 137:  /* TimedDisplayAlert(ULONG alertnumber, UBYTE * string, UWORD height, ULONG time) -> BOOL  [-822] */
         r->d[0] = (ULONG)TimedDisplayAlert((ULONG)r->d[0],
               (UBYTE *)EMU_GPTR(guest0, r->a[0]),
@@ -1935,11 +2733,31 @@ int emu68k_gen_intuition(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
             r->d[0] = (ULONG)HideWindow((struct Window *)emu_object_0);
             return 0;
     }
-    case 143:  /* ChangeWindowShape: no crossing [-858] */
-        if (err && errlen)
-            snprintf(err, errlen, "capability gap: intuition.library.ChangeWindowShape needs returns a pointer (struct Region *) described");
-        r->d[0] = 0;
-        return 1;
+    case 143:  /* ChangeWindowShape(struct Window * window, struct Region * newshape, struct Hook * callback) -> struct Region *  [-858] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_Window, 0,
+                                        "Window", &emu_object_0, err, errlen) < 0)
+            return 1;
+        APTR emu_object_1;
+        if (emu68k_object_from_guest(guest0, r->a[1], EMU_OBJ_Region, 1,
+                                        "Region", &emu_object_1, err, errlen) < 0)
+            return 1;
+        if (r->a[2])
+        {
+            if (err && errlen)
+                snprintf(err, errlen, "ChangeWindowShape.callback currently requires NULL");
+            return 1;
+        }
+        APTR emu_result = (APTR)ChangeWindowShape((struct Window *)emu_object_0,
+              (struct Region *)emu_object_1,
+              (struct Hook *)NULL);
+        if (emu68k_object_to_guest(guest0, emu_result, EMU_OBJ_Region,
+                                      base, NULL,
+                                      "Region", &r->d[0], err, errlen) < 0)
+            return 1;
+            return 0;
+    }
     case 144:  /* SetDefaultScreenFont(struct TextFont * textfont) -> void  [-864] */
     {
         APTR emu_object_0;
@@ -1949,56 +2767,74 @@ int emu68k_gen_intuition(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
             SetDefaultScreenFont((struct TextFont *)emu_object_0);
             return 0;
     }
-    case 145:  /* DoNotify: no crossing [-870] */
+    case 145:  /* DoNotify: explicit reviewed refusal [-870] */
         if (err && errlen)
-            snprintf(err, errlen, "capability gap: intuition.library.DoNotify needs Class *, Object *, struct ICData *, struct opUpdate * described");
+            snprintf(err, errlen, "capability gap: intuition.library.DoNotify refused: dispatches an opUpdate message across BOOPSI classes using pointer-bearing ICData and message structures");
         r->d[0] = 0;
         return 1;
-    case 146:  /* FreeICData: no crossing [-876] */
+    case 146:  /* FreeICData(struct ICData * icdata) -> void  [-876] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_ICData, 1,
+                                        "ICData", &emu_object_0, err, errlen) < 0)
+            return 1;
+            FreeICData((struct ICData *)emu_object_0);
+            return 0;
+    }
+    case 148:  /* AllocIntuiMessage: explicit reviewed refusal [-888] */
         if (err && errlen)
-            snprintf(err, errlen, "capability gap: intuition.library.FreeICData needs struct ICData * described");
+            snprintf(err, errlen, "capability gap: intuition.library.AllocIntuiMessage refused: returns a mutable pointer-bearing IntuiMessage whose paired send path requires a bidirectional facade");
         r->d[0] = 0;
         return 1;
-    case 148:  /* AllocIntuiMessage: no crossing [-888] */
+    case 149:  /* FreeIntuiMessage: explicit reviewed refusal [-894] */
         if (err && errlen)
-            snprintf(err, errlen, "capability gap: intuition.library.AllocIntuiMessage needs returns a pointer (struct IntuiMessage *) described");
+            snprintf(err, errlen, "capability gap: intuition.library.FreeIntuiMessage refused: paired release for the refused mutable IntuiMessage facade");
         r->d[0] = 0;
         return 1;
-    case 149:  /* FreeIntuiMessage: no crossing [-894] */
+    case 151:  /* SendIntuiMessage: explicit reviewed refusal [-906] */
         if (err && errlen)
-            snprintf(err, errlen, "capability gap: intuition.library.FreeIntuiMessage needs struct IntuiMessage * described");
+            snprintf(err, errlen, "capability gap: intuition.library.SendIntuiMessage refused: queues a mutable native IntuiMessage whose guest pointer fields and ownership need a bidirectional facade");
         r->d[0] = 0;
         return 1;
-    case 151:  /* SendIntuiMessage: no crossing [-906] */
+    case 152:  /* ChangeDecoration(ULONG ID, struct NewDecorator * decor) -> void  [-912] */
+    {
+        APTR emu_object_1;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_NewDecorator, 1,
+                                        "NewDecorator", &emu_object_1, err, errlen) < 0)
+            return 1;
+            ChangeDecoration((ULONG)r->d[0],
+              (struct NewDecorator *)emu_object_1);
+            return 0;
+    }
+    case 154:  /* StartScreenNotifyTagList: explicit reviewed refusal [-924] */
         if (err && errlen)
-            snprintf(err, errlen, "capability gap: intuition.library.SendIntuiMessage needs struct IntuiMessage *, struct Window * described");
+            snprintf(err, errlen, "capability gap: intuition.library.StartScreenNotifyTagList refused: registers retained task, port or Hook notification targets that native Intuition cannot deliver into guest execution");
         r->d[0] = 0;
         return 1;
-    case 152:  /* ChangeDecoration: no crossing [-912] */
+    case 155:  /* EndScreenNotify: explicit reviewed refusal [-930] */
         if (err && errlen)
-            snprintf(err, errlen, "capability gap: intuition.library.ChangeDecoration needs struct NewDecorator * described");
+            snprintf(err, errlen, "capability gap: intuition.library.EndScreenNotify refused: paired release for the refused retained screen-notification registration");
         r->d[0] = 0;
         return 1;
-    case 154:  /* StartScreenNotifyTagList: no crossing [-924] */
+    case 156:  /* GetDrawInfoAttr: explicit reviewed refusal [-936] */
         if (err && errlen)
-            snprintf(err, errlen, "capability gap: intuition.library.StartScreenNotifyTagList needs returns a pointer (APTR) described");
+            snprintf(err, errlen, "capability gap: intuition.library.GetDrawInfoAttr refused: some attribute IDs return native Font or Image pointers while others return scalars; the result needs an attribute-specific token policy");
         r->d[0] = 0;
         return 1;
-    case 155:  /* EndScreenNotify: no crossing [-930] */
-        if (err && errlen)
-            snprintf(err, errlen, "capability gap: intuition.library.EndScreenNotify needs APTR notify described");
-        r->d[0] = 0;
-        return 1;
-    case 156:  /* GetDrawInfoAttr: no crossing [-936] */
-        if (err && errlen)
-            snprintf(err, errlen, "capability gap: intuition.library.GetDrawInfoAttr needs IPTR *, struct DrawInfo * described");
-        r->d[0] = 0;
-        return 1;
-    case 157:  /* WindowAction: no crossing [-942] */
-        if (err && errlen)
-            snprintf(err, errlen, "capability gap: intuition.library.WindowAction needs struct TagItem *, struct Window * described");
-        r->d[0] = 0;
-        return 1;
+    case 157:  /* WindowAction(struct Window * window, ULONG action, struct TagItem * tags) -> void  [-942] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_Window, 0,
+                                        "Window", &emu_object_0, err, errlen) < 0)
+            return 1;
+        struct TagItem emu_tags_2[5];
+        if (emu68k_tags_to_native(guest0, r->a[1], &emu_tagdomain_intuition_ignored_tags, emu_tags_2, 5, NULL, 0, err, errlen) < 0)
+            return 1;
+            WindowAction((struct Window *)emu_object_0,
+              (ULONG)r->d[0],
+              (struct TagItem *)(r->a[1] ? emu_tags_2 : NULL));
+            return 0;
+    }
     case 159:  /* ScrollWindowRasterNoFill(struct Window * win, WORD dx, WORD dy, WORD xmin, WORD ymin, WORD xmax, WORD ymax) -> void  [-954] */
     {
         APTR emu_object_0;
@@ -2014,19 +2850,41 @@ int emu68k_gen_intuition(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
               (WORD)r->d[5]);
             return 0;
     }
-    case 160:  /* SetPointerBounds: no crossing [-960] */
+    case 160:  /* SetPointerBounds(struct Screen * screen, struct Rectangle * rect, ULONG reserved, struct TagItem * tags) -> ULONG  [-960] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_Screen, 1,
+                                        "Screen", &emu_object_0, err, errlen) < 0)
+            return 1;
+        struct Rectangle emu_struct_1;
+        struct Rectangle *emu_structp_1 = NULL;
+        if (r->a[1])
+        {
+            emu_structp_1 = &emu_struct_1;
+            if (emu68k_require_guest_range(r->a[1], M68K_Rectangle_SIZEOF,
+                                             "SetPointerBounds.rect", err, errlen) < 0)
+                return 1;
+            memset(&emu_struct_1, 0, sizeof(emu_struct_1));
+        emu68k_from_guest_sized(guest0, r->a[1], &emu_struct_1,
+                             emu_fields_Rectangle, EMU_NFIELDS(emu_fields_Rectangle), M68K_Rectangle_SIZEOF);
+        }
+        struct TagItem emu_tags_3[5];
+        if (emu68k_tags_to_native(guest0, r->a[2], &emu_tagdomain_intuition_ignored_tags, emu_tags_3, 5, NULL, 0, err, errlen) < 0)
+            return 1;
+            r->d[0] = (ULONG)SetPointerBounds((struct Screen *)emu_object_0,
+              (struct Rectangle *)emu_structp_1,
+              (ULONG)r->d[0],
+              (struct TagItem *)(r->a[2] ? emu_tags_3 : NULL));
+            return 0;
+    }
+    case 161:  /* GetMonitorList: explicit reviewed refusal [-966] */
         if (err && errlen)
-            snprintf(err, errlen, "capability gap: intuition.library.SetPointerBounds needs struct Rectangle *, struct Screen *, struct TagItem * described");
+            snprintf(err, errlen, "capability gap: intuition.library.GetMonitorList refused: returns a variable NULL-terminated native Object pointer array that must remain paired with its native allocation");
         r->d[0] = 0;
         return 1;
-    case 161:  /* GetMonitorList: no crossing [-966] */
+    case 162:  /* FreeMonitorList: explicit reviewed refusal [-972] */
         if (err && errlen)
-            snprintf(err, errlen, "capability gap: intuition.library.GetMonitorList needs returns a pointer (Object **) described");
-        r->d[0] = 0;
-        return 1;
-    case 162:  /* FreeMonitorList: no crossing [-972] */
-        if (err && errlen)
-            snprintf(err, errlen, "capability gap: intuition.library.FreeMonitorList needs Object ** described");
+            snprintf(err, errlen, "capability gap: intuition.library.FreeMonitorList refused: paired release for the refused native monitor object array");
         r->d[0] = 0;
         return 1;
     }

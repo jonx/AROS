@@ -84,6 +84,10 @@ static inline void emu68k_double_out(double v, ULONG *hi, ULONG *lo)
 UQUAD emu68k_scalar_from_guest(APTR guest0, ULONG addr, UBYTE width);
 void  emu68k_scalar_to_guest(APTR guest0, ULONG addr, UBYTE width, UQUAD value);
 void  emu68k_cstr_to_guest(APTR guest0, ULONG addr, const char *s, ULONG room);
+LONG  emu68k_cstr_result_to_guest(APTR guest0, const char *s, ULONG max_count,
+                                  ULONG *guest, char *err, ULONG errlen);
+LONG  emu68k_host_ptr_to_guest(APTR guest0, APTR native, ULONG *guest,
+                               const char *what, char *err, ULONG errlen);
 APTR  emu68k_scratch_alloc(ULONG size, char *err, ULONG errlen);
 void  emu68k_scratch_free(APTR scratch, ULONG size);
 
@@ -150,6 +154,10 @@ LONG emu68k_hook_finish(const struct Emu68kHookBridge *bridge,
 LONG emu68k_boopsi_prepare(APTR guest0, ULONG guest_class, APTR native_class,
                            ULONG guest_tags, struct Emu68kBoopsiBridge *bridge,
                            char *err, ULONG errlen);
+LONG emu68k_boopsi_prepare_object(APTR guest0, APTR native_object,
+                                  ULONG guest_tags,
+                                  struct Emu68kBoopsiBridge *bridge,
+                                  char *err, ULONG errlen);
 LONG emu68k_boopsi_finish(struct Emu68kBoopsiBridge *bridge,
                           char *err, ULONG errlen);
 
@@ -165,6 +173,10 @@ LONG emu68k_boopsi_finish(struct Emu68kBoopsiBridge *bridge,
 #define EMU_TAG_RGB32    6  /* LoadRGB32 block stream terminated by zero         */
 #define EMU_TAG_OBJECT   7  /* typed native object represented by a guest token  */
 #define EMU_TAG_OUT_U32  8  /* ti_Data points at a guest ULONG copyback slot      */
+#define EMU_TAG_OBJECT_OR_FFFF 9 /* object token, NULL, or sign-extended -1 sentinel */
+#define EMU_TAG_NODELIST 10 /* retained guest Exec List rebuilt with Node names */
+#define EMU_TAG_CSTR_ARRAY 11 /* retained NULL-terminated guest string-pointer array */
+#define EMU_TAG_STRUCT_INOUT 12 /* flat structure accepted as tag input and GetAttr output */
 struct EmuTagOutSlot
 {
     IPTR value;             /* first: native ti_Data can point at the whole slot */
@@ -199,6 +211,10 @@ struct EmuTagDesc
     const struct EmuMirror *mirror;
 };
 struct EmuStructDesc;
+APTR emu68k_struct_graph_to_native(APTR guest0, ULONG guest_addr,
+                                    const struct EmuStructDesc *descs,
+                                    UWORD desc_index, const char *what,
+                                    char *err, ULONG errlen);
 /* Run-lifetime allocator for retained deep conversions, installed by the
  * run owner; deep marshalling refuses by name while it is unset. */
 extern APTR (*emu68k_persist_alloc)(ULONG size);
@@ -213,6 +229,11 @@ LONG emu68k_tags_to_native(APTR guest0, ULONG guest_tags,
                            struct TagItem *native_tags, ULONG capacity,
                            APTR scratch, ULONG scratch_size,
                            char *err, ULONG errlen);
+LONG emu68k_tags_to_native_known(APTR guest0, ULONG guest_tags,
+                                 const struct EmuTagDomain *domain,
+                                 struct TagItem *native_tags, ULONG capacity,
+                                 APTR scratch, ULONG scratch_size,
+                                 char *err, ULONG errlen);
 LONG emu68k_tags_to_guest(APTR guest0, struct TagItem *native_tags,
                           ULONG count, const struct EmuTagDomain *domain,
                           char *err, ULONG errlen);
@@ -265,6 +286,41 @@ enum
     EMU_OBJ_View = 24,
     EMU_OBJ_ClipRect = 25,
     EMU_OBJ_NamedObject = 26,
+    EMU_OBJ_AnimOb = 27,
+    EMU_OBJ_AreaInfo = 28,
+    EMU_OBJ_BitScaleArgs = 29,
+    EMU_OBJ_Bob = 30,
+    EMU_OBJ_Border = 31,
+    EMU_OBJ_CopList = 32,
+    EMU_OBJ_DBufInfo = 33,
+    EMU_OBJ_ExtSprite = 34,
+    EMU_OBJ_ExtendedNode = 35,
+    EMU_OBJ_GadgetInfo = 36,
+    EMU_OBJ_GelsInfo = 37,
+    EMU_OBJ_ICData = 38,
+    EMU_OBJ_Image = 39,
+    EMU_OBJ_LocalVar = 40,
+    EMU_OBJ_MonitorSpec = 41,
+    EMU_OBJ_NewDecorator = 42,
+    EMU_OBJ_NotifyRequest = 43,
+    EMU_OBJ_RecordLock = 44,
+    EMU_OBJ_Remember = 45,
+    EMU_OBJ_Requester = 46,
+    EMU_OBJ_ScreenBuffer = 47,
+    EMU_OBJ_Segment = 48,
+    EMU_OBJ_SimpleSprite = 49,
+    EMU_OBJ_TmpRas = 50,
+    EMU_OBJ_UCopList = 51,
+    EMU_OBJ_VSprite = 52,
+    EMU_OBJ_cprlist = 53,
+    EMU_OBJ_bltnode = 54,
+    EMU_OBJ_DevProc = 55,
+    EMU_OBJ_DosList = 56,
+    EMU_OBJ_CommandLineInterface = 57,
+    EMU_OBJ_Process = 58,
+    EMU_OBJ_Message = 59,
+    EMU_OBJ_BitMap = 60,
+    EMU_OBJ_TextAttr = 61,
 };
 int emu68k_gen_exec(int lvo, struct Emu68kRegs *r,
                   APTR guest0, APTR base,

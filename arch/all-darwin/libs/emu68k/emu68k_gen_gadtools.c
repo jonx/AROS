@@ -42,12 +42,12 @@ static const struct EmuTagDesc emu_tagdesc_gadtools_create_gadget[] =
     { GTCB_Checked, EMU_TAG_U32, "GTCB_Checked", NULL, 0, 0, 0, 0, 0 },
     { GTCB_Scaled, EMU_TAG_U32, "GTCB_Scaled", NULL, 0, 0, 0, 0, 0 },
     { GTCY_Active, EMU_TAG_U32, "GTCY_Active", NULL, 0, 0, 0, 0, 0 },
-    { GTCY_Labels, EMU_TAG_REFUSE, "GTCY_Labels", NULL, 0, 0, 0, 0, 0 },
+    { GTCY_Labels, EMU_TAG_CSTR_ARRAY, "GTCY_Labels", NULL, 0, 256, 0, 0, 0 },
     { GTIN_MaxChars, EMU_TAG_U32, "GTIN_MaxChars", NULL, 0, 0, 0, 0, 0 },
     { GTIN_Number, EMU_TAG_U32, "GTIN_Number", NULL, 0, 0, 0, 0, 0 },
     { GTLV_CallBack, EMU_TAG_REFUSE, "GTLV_CallBack", NULL, 0, 0, 0, 0, 0 },
     { GTLV_ItemHeight, EMU_TAG_U32, "GTLV_ItemHeight", NULL, 0, 0, 0, 0, 0 },
-    { GTLV_Labels, EMU_TAG_REFUSE, "GTLV_Labels", NULL, 0, 0, 0, 0, 0 },
+    { GTLV_Labels, EMU_TAG_NODELIST, "GTLV_Labels", NULL, 0, 256, 0, 0, 0 },
     { GTLV_MakeVisible, EMU_TAG_U32, "GTLV_MakeVisible", NULL, 0, 0, 0, 0, 0 },
     { GTLV_MaxPen, EMU_TAG_U32, "GTLV_MaxPen", NULL, 0, 0, 0, 0, 0 },
     { GTLV_ReadOnly, EMU_TAG_U32, "GTLV_ReadOnly", NULL, 0, 0, 0, 0, 0 },
@@ -56,7 +56,7 @@ static const struct EmuTagDesc emu_tagdesc_gadtools_create_gadget[] =
     { GTLV_ShowSelected, EMU_TAG_OBJECT, "GTLV_ShowSelected", NULL, 0, 0, 0, EMU_OBJ_Gadget, 1 },
     { GTLV_Top, EMU_TAG_U32, "GTLV_Top", NULL, 0, 0, 0, 0, 0 },
     { GTMX_Active, EMU_TAG_U32, "GTMX_Active", NULL, 0, 0, 0, 0, 0 },
-    { GTMX_Labels, EMU_TAG_REFUSE, "GTMX_Labels", NULL, 0, 0, 0, 0, 0 },
+    { GTMX_Labels, EMU_TAG_CSTR_ARRAY, "GTMX_Labels", NULL, 0, 256, 0, 0, 0 },
     { GTMX_Scaled, EMU_TAG_U32, "GTMX_Scaled", NULL, 0, 0, 0, 0, 0 },
     { GTMX_Spacing, EMU_TAG_U32, "GTMX_Spacing", NULL, 0, 0, 0, 0, 0 },
     { GTMX_TitlePlace, EMU_TAG_U32, "GTMX_TitlePlace", NULL, 0, 0, 0, 0, 0 },
@@ -213,16 +213,16 @@ static void emu_object_cleanup_Gadget(APTR emu_base, APTR emu_object)
     FreeGadgets((struct Gadget *)emu_object);
 }
 
-static void emu_object_cleanup_Menu(APTR emu_base, APTR emu_object)
-{
-    struct Library *GadToolsBase = emu_base;
-    FreeMenus((struct Menu *)emu_object);
-}
-
 static void emu_object_cleanup_VisualInfo(APTR emu_base, APTR emu_object)
 {
     struct Library *GadToolsBase = emu_base;
     FreeVisualInfo((APTR)emu_object);
+}
+
+static void emu_object_cleanup_Menu(APTR emu_base, APTR emu_object)
+{
+    struct Library *GadToolsBase = emu_base;
+    FreeMenus((struct Menu *)emu_object);
 }
 
 int emu68k_gen_gadtools(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
@@ -307,10 +307,28 @@ int emu68k_gen_gadtools(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
         if (emu68k_object_sync_guest(guest0, r->a[0], EMU_OBJ_Gadget,
                                      "Gadget", &emu_mirror_Gadget, err, errlen) < 0)
             return 1;
-        if (emu68k_object_to_guest(guest0, emu_result, EMU_OBJ_Gadget,
-                                      base, NULL,
-                                      "Gadget", &r->d[0], err, errlen) < 0)
+        if (emu68k_object_to_guest_facade(guest0, emu_result, EMU_OBJ_Gadget,
+                                             base, NULL,
+                                             "Gadget", M68K_Gadget_SIZEOF,
+                                             emu_fields_Gadget, EMU_NFIELDS(emu_fields_Gadget),
+                                             &r->d[0], err, errlen) < 0)
             return 1;
+        if (emu_result && r->d[0])
+        {
+            struct Gadget *emu_facade_native = (struct Gadget *)emu_result;
+            ULONG emu_nested_token_0 = 0;
+            if (emu68k_object_to_guest_facade(guest0,
+                    emu_facade_native->NextGadget, EMU_OBJ_Gadget,
+                    NULL, NULL, "Gadget", M68K_Gadget_SIZEOF,
+                    emu_fields_Gadget, EMU_NFIELDS(emu_fields_Gadget),
+                    &emu_nested_token_0, err, errlen) < 0)
+                return 1;
+            emu68k_scalar_to_guest(guest0,
+                r->d[0] + M68K_Gadget_NextGadget, 4, emu_nested_token_0);
+            emu68k_scalar_to_guest(guest0,
+                r->d[0] + M68K_Gadget_UserData, 4,
+                (ULONG)(IPTR)emu_facade_native->UserData);
+        }
             return 0;
     }
     case 6:  /* FreeGadgets(struct Gadget * glist) -> void  [-36] */
@@ -345,6 +363,9 @@ int emu68k_gen_gadtools(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
         if (emu68k_object_sync_guest(guest0, r->a[0], EMU_OBJ_Gadget,
                                      "Gadget", &emu_mirror_Gadget, err, errlen) < 0)
             return 1;
+        emu68k_object_release(guest0,
+            (ULONG)emu68k_scalar_from_guest(guest0, r->a[0] + M68K_Gadget_NextGadget, 4),
+            EMU_OBJ_Gadget);
         emu68k_object_consume(guest0, r->a[0], EMU_OBJ_Gadget);
             return 0;
     }
@@ -628,10 +649,28 @@ int emu68k_gen_gadtools(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
                 snprintf(err, errlen, "CreateContext.glistpointer did not match its returned object");
             return 1;
         }
-        if (emu68k_object_to_guest(guest0, emu_result, EMU_OBJ_Gadget,
-                                      base, emu_object_cleanup_Gadget,
-                                      "Gadget", &r->d[0], err, errlen) < 0)
+        if (emu68k_object_to_guest_facade(guest0, emu_result, EMU_OBJ_Gadget,
+                                             base, emu_object_cleanup_Gadget,
+                                             "Gadget", M68K_Gadget_SIZEOF,
+                                             emu_fields_Gadget, EMU_NFIELDS(emu_fields_Gadget),
+                                             &r->d[0], err, errlen) < 0)
             return 1;
+        if (emu_result && r->d[0])
+        {
+            struct Gadget *emu_facade_native = (struct Gadget *)emu_result;
+            ULONG emu_nested_token_0 = 0;
+            if (emu68k_object_to_guest_facade(guest0,
+                    emu_facade_native->NextGadget, EMU_OBJ_Gadget,
+                    NULL, NULL, "Gadget", M68K_Gadget_SIZEOF,
+                    emu_fields_Gadget, EMU_NFIELDS(emu_fields_Gadget),
+                    &emu_nested_token_0, err, errlen) < 0)
+                return 1;
+            emu68k_scalar_to_guest(guest0,
+                r->d[0] + M68K_Gadget_NextGadget, 4, emu_nested_token_0);
+            emu68k_scalar_to_guest(guest0,
+                r->d[0] + M68K_Gadget_UserData, 4,
+                (ULONG)(IPTR)emu_facade_native->UserData);
+        }
         emu68k_scalar_to_guest(guest0, r->a[0], 4, r->d[0]);
             return 0;
     }

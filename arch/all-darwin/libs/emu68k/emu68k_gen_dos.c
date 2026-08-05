@@ -9,9 +9,16 @@
 #include <exec/types.h>
 #include <proto/dos.h>
 #include <string.h>
+#include <stdio.h>
 
 #include "emu68k_gen.h"
 #include "emu68k_layouts.h"
+
+static void emu_object_cleanup_DevProc(APTR emu_base, APTR emu_object)
+{
+    struct DosLibrary *DOSBase = emu_base;
+    FreeDeviceProc((struct DevProc *)emu_object);
+}
 
 int emu68k_gen_dos(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
                   char *err, ULONG errlen)
@@ -31,42 +38,41 @@ int emu68k_gen_dos(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
             snprintf(err, errlen, "capability gap: dos.library.CloseLib needs private described");
         r->d[0] = 0;
         return 1;
-    case 5:  /* Open(CONST_STRPTR name, LONG accessMode) -> BPTR  [-30] */
-        r->d[0] = EMU_TOKEN(guest0, Open((CONST_STRPTR)EMU_GPTR(guest0, r->d[1]),
-              (LONG)r->d[2]));   /* a BPTR crosses as a token */
-        return 0;
-    case 6:  /* Close: no crossing [-36] */
+    case 5:  /* Open: explicit reviewed refusal [-30] */
         if (err && errlen)
-            snprintf(err, errlen, "capability gap: dos.library.Close needs BPTR file described");
+            snprintf(err, errlen, "capability gap: dos.library.Open refused: served by the OS-side DOS handler so the native file BPTR becomes a run-local guest handle token");
         r->d[0] = 0;
         return 1;
-    case 7:  /* Read: no crossing [-42] */
+    case 6:  /* Close: explicit reviewed refusal [-36] */
         if (err && errlen)
-            snprintf(err, errlen, "capability gap: dos.library.Read needs APTR buffer, BPTR file described");
+            snprintf(err, errlen, "capability gap: dos.library.Close refused: served by the OS-side DOS handler to release both the native BPTR and its run-local token");
         r->d[0] = 0;
         return 1;
-    case 8:  /* Write: no crossing [-48] */
+    case 7:  /* Read: explicit reviewed refusal [-42] */
         if (err && errlen)
-            snprintf(err, errlen, "capability gap: dos.library.Write needs APTR buffer, BPTR file described");
+            snprintf(err, errlen, "capability gap: dos.library.Read refused: served by the OS-side DOS handler with a guest output buffer and BPTR token translation");
         r->d[0] = 0;
         return 1;
-    case 9:  /* Input(void) -> BPTR  [-54] */
-        r->d[0] = EMU_TOKEN(guest0, Input());   /* a BPTR crosses as a token */
-        return 0;
-    case 10:  /* Output(void) -> BPTR  [-60] */
-        r->d[0] = EMU_TOKEN(guest0, Output());   /* a BPTR crosses as a token */
-        return 0;
-    case 11:  /* Seek(BPTR file, LONG position, LONG mode) -> LONG  [-66] */
-    {
-        BPTR emu_bptr_0;
-        if (emu68k_handle_require(guest0, r->d[1],
-                                 "Seek.file", &emu_bptr_0, err, errlen) < 0)
-            return 1;
-        r->d[0] = (ULONG)Seek(emu_bptr_0,
-              (LONG)r->d[2],
-              (LONG)r->d[3]);
-        return 0;
-    }
+    case 8:  /* Write: explicit reviewed refusal [-48] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: dos.library.Write refused: served by the OS-side DOS handler with a checked guest buffer and BPTR token translation");
+        r->d[0] = 0;
+        return 1;
+    case 9:  /* Input: explicit reviewed refusal [-54] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: dos.library.Input refused: served by the OS-side DOS handler so the native BPTR becomes a run-local guest handle token");
+        r->d[0] = 0;
+        return 1;
+    case 10:  /* Output: explicit reviewed refusal [-60] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: dos.library.Output refused: served by the OS-side DOS handler so the native BPTR becomes a run-local guest handle token");
+        r->d[0] = 0;
+        return 1;
+    case 11:  /* Seek: explicit reviewed refusal [-66] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: dos.library.Seek refused: served by the OS-side DOS handler with BPTR token translation");
+        r->d[0] = 0;
+        return 1;
     case 12:  /* DeleteFile(CONST_STRPTR name) -> BOOL  [-72] */
         r->d[0] = (ULONG)DeleteFile((CONST_STRPTR)EMU_GPTR(guest0, r->d[1]));
         return 0;
@@ -74,24 +80,21 @@ int emu68k_gen_dos(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
         r->d[0] = (ULONG)Rename((CONST_STRPTR)EMU_GPTR(guest0, r->d[1]),
               (CONST_STRPTR)EMU_GPTR(guest0, r->d[2]));
         return 0;
-    case 14:  /* Lock(CONST_STRPTR name, LONG accessMode) -> BPTR  [-84] */
-        r->d[0] = EMU_TOKEN(guest0, Lock((CONST_STRPTR)EMU_GPTR(guest0, r->d[1]),
-              (LONG)r->d[2]));   /* a BPTR crosses as a token */
-        return 0;
-    case 15:  /* UnLock: no crossing [-90] */
+    case 14:  /* Lock: explicit reviewed refusal [-84] */
         if (err && errlen)
-            snprintf(err, errlen, "capability gap: dos.library.UnLock needs BPTR lock described");
+            snprintf(err, errlen, "capability gap: dos.library.Lock refused: served by the OS-side DOS handler so the native lock BPTR becomes a run-local guest handle token");
         r->d[0] = 0;
         return 1;
-    case 16:  /* DupLock(BPTR lock) -> BPTR  [-96] */
-    {
-        BPTR emu_bptr_0;
-        if (emu68k_handle_require(guest0, r->d[1],
-                                 "DupLock.lock", &emu_bptr_0, err, errlen) < 0)
-            return 1;
-        r->d[0] = EMU_TOKEN(guest0, DupLock(emu_bptr_0));   /* a BPTR crosses as a token */
-        return 0;
-    }
+    case 15:  /* UnLock: explicit reviewed refusal [-90] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: dos.library.UnLock refused: served by the OS-side DOS handler to release both the native lock and its run-local token");
+        r->d[0] = 0;
+        return 1;
+    case 16:  /* DupLock: explicit reviewed refusal [-96] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: dos.library.DupLock refused: served by the OS-side DOS handler so the duplicated native BPTR becomes a guest handle token");
+        r->d[0] = 0;
+        return 1;
     case 17:  /* Examine(BPTR lock, struct FileInfoBlock* fib) -> LONG  [-102] */
     {
         BPTR emu_bptr_0;
@@ -175,44 +178,52 @@ int emu68k_gen_dos(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
         }
             return 0;
     }
-    case 20:  /* CreateDir(CONST_STRPTR name) -> BPTR  [-120] */
-        r->d[0] = EMU_TOKEN(guest0, CreateDir((CONST_STRPTR)EMU_GPTR(guest0, r->d[1])));   /* a BPTR crosses as a token */
-        return 0;
-    case 21:  /* CurrentDir(BPTR lock) -> BPTR  [-126] */
+    case 20:  /* CreateDir: explicit reviewed refusal [-120] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: dos.library.CreateDir refused: served by the OS-side DOS handler so the returned native lock BPTR becomes a guest handle token");
+        r->d[0] = 0;
+        return 1;
+    case 21:  /* CurrentDir: explicit reviewed refusal [-126] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: dos.library.CurrentDir refused: served by the OS-side DOS handler with bidirectional BPTR token translation");
+        r->d[0] = 0;
+        return 1;
+    case 22:  /* IoErr: explicit reviewed refusal [-132] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: dos.library.IoErr refused: served by the handwritten DOS handler so IoErr reports the isolated guest run's last error rather than the native host task's error");
+        r->d[0] = 0;
+        return 1;
+    case 23:  /* CreateProc: explicit reviewed refusal [-138] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: dos.library.CreateProc refused: accepts a guest hunk seglist but would create a native process that cannot execute it; CreateNewProc has the guest-aware path");
+        r->d[0] = 0;
+        return 1;
+    case 24:  /* Exit: explicit reviewed refusal [-144] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: dos.library.Exit refused: would unwind the native task that owns the JIT; guest programs terminate by returning through the execution context");
+        r->d[0] = 0;
+        return 1;
+    case 25:  /* LoadSeg: explicit reviewed refusal [-150] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: dos.library.LoadSeg refused: served by the handwritten DOS handler because a guest BPTR seglist is a guest-arena hunk chain, not a native AROS seglist");
+        r->d[0] = 0;
+        return 1;
+    case 26:  /* UnLoadSeg: explicit reviewed refusal [-156] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: dos.library.UnLoadSeg refused: served by the handwritten DOS handler because it releases a guest hunk chain rather than a native seglist");
+        r->d[0] = 0;
+        return 1;
+    case 29:  /* DeviceProc(CONST_STRPTR name) -> struct MsgPort *  [-174] */
     {
-        BPTR emu_bptr_0;
-        if (emu68k_handle_require(guest0, r->d[1],
-                                 "CurrentDir.lock", &emu_bptr_0, err, errlen) < 0)
+        APTR emu_result = (APTR)DeviceProc((CONST_STRPTR)EMU_GPTR(guest0, r->d[1]));
+        if (emu68k_object_to_guest_facade(guest0, emu_result, EMU_OBJ_MsgPort,
+                                             base, NULL,
+                                             "MsgPort", M68K_MsgPort_SIZEOF,
+                                             emu_fields_MsgPort, EMU_NFIELDS(emu_fields_MsgPort),
+                                             &r->d[0], err, errlen) < 0)
             return 1;
-        r->d[0] = EMU_TOKEN(guest0, CurrentDir(emu_bptr_0));   /* a BPTR crosses as a token */
-        return 0;
+            return 0;
     }
-    case 22:  /* IoErr(void) -> SIPTR  [-132] */
-        r->d[0] = (ULONG)IoErr();   /* narrowed: an integer, never an address */
-        return 0;
-    case 23:  /* CreateProc: no crossing [-138] */
-        if (err && errlen)
-            snprintf(err, errlen, "capability gap: dos.library.CreateProc needs returns a pointer (struct MsgPort*) described");
-        r->d[0] = 0;
-        return 1;
-    case 24:  /* Exit: no crossing [-144] */
-        if (err && errlen)
-            snprintf(err, errlen, "capability gap: dos.library.Exit needs refused: the guest exits by returning, not by this described");
-        r->d[0] = 0;
-        return 1;
-    case 25:  /* LoadSeg(CONST_STRPTR name) -> BPTR  [-150] */
-        r->d[0] = EMU_TOKEN(guest0, LoadSeg((CONST_STRPTR)EMU_GPTR(guest0, r->d[1])));   /* a BPTR crosses as a token */
-        return 0;
-    case 26:  /* UnLoadSeg: no crossing [-156] */
-        if (err && errlen)
-            snprintf(err, errlen, "capability gap: dos.library.UnLoadSeg needs BPTR seglist described");
-        r->d[0] = 0;
-        return 1;
-    case 29:  /* DeviceProc: no crossing [-174] */
-        if (err && errlen)
-            snprintf(err, errlen, "capability gap: dos.library.DeviceProc needs returns a pointer (struct MsgPort *) described");
-        r->d[0] = 0;
-        return 1;
     case 30:  /* SetComment(CONST_STRPTR name, CONST_STRPTR comment) -> LONG  [-180] */
         r->d[0] = (ULONG)SetComment((CONST_STRPTR)EMU_GPTR(guest0, r->d[1]),
               (CONST_STRPTR)EMU_GPTR(guest0, r->d[2]));
@@ -241,19 +252,16 @@ int emu68k_gen_dos(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
         r->d[0] = emu_result ? r->d[1] : 0;
             return 0;
     }
-    case 33:  /* Delay(ULONG timeout) -> void  [-198] */
-        Delay((ULONG)r->d[1]);
-        return 0;
-    case 34:  /* WaitForChar(BPTR file, LONG timeout) -> LONG  [-204] */
-    {
-        BPTR emu_bptr_0;
-        if (emu68k_handle_require(guest0, r->d[1],
-                                 "WaitForChar.file", &emu_bptr_0, err, errlen) < 0)
-            return 1;
-        r->d[0] = (ULONG)WaitForChar(emu_bptr_0,
-              (LONG)r->d[2]);
-        return 0;
-    }
+    case 33:  /* Delay: explicit reviewed refusal [-198] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: dos.library.Delay refused: served by the OS-side DOS handler in the native AROS task that owns the guest run");
+        r->d[0] = 0;
+        return 1;
+    case 34:  /* WaitForChar: explicit reviewed refusal [-204] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: dos.library.WaitForChar refused: served by the OS-side DOS handler with BPTR token translation");
+        r->d[0] = 0;
+        return 1;
     case 35:  /* ParentDir(BPTR lock) -> BPTR  [-210] */
     {
         BPTR emu_bptr_0;
@@ -263,15 +271,11 @@ int emu68k_gen_dos(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
         r->d[0] = EMU_TOKEN(guest0, ParentDir(emu_bptr_0));   /* a BPTR crosses as a token */
         return 0;
     }
-    case 36:  /* IsInteractive(BPTR file) -> LONG  [-216] */
-    {
-        BPTR emu_bptr_0;
-        if (emu68k_handle_require(guest0, r->d[1],
-                                 "IsInteractive.file", &emu_bptr_0, err, errlen) < 0)
-            return 1;
-        r->d[0] = (ULONG)IsInteractive(emu_bptr_0);
-        return 0;
-    }
+    case 36:  /* IsInteractive: explicit reviewed refusal [-216] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: dos.library.IsInteractive refused: served by the OS-side DOS handler with BPTR token translation");
+        r->d[0] = 0;
+        return 1;
     case 37:  /* Execute(CONST_STRPTR string, BPTR input, BPTR output) -> BOOL  [-222] */
     {
         BPTR emu_bptr_1;
@@ -287,14 +291,14 @@ int emu68k_gen_dos(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
               emu_bptr_2);
         return 0;
     }
-    case 38:  /* AllocDosObject: no crossing [-228] */
+    case 38:  /* AllocDosObject: explicit reviewed refusal [-228] */
         if (err && errlen)
-            snprintf(err, errlen, "capability gap: dos.library.AllocDosObject needs returns a pointer (APTR) described");
+            snprintf(err, errlen, "capability gap: dos.library.AllocDosObject refused: served by the handwritten DOS handler so caller-readable DosObject payloads live in guest memory");
         r->d[0] = 0;
         return 1;
-    case 39:  /* FreeDosObject: no crossing [-234] */
+    case 39:  /* FreeDosObject: explicit reviewed refusal [-234] */
         if (err && errlen)
-            snprintf(err, errlen, "capability gap: dos.library.FreeDosObject needs APTR ptr described");
+            snprintf(err, errlen, "capability gap: dos.library.FreeDosObject refused: paired handwritten release for a run-owned guest DosObject allocation");
         r->d[0] = 0;
         return 1;
     case 40:  /* DoPkt(struct MsgPort* port, LONG action, SIPTR arg1, SIPTR arg2, SIPTR arg3, SIPTR arg4, SIPTR arg5) -> SIPTR  [-240] */
@@ -312,24 +316,24 @@ int emu68k_gen_dos(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
               (SIPTR)(LONG)r->d[7]);   /* narrowed: an integer, never an address */
             return 0;
     }
-    case 41:  /* SendPkt: no crossing [-246] */
+    case 41:  /* SendPkt: explicit reviewed refusal [-246] */
         if (err && errlen)
-            snprintf(err, errlen, "capability gap: dos.library.SendPkt needs struct DosPacket *, struct MsgPort * described");
+            snprintf(err, errlen, "capability gap: dos.library.SendPkt refused: queues a pointer-bearing DosPacket and reply port whose message lifecycle has no guest/native packet facade");
         r->d[0] = 0;
         return 1;
-    case 42:  /* WaitPkt: no crossing [-252] */
+    case 42:  /* WaitPkt: explicit reviewed refusal [-252] */
         if (err && errlen)
-            snprintf(err, errlen, "capability gap: dos.library.WaitPkt needs returns a pointer (struct DosPacket *) described");
+            snprintf(err, errlen, "capability gap: dos.library.WaitPkt refused: returns a native DosPacket owned by a native message port with no guest-readable packet facade");
         r->d[0] = 0;
         return 1;
-    case 43:  /* ReplyPkt: no crossing [-258] */
+    case 43:  /* ReplyPkt: explicit reviewed refusal [-258] */
         if (err && errlen)
-            snprintf(err, errlen, "capability gap: dos.library.ReplyPkt needs struct DosPacket * described");
+            snprintf(err, errlen, "capability gap: dos.library.ReplyPkt refused: replies a native DosPacket whose ownership and embedded reply port cannot be reconstructed from guest memory");
         r->d[0] = 0;
         return 1;
-    case 44:  /* AbortPkt: no crossing [-264] */
+    case 44:  /* AbortPkt: explicit reviewed refusal [-264] */
         if (err && errlen)
-            snprintf(err, errlen, "capability gap: dos.library.AbortPkt needs struct DosPacket *, struct MsgPort * described");
+            snprintf(err, errlen, "capability gap: dos.library.AbortPkt refused: operates on a native in-flight DosPacket/message pair for which the bridge has no guest facade");
         r->d[0] = 0;
         return 1;
     case 45:  /* LockRecord(BPTR fh, ULONG offset, ULONG length, ULONG mode, ULONG timeout) -> BOOL  [-270] */
@@ -345,11 +349,16 @@ int emu68k_gen_dos(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
               (ULONG)r->d[5]);
         return 0;
     }
-    case 46:  /* LockRecords: no crossing [-276] */
-        if (err && errlen)
-            snprintf(err, errlen, "capability gap: dos.library.LockRecords needs struct RecordLock * described");
-        r->d[0] = 0;
-        return 1;
+    case 46:  /* LockRecords(struct RecordLock * recArray, ULONG timeout) -> BOOL  [-276] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->d[1], EMU_OBJ_RecordLock, 1,
+                                        "RecordLock", &emu_object_0, err, errlen) < 0)
+            return 1;
+            r->d[0] = (ULONG)LockRecords((struct RecordLock *)emu_object_0,
+              (ULONG)r->d[2]);
+            return 0;
+    }
     case 47:  /* UnLockRecord(BPTR fh, ULONG offset, ULONG length) -> BOOL  [-282] */
     {
         BPTR emu_bptr_0;
@@ -361,11 +370,15 @@ int emu68k_gen_dos(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
               (ULONG)r->d[3]);
         return 0;
     }
-    case 48:  /* UnLockRecords: no crossing [-288] */
-        if (err && errlen)
-            snprintf(err, errlen, "capability gap: dos.library.UnLockRecords needs struct RecordLock * described");
-        r->d[0] = 0;
-        return 1;
+    case 48:  /* UnLockRecords(struct RecordLock * recArray) -> BOOL  [-288] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->d[1], EMU_OBJ_RecordLock, 1,
+                                        "RecordLock", &emu_object_0, err, errlen) < 0)
+            return 1;
+            r->d[0] = (ULONG)UnLockRecords((struct RecordLock *)emu_object_0);
+            return 0;
+    }
     case 49:  /* SelectInput(BPTR fh) -> BPTR  [-294] */
     {
         BPTR emu_bptr_0;
@@ -413,21 +426,117 @@ int emu68k_gen_dos(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
               (LONG)r->d[2]);
         return 0;
     }
-    case 54:  /* FRead: no crossing [-324] */
-        if (err && errlen)
-            snprintf(err, errlen, "capability gap: dos.library.FRead needs APTR block, BPTR fh described");
-        r->d[0] = 0;
-        return 1;
-    case 55:  /* FWrite: no crossing [-330] */
-        if (err && errlen)
-            snprintf(err, errlen, "capability gap: dos.library.FWrite needs APTR block, BPTR fh described");
-        r->d[0] = 0;
-        return 1;
-    case 56:  /* FGets: no crossing [-336] */
-        if (err && errlen)
-            snprintf(err, errlen, "capability gap: dos.library.FGets needs returns a pointer (STRPTR) described");
-        r->d[0] = 0;
-        return 1;
+    case 54:  /* FRead(BPTR fh, APTR block, ULONG blocklen, ULONG number) -> LONG  [-324] */
+    {
+        BPTR emu_bptr_0;
+        if (emu68k_handle_require(guest0, r->d[1],
+                                 "FRead.fh", &emu_bptr_0, err, errlen) < 0)
+            return 1;
+        UQUAD emu_buffer_size_1 = 1;
+        UQUAD emu_buffer_factor_1_0 = (ULONG)r->d[3];
+        if (emu_buffer_factor_1_0 && emu_buffer_size_1 >
+            0xffffffffUL / emu_buffer_factor_1_0)
+        {
+            if (err && errlen)
+                snprintf(err, errlen, "FRead.block extent overflows guest memory");
+            return 1;
+        }
+        emu_buffer_size_1 *= emu_buffer_factor_1_0;
+        UQUAD emu_buffer_factor_1_1 = (ULONG)r->d[4];
+        if (emu_buffer_factor_1_1 && emu_buffer_size_1 >
+            0xffffffffUL / emu_buffer_factor_1_1)
+        {
+            if (err && errlen)
+                snprintf(err, errlen, "FRead.block extent overflows guest memory");
+            return 1;
+        }
+        emu_buffer_size_1 *= emu_buffer_factor_1_1;
+        if (!r->d[2])
+        {
+            if (err && errlen)
+                snprintf(err, errlen, "FRead.block requires a non-NULL buffer");
+            return 1;
+        }
+        if (r->d[2] && emu68k_require_guest_range(r->d[2],
+                (ULONG)emu_buffer_size_1, "FRead.block", err, errlen) < 0)
+            return 1;
+            r->d[0] = (ULONG)FRead(emu_bptr_0,
+              (APTR)EMU_GPTR(guest0, r->d[2]),
+              (ULONG)r->d[3],
+              (ULONG)r->d[4]);
+            return 0;
+    }
+    case 55:  /* FWrite(BPTR fh, CONST_APTR block, ULONG blocklen, ULONG numblocks) -> LONG  [-330] */
+    {
+        BPTR emu_bptr_0;
+        if (emu68k_handle_require(guest0, r->d[1],
+                                 "FWrite.fh", &emu_bptr_0, err, errlen) < 0)
+            return 1;
+        UQUAD emu_buffer_size_1 = 1;
+        UQUAD emu_buffer_factor_1_0 = (ULONG)r->d[3];
+        if (emu_buffer_factor_1_0 && emu_buffer_size_1 >
+            0xffffffffUL / emu_buffer_factor_1_0)
+        {
+            if (err && errlen)
+                snprintf(err, errlen, "FWrite.block extent overflows guest memory");
+            return 1;
+        }
+        emu_buffer_size_1 *= emu_buffer_factor_1_0;
+        UQUAD emu_buffer_factor_1_1 = (ULONG)r->d[4];
+        if (emu_buffer_factor_1_1 && emu_buffer_size_1 >
+            0xffffffffUL / emu_buffer_factor_1_1)
+        {
+            if (err && errlen)
+                snprintf(err, errlen, "FWrite.block extent overflows guest memory");
+            return 1;
+        }
+        emu_buffer_size_1 *= emu_buffer_factor_1_1;
+        if (!r->d[2])
+        {
+            if (err && errlen)
+                snprintf(err, errlen, "FWrite.block requires a non-NULL buffer");
+            return 1;
+        }
+        if (r->d[2] && emu68k_require_guest_range(r->d[2],
+                (ULONG)emu_buffer_size_1, "FWrite.block", err, errlen) < 0)
+            return 1;
+            r->d[0] = (ULONG)FWrite(emu_bptr_0,
+              (CONST_APTR)EMU_GPTR(guest0, r->d[2]),
+              (ULONG)r->d[3],
+              (ULONG)r->d[4]);
+            return 0;
+    }
+    case 56:  /* FGets(BPTR fh, STRPTR buf, ULONG buflen) -> STRPTR  [-336] */
+    {
+        BPTR emu_bptr_0;
+        if (emu68k_handle_require(guest0, r->d[1],
+                                 "FGets.fh", &emu_bptr_0, err, errlen) < 0)
+            return 1;
+        UQUAD emu_buffer_size_1 = 1;
+        UQUAD emu_buffer_factor_1_0 = (ULONG)r->d[3];
+        if (emu_buffer_factor_1_0 && emu_buffer_size_1 >
+            0xffffffffUL / emu_buffer_factor_1_0)
+        {
+            if (err && errlen)
+                snprintf(err, errlen, "FGets.buf extent overflows guest memory");
+            return 1;
+        }
+        emu_buffer_size_1 *= emu_buffer_factor_1_0;
+        if (!r->d[2])
+        {
+            if (err && errlen)
+                snprintf(err, errlen, "FGets.buf requires a non-NULL buffer");
+            return 1;
+        }
+        if (r->d[2] && emu68k_require_guest_range(r->d[2],
+                (ULONG)emu_buffer_size_1, "FGets.buf", err, errlen) < 0)
+            return 1;
+        APTR emu_result = (APTR)FGets(emu_bptr_0,
+              (STRPTR)EMU_GPTR(guest0, r->d[2]),
+              (ULONG)r->d[3]);
+        r->d[0] = emu_result ? r->d[2] : 0;
+            return 0;
+    }
     case 57:  /* FPuts(BPTR file, CONST_STRPTR string) -> LONG  [-342] */
     {
         BPTR emu_bptr_0;
@@ -438,25 +547,21 @@ int emu68k_gen_dos(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
               (CONST_STRPTR)EMU_GPTR(guest0, r->d[2]));
         return 0;
     }
-    case 58:  /* VFWritef: no crossing [-348] */
+    case 58:  /* VFWritef: explicit reviewed refusal [-348] */
         if (err && errlen)
-            snprintf(err, errlen, "capability gap: dos.library.VFWritef needs BPTR fh, RAWARG argarray described");
+            snprintf(err, errlen, "capability gap: dos.library.VFWritef refused: RAWARG is a 68k-width typed argument stream and cannot be passed to native formatting unchanged");
         r->d[0] = 0;
         return 1;
-    case 59:  /* VFPrintf: no crossing [-354] */
+    case 59:  /* VFPrintf: explicit reviewed refusal [-354] */
         if (err && errlen)
-            snprintf(err, errlen, "capability gap: dos.library.VFPrintf needs BPTR file, RAWARG argarray described");
+            snprintf(err, errlen, "capability gap: dos.library.VFPrintf refused: RAWARG is a 68k-width typed argument stream and cannot be passed to native formatting unchanged");
         r->d[0] = 0;
         return 1;
-    case 60:  /* Flush(BPTR file) -> LONG  [-360] */
-    {
-        BPTR emu_bptr_0;
-        if (emu68k_handle_require(guest0, r->d[1],
-                                 "Flush.file", &emu_bptr_0, err, errlen) < 0)
-            return 1;
-        r->d[0] = (ULONG)Flush(emu_bptr_0);
-        return 0;
-    }
+    case 60:  /* Flush: explicit reviewed refusal [-360] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: dos.library.Flush refused: served by the OS-side DOS handler with BPTR token translation");
+        r->d[0] = 0;
+        return 1;
     case 61:  /* SetVBuf(BPTR file, STRPTR buff, LONG type, LONG size) -> LONG  [-366] */
     {
         BPTR emu_bptr_0;
@@ -496,16 +601,52 @@ int emu68k_gen_dos(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
         r->d[0] = EMU_TOKEN(guest0, ParentOfFH(emu_bptr_0));   /* a BPTR crosses as a token */
         return 0;
     }
-    case 65:  /* ExamineFH: no crossing [-390] */
-        if (err && errlen)
-            snprintf(err, errlen, "capability gap: dos.library.ExamineFH needs BPTR fh, struct FileInfoBlock* described");
-        r->d[0] = 0;
-        return 1;
-    case 66:  /* SetFileDate: no crossing [-396] */
-        if (err && errlen)
-            snprintf(err, errlen, "capability gap: dos.library.SetFileDate needs const struct DateStamp * described");
-        r->d[0] = 0;
-        return 1;
+    case 65:  /* ExamineFH(BPTR fh, struct FileInfoBlock* fib) -> BOOL  [-390] */
+    {
+        BPTR emu_bptr_0;
+        if (emu68k_handle_require(guest0, r->d[1],
+                                 "ExamineFH.fh", &emu_bptr_0, err, errlen) < 0)
+            return 1;
+        struct FileInfoBlock emu_struct_1;
+        if (!r->d[2])
+        {
+            if (err && errlen)
+                snprintf(err, errlen, "capability gap: ExamineFH.fib requires a structure");
+            return 1;
+        }
+        if (emu68k_require_guest_range(r->d[2], M68K_FileInfoBlock_SIZEOF,
+                                         "ExamineFH.fib", err, errlen) < 0)
+            return 1;
+        memset(&emu_struct_1, 0, sizeof(emu_struct_1));
+            r->d[0] = (ULONG)ExamineFH(emu_bptr_0,
+              (struct FileInfoBlock*)&emu_struct_1);
+        if (r->d[0])
+        {
+            memset(EMU_GPTR(guest0, r->d[2]), 0, M68K_FileInfoBlock_SIZEOF);
+            emu68k_to_guest_sized(guest0, r->d[2], &emu_struct_1,
+                               emu_fields_FileInfoBlock, EMU_NFIELDS(emu_fields_FileInfoBlock), M68K_FileInfoBlock_SIZEOF);
+        }
+            return 0;
+    }
+    case 66:  /* SetFileDate(CONST_STRPTR name, const struct DateStamp * date) -> BOOL  [-396] */
+    {
+        struct DateStamp emu_struct_1;
+        if (!r->d[2])
+        {
+            if (err && errlen)
+                snprintf(err, errlen, "capability gap: SetFileDate.date requires a structure");
+            return 1;
+        }
+        if (emu68k_require_guest_range(r->d[2], M68K_DateStamp_SIZEOF,
+                                         "SetFileDate.date", err, errlen) < 0)
+            return 1;
+        memset(&emu_struct_1, 0, sizeof(emu_struct_1));
+        emu68k_from_guest_sized(guest0, r->d[2], &emu_struct_1,
+                             emu_fields_DateStamp, EMU_NFIELDS(emu_fields_DateStamp), M68K_DateStamp_SIZEOF);
+            r->d[0] = (ULONG)SetFileDate((CONST_STRPTR)EMU_GPTR(guest0, r->d[1]),
+              (const struct DateStamp *)&emu_struct_1);
+            return 0;
+    }
     case 67:  /* NameFromLock(BPTR lock, STRPTR buffer, LONG length) -> BOOL  [-402] */
     {
         BPTR emu_bptr_0;
@@ -559,19 +700,50 @@ int emu68k_gen_dos(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
               (LONG)r->d[2]);
         return 0;
     }
-    case 72:  /* ExAll: no crossing [-432] */
+    case 72:  /* ExAll: explicit reviewed refusal [-432] */
         if (err && errlen)
-            snprintf(err, errlen, "capability gap: dos.library.ExAll needs BPTR lock, struct ExAllControl *, struct ExAllData * described");
+            snprintf(err, errlen, "capability gap: dos.library.ExAll refused: fills a variable-format linked ExAllData record stream with embedded native pointers and retains ExAllControl scan state");
         r->d[0] = 0;
         return 1;
-    case 73:  /* ReadLink: no crossing [-438] */
+    case 73:  /* ReadLink(struct MsgPort * port, BPTR lock, CONST_STRPTR path, STRPTR buffer, ULONG size) -> LONG  [-438] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->d[1], EMU_OBJ_MsgPort, 1,
+                                        "MsgPort", &emu_object_0, err, errlen) < 0)
+            return 1;
+        BPTR emu_bptr_1;
+        if (emu68k_handle_require(guest0, r->d[2],
+                                 "ReadLink.lock", &emu_bptr_1, err, errlen) < 0)
+            return 1;
+        UQUAD emu_buffer_size_3 = 1;
+        UQUAD emu_buffer_factor_3_0 = (ULONG)r->d[5];
+        if (emu_buffer_factor_3_0 && emu_buffer_size_3 >
+            0xffffffffUL / emu_buffer_factor_3_0)
+        {
+            if (err && errlen)
+                snprintf(err, errlen, "ReadLink.buffer extent overflows guest memory");
+            return 1;
+        }
+        emu_buffer_size_3 *= emu_buffer_factor_3_0;
+        if (!r->d[4])
+        {
+            if (err && errlen)
+                snprintf(err, errlen, "ReadLink.buffer requires a non-NULL buffer");
+            return 1;
+        }
+        if (r->d[4] && emu68k_require_guest_range(r->d[4],
+                (ULONG)emu_buffer_size_3, "ReadLink.buffer", err, errlen) < 0)
+            return 1;
+            r->d[0] = (ULONG)ReadLink((struct MsgPort *)emu_object_0,
+              emu_bptr_1,
+              (CONST_STRPTR)EMU_GPTR(guest0, r->d[3]),
+              (STRPTR)EMU_GPTR(guest0, r->d[4]),
+              (ULONG)r->d[5]);
+            return 0;
+    }
+    case 74:  /* MakeLink: explicit reviewed refusal [-444] */
         if (err && errlen)
-            snprintf(err, errlen, "capability gap: dos.library.ReadLink needs BPTR lock, struct MsgPort * described");
-        r->d[0] = 0;
-        return 1;
-    case 74:  /* MakeLink: no crossing [-444] */
-        if (err && errlen)
-            snprintf(err, errlen, "capability gap: dos.library.MakeLink needs refused: dest is a string or a lock depending on soft described");
+            snprintf(err, errlen, "capability gap: dos.library.MakeLink refused: served by the OS-side DOS handler because dest is conditionally a guest string or a BPTR token according to soft");
         r->d[0] = 0;
         return 1;
     case 75:  /* ChangeMode(ULONG type, BPTR object, ULONG newmode) -> BOOL  [-450] */
@@ -596,19 +768,22 @@ int emu68k_gen_dos(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
               (LONG)r->d[3]);
         return 0;
     }
-    case 77:  /* SetIoErr(SIPTR result) -> SIPTR  [-462] */
-        r->d[0] = (ULONG)SetIoErr((SIPTR)(LONG)r->d[1]);   /* narrowed: an integer, never an address */
-        return 0;
+    case 77:  /* SetIoErr: explicit reviewed refusal [-462] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: dos.library.SetIoErr refused: served by the OS-side DOS handler to update the native task error read by the paired IoErr crossing");
+        r->d[0] = 0;
+        return 1;
     case 78:  /* Fault(LONG code, CONST_STRPTR header, STRPTR buffer, LONG len) -> BOOL  [-468] */
         r->d[0] = (ULONG)Fault((LONG)r->d[1],
               (CONST_STRPTR)EMU_GPTR(guest0, r->d[2]),
               (STRPTR)EMU_GPTR(guest0, r->d[3]),
               (LONG)r->d[4]);
         return 0;
-    case 79:  /* PrintFault(LONG code, CONST_STRPTR header) -> BOOL  [-474] */
-        r->d[0] = (ULONG)PrintFault((LONG)r->d[1],
-              (CONST_STRPTR)EMU_GPTR(guest0, r->d[2]));
-        return 0;
+    case 79:  /* PrintFault: explicit reviewed refusal [-474] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: dos.library.PrintFault refused: served by the OS-side DOS handler with the guest header string rebased into the guest arena");
+        r->d[0] = 0;
+        return 1;
     case 80:  /* ErrorReport(LONG code, LONG type, IPTR arg1, struct MsgPort * device) -> BOOL  [-480] */
     {
         APTR emu_object_3;
@@ -621,31 +796,37 @@ int emu68k_gen_dos(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
               (struct MsgPort *)emu_object_3);
             return 0;
     }
-    case 81:  /* DisplayError: no crossing [-486] */
+    case 81:  /* DisplayError: explicit reviewed refusal [-486] */
         if (err && errlen)
-            snprintf(err, errlen, "capability gap: dos.library.DisplayError needs APTR args described");
+            snprintf(err, errlen, "capability gap: dos.library.DisplayError refused: formats an untyped 68k RAWARG array and may open process-global UI");
         r->d[0] = 0;
         return 1;
-    case 82:  /* Cli: no crossing [-492] */
+    case 82:  /* Cli: explicit reviewed refusal [-492] */
         if (err && errlen)
-            snprintf(err, errlen, "capability gap: dos.library.Cli needs returns a pointer (struct CommandLineInterface *) described");
+            snprintf(err, errlen, "capability gap: dos.library.Cli refused: returns the host process CommandLineInterface structure, which is pointer-bearing and not the isolated guest CLI");
         r->d[0] = 0;
         return 1;
-    case 83:  /* CreateNewProc: no crossing [-498] */
+    case 83:  /* CreateNewProc: explicit reviewed refusal [-498] */
         if (err && errlen)
-            snprintf(err, errlen, "capability gap: dos.library.CreateNewProc needs returns a pointer (struct Process *) described");
+            snprintf(err, errlen, "capability gap: dos.library.CreateNewProc refused: served by the handwritten DOS handler because the created process executes a guest seglist in a guest execution context");
         r->d[0] = 0;
         return 1;
-    case 84:  /* RunCommand: no crossing [-504] */
+    case 84:  /* RunCommand: explicit reviewed refusal [-504] */
         if (err && errlen)
-            snprintf(err, errlen, "capability gap: dos.library.RunCommand needs BPTR segList described");
+            snprintf(err, errlen, "capability gap: dos.library.RunCommand refused: would ask the native process to execute a guest hunk seglist as native code");
         r->d[0] = 0;
         return 1;
-    case 85:  /* GetConsoleTask: no crossing [-510] */
-        if (err && errlen)
-            snprintf(err, errlen, "capability gap: dos.library.GetConsoleTask needs returns a pointer (struct MsgPort *) described");
-        r->d[0] = 0;
-        return 1;
+    case 85:  /* GetConsoleTask(void) -> struct MsgPort *  [-510] */
+    {
+        APTR emu_result = (APTR)GetConsoleTask();
+        if (emu68k_object_to_guest_facade(guest0, emu_result, EMU_OBJ_MsgPort,
+                                             base, NULL,
+                                             "MsgPort", M68K_MsgPort_SIZEOF,
+                                             emu_fields_MsgPort, EMU_NFIELDS(emu_fields_MsgPort),
+                                             &r->d[0], err, errlen) < 0)
+            return 1;
+            return 0;
+    }
     case 86:  /* SetConsoleTask(struct MsgPort * handler) -> struct MsgPort *  [-516] */
     {
         APTR emu_object_0;
@@ -661,11 +842,17 @@ int emu68k_gen_dos(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
             return 1;
             return 0;
     }
-    case 87:  /* GetFileSysTask: no crossing [-522] */
-        if (err && errlen)
-            snprintf(err, errlen, "capability gap: dos.library.GetFileSysTask needs returns a pointer (struct MsgPort *) described");
-        r->d[0] = 0;
-        return 1;
+    case 87:  /* GetFileSysTask(void) -> struct MsgPort *  [-522] */
+    {
+        APTR emu_result = (APTR)GetFileSysTask();
+        if (emu68k_object_to_guest_facade(guest0, emu_result, EMU_OBJ_MsgPort,
+                                             base, NULL,
+                                             "MsgPort", M68K_MsgPort_SIZEOF,
+                                             emu_fields_MsgPort, EMU_NFIELDS(emu_fields_MsgPort),
+                                             &r->d[0], err, errlen) < 0)
+            return 1;
+            return 0;
+    }
     case 88:  /* SetFileSysTask(struct MsgPort * task) -> struct MsgPort *  [-528] */
     {
         APTR emu_object_0;
@@ -681,47 +868,48 @@ int emu68k_gen_dos(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
             return 1;
             return 0;
     }
-    case 89:  /* GetArgStr: no crossing [-534] */
+    case 89:  /* GetArgStr: explicit reviewed refusal [-534] */
         if (err && errlen)
-            snprintf(err, errlen, "capability gap: dos.library.GetArgStr needs returns a pointer (STRPTR) described");
+            snprintf(err, errlen, "capability gap: dos.library.GetArgStr refused: the native result is the host process argument string, not the guest launch argument storage");
         r->d[0] = 0;
         return 1;
-    case 90:  /* SetArgStr: no crossing [-540] */
+    case 90:  /* SetArgStr: explicit reviewed refusal [-540] */
         if (err && errlen)
-            snprintf(err, errlen, "capability gap: dos.library.SetArgStr needs refused: rebinds the host process argument string described");
+            snprintf(err, errlen, "capability gap: dos.library.SetArgStr refused: would rebind the host process argument string rather than isolated guest state");
         r->d[0] = 0;
         return 1;
-    case 91:  /* FindCliProc: no crossing [-546] */
+    case 91:  /* FindCliProc: explicit reviewed refusal [-546] */
         if (err && errlen)
-            snprintf(err, errlen, "capability gap: dos.library.FindCliProc needs returns a pointer (struct Process *) described");
+            snprintf(err, errlen, "capability gap: dos.library.FindCliProc refused: returns a native Process from the host CLI table, not a guest execution context");
         r->d[0] = 0;
         return 1;
-    case 92:  /* MaxCli: no crossing [-552] */
+    case 92:  /* MaxCli: explicit reviewed refusal [-552] */
         if (err && errlen)
-            snprintf(err, errlen, "capability gap: dos.library.MaxCli needs refused: reports on host CLIs, not guest ones described");
+            snprintf(err, errlen, "capability gap: dos.library.MaxCli refused: reports the host CLI table rather than isolated guest processes");
         r->d[0] = 0;
         return 1;
-    case 93:  /* SetCurrentDirName: no crossing [-558] */
+    case 93:  /* SetCurrentDirName: explicit reviewed refusal [-558] */
         if (err && errlen)
-            snprintf(err, errlen, "capability gap: dos.library.SetCurrentDirName needs refused: moves the host process, not the guest described");
+            snprintf(err, errlen, "capability gap: dos.library.SetCurrentDirName refused: would mutate the host process CLI state rather than the guest's current-directory identity");
         r->d[0] = 0;
         return 1;
     case 94:  /* GetCurrentDirName(STRPTR buf, LONG len) -> BOOL  [-564] */
         r->d[0] = (ULONG)GetCurrentDirName((STRPTR)EMU_GPTR(guest0, r->d[1]),
               (LONG)r->d[2]);
         return 0;
-    case 95:  /* SetProgramName: no crossing [-570] */
+    case 95:  /* SetProgramName: explicit reviewed refusal [-570] */
         if (err && errlen)
-            snprintf(err, errlen, "capability gap: dos.library.SetProgramName needs refused: renames the host process described");
+            snprintf(err, errlen, "capability gap: dos.library.SetProgramName refused: would rename the host process rather than the isolated guest");
         r->d[0] = 0;
         return 1;
-    case 96:  /* GetProgramName(STRPTR buf, LONG len) -> BOOL  [-576] */
-        r->d[0] = (ULONG)GetProgramName((STRPTR)EMU_GPTR(guest0, r->d[1]),
-              (LONG)r->d[2]);
-        return 0;
-    case 97:  /* SetPrompt: no crossing [-582] */
+    case 96:  /* GetProgramName: explicit reviewed refusal [-576] */
         if (err && errlen)
-            snprintf(err, errlen, "capability gap: dos.library.SetPrompt needs refused: the host shell's prompt is not the guest's described");
+            snprintf(err, errlen, "capability gap: dos.library.GetProgramName refused: served by the OS-side DOS handler so the program name is copied into guest storage");
+        r->d[0] = 0;
+        return 1;
+    case 97:  /* SetPrompt: explicit reviewed refusal [-582] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: dos.library.SetPrompt refused: would replace the host shell prompt rather than guest-owned CLI state");
         r->d[0] = 0;
         return 1;
     case 98:  /* GetPrompt(STRPTR buf, LONG len) -> BOOL  [-588] */
@@ -740,9 +928,9 @@ int emu68k_gen_dos(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
     case 100:  /* GetProgramDir(void) -> BPTR  [-600] */
         r->d[0] = EMU_TOKEN(guest0, GetProgramDir());   /* a BPTR crosses as a token */
         return 0;
-    case 101:  /* SystemTagList: no crossing [-606] */
+    case 101:  /* SystemTagList: explicit reviewed refusal [-606] */
         if (err && errlen)
-            snprintf(err, errlen, "capability gap: dos.library.SystemTagList needs const struct TagItem * described");
+            snprintf(err, errlen, "capability gap: dos.library.SystemTagList refused: launches a native command/process with host streams; it cannot route a classic command back through the guest loader");
         r->d[0] = 0;
         return 1;
     case 102:  /* AssignLock(CONST_STRPTR name, BPTR lock) -> LONG  [-612] */
@@ -783,82 +971,141 @@ int emu68k_gen_dos(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
               emu_bptr_1);
         return 0;
     }
-    case 107:  /* GetDeviceProc: no crossing [-642] */
-        if (err && errlen)
-            snprintf(err, errlen, "capability gap: dos.library.GetDeviceProc needs returns a pointer (struct DevProc *) described");
-        r->d[0] = 0;
-        return 1;
-    case 108:  /* FreeDeviceProc: no crossing [-648] */
-        if (err && errlen)
-            snprintf(err, errlen, "capability gap: dos.library.FreeDeviceProc needs struct DevProc * described");
-        r->d[0] = 0;
-        return 1;
-    case 109:  /* LockDosList: no crossing [-654] */
-        if (err && errlen)
-            snprintf(err, errlen, "capability gap: dos.library.LockDosList needs returns a pointer (struct DosList *) described");
-        r->d[0] = 0;
-        return 1;
+    case 107:  /* GetDeviceProc(CONST_STRPTR name, struct DevProc * dp) -> struct DevProc *  [-642] */
+    {
+        APTR emu_object_1;
+        if (emu68k_object_from_guest(guest0, r->d[2], EMU_OBJ_DevProc, 1,
+                                        "DevProc", &emu_object_1, err, errlen) < 0)
+            return 1;
+        APTR emu_result = (APTR)GetDeviceProc((CONST_STRPTR)EMU_GPTR(guest0, r->d[1]),
+              (struct DevProc *)emu_object_1);
+        if (emu68k_object_to_guest(guest0, emu_result, EMU_OBJ_DevProc,
+                                      base, emu_object_cleanup_DevProc,
+                                      "DevProc", &r->d[0], err, errlen) < 0)
+            return 1;
+            return 0;
+    }
+    case 108:  /* FreeDeviceProc(struct DevProc * dp) -> void  [-648] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->d[1], EMU_OBJ_DevProc, 1,
+                                        "DevProc", &emu_object_0, err, errlen) < 0)
+            return 1;
+            FreeDeviceProc((struct DevProc *)emu_object_0);
+        emu68k_object_consume(guest0, r->d[1], EMU_OBJ_DevProc);
+            return 0;
+    }
+    case 109:  /* LockDosList(ULONG flags) -> struct DosList *  [-654] */
+    {
+        APTR emu_result = (APTR)LockDosList((ULONG)r->d[1]);
+        if (emu68k_object_to_guest(guest0, emu_result, EMU_OBJ_DosList,
+                                      base, NULL,
+                                      "DosList", &r->d[0], err, errlen) < 0)
+            return 1;
+            return 0;
+    }
     case 110:  /* UnLockDosList: no crossing [-660] */
         if (err && errlen)
             snprintf(err, errlen, "capability gap: dos.library.UnLockDosList needs refused: pairs with LockDosList, which is not tier 1 described");
         r->d[0] = 0;
         return 1;
-    case 111:  /* AttemptLockDosList: no crossing [-666] */
-        if (err && errlen)
-            snprintf(err, errlen, "capability gap: dos.library.AttemptLockDosList needs returns a pointer (struct DosList *) described");
-        r->d[0] = 0;
-        return 1;
-    case 112:  /* RemDosEntry: no crossing [-672] */
-        if (err && errlen)
-            snprintf(err, errlen, "capability gap: dos.library.RemDosEntry needs struct DosList * described");
-        r->d[0] = 0;
-        return 1;
-    case 113:  /* AddDosEntry: no crossing [-678] */
-        if (err && errlen)
-            snprintf(err, errlen, "capability gap: dos.library.AddDosEntry needs struct DosList * described");
-        r->d[0] = 0;
-        return 1;
-    case 114:  /* FindDosEntry: no crossing [-684] */
-        if (err && errlen)
-            snprintf(err, errlen, "capability gap: dos.library.FindDosEntry needs returns a pointer (struct DosList *) described");
-        r->d[0] = 0;
-        return 1;
-    case 115:  /* NextDosEntry: no crossing [-690] */
-        if (err && errlen)
-            snprintf(err, errlen, "capability gap: dos.library.NextDosEntry needs returns a pointer (struct DosList *) described");
-        r->d[0] = 0;
-        return 1;
-    case 116:  /* MakeDosEntry: no crossing [-696] */
-        if (err && errlen)
-            snprintf(err, errlen, "capability gap: dos.library.MakeDosEntry needs returns a pointer (struct DosList *) described");
-        r->d[0] = 0;
-        return 1;
-    case 117:  /* FreeDosEntry: no crossing [-702] */
-        if (err && errlen)
-            snprintf(err, errlen, "capability gap: dos.library.FreeDosEntry needs struct DosList * described");
-        r->d[0] = 0;
-        return 1;
+    case 111:  /* AttemptLockDosList(ULONG flags) -> struct DosList *  [-666] */
+    {
+        APTR emu_result = (APTR)AttemptLockDosList((ULONG)r->d[1]);
+        if (emu68k_object_to_guest(guest0, emu_result, EMU_OBJ_DosList,
+                                      base, NULL,
+                                      "DosList", &r->d[0], err, errlen) < 0)
+            return 1;
+            return 0;
+    }
+    case 112:  /* RemDosEntry(struct DosList * dlist) -> LONG  [-672] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->d[1], EMU_OBJ_DosList, 1,
+                                        "DosList", &emu_object_0, err, errlen) < 0)
+            return 1;
+            r->d[0] = (ULONG)RemDosEntry((struct DosList *)emu_object_0);
+            return 0;
+    }
+    case 113:  /* AddDosEntry(struct DosList * dlist) -> LONG  [-678] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->d[1], EMU_OBJ_DosList, 1,
+                                        "DosList", &emu_object_0, err, errlen) < 0)
+            return 1;
+            r->d[0] = (ULONG)AddDosEntry((struct DosList *)emu_object_0);
+            return 0;
+    }
+    case 114:  /* FindDosEntry(struct DosList * dlist, CONST_STRPTR name, ULONG flags) -> struct DosList *  [-684] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->d[1], EMU_OBJ_DosList, 1,
+                                        "DosList", &emu_object_0, err, errlen) < 0)
+            return 1;
+        APTR emu_result = (APTR)FindDosEntry((struct DosList *)emu_object_0,
+              (CONST_STRPTR)EMU_GPTR(guest0, r->d[2]),
+              (ULONG)r->d[3]);
+        if (emu68k_object_to_guest(guest0, emu_result, EMU_OBJ_DosList,
+                                      base, NULL,
+                                      "DosList", &r->d[0], err, errlen) < 0)
+            return 1;
+            return 0;
+    }
+    case 115:  /* NextDosEntry(struct DosList * dlist, ULONG flags) -> struct DosList *  [-690] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->d[1], EMU_OBJ_DosList, 1,
+                                        "DosList", &emu_object_0, err, errlen) < 0)
+            return 1;
+        APTR emu_result = (APTR)NextDosEntry((struct DosList *)emu_object_0,
+              (ULONG)r->d[2]);
+        if (emu68k_object_to_guest(guest0, emu_result, EMU_OBJ_DosList,
+                                      base, NULL,
+                                      "DosList", &r->d[0], err, errlen) < 0)
+            return 1;
+            return 0;
+    }
+    case 116:  /* MakeDosEntry(CONST_STRPTR name, LONG type) -> struct DosList *  [-696] */
+    {
+        APTR emu_result = (APTR)MakeDosEntry((CONST_STRPTR)EMU_GPTR(guest0, r->d[1]),
+              (LONG)r->d[2]);
+        if (emu68k_object_to_guest(guest0, emu_result, EMU_OBJ_DosList,
+                                      base, NULL,
+                                      "DosList", &r->d[0], err, errlen) < 0)
+            return 1;
+            return 0;
+    }
+    case 117:  /* FreeDosEntry(struct DosList * dlist) -> void  [-702] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->d[1], EMU_OBJ_DosList, 1,
+                                        "DosList", &emu_object_0, err, errlen) < 0)
+            return 1;
+            FreeDosEntry((struct DosList *)emu_object_0);
+        emu68k_object_consume(guest0, r->d[1], EMU_OBJ_DosList);
+            return 0;
+    }
     case 118:  /* IsFileSystem(CONST_STRPTR devicename) -> BOOL  [-708] */
         r->d[0] = (ULONG)IsFileSystem((CONST_STRPTR)EMU_GPTR(guest0, r->d[1]));
         return 0;
-    case 119:  /* Format: no crossing [-714] */
+    case 119:  /* Format: explicit reviewed refusal [-714] */
         if (err && errlen)
-            snprintf(err, errlen, "capability gap: dos.library.Format needs refused: device-level, and destroys a volume described");
+            snprintf(err, errlen, "capability gap: dos.library.Format refused: destructive device-level formatting is outside an isolated guest run");
         r->d[0] = 0;
         return 1;
-    case 120:  /* Relabel: no crossing [-720] */
+    case 120:  /* Relabel: explicit reviewed refusal [-720] */
         if (err && errlen)
-            snprintf(err, errlen, "capability gap: dos.library.Relabel needs refused: device-level described");
+            snprintf(err, errlen, "capability gap: dos.library.Relabel refused: mutates a host-mounted volume label and is outside isolated guest routing");
         r->d[0] = 0;
         return 1;
-    case 121:  /* Inhibit: no crossing [-726] */
+    case 121:  /* Inhibit: explicit reviewed refusal [-726] */
         if (err && errlen)
-            snprintf(err, errlen, "capability gap: dos.library.Inhibit needs refused: device-level described");
+            snprintf(err, errlen, "capability gap: dos.library.Inhibit refused: inhibits a host filesystem device and is outside isolated guest routing");
         r->d[0] = 0;
         return 1;
-    case 122:  /* AddBuffers: no crossing [-732] */
+    case 122:  /* AddBuffers: explicit reviewed refusal [-732] */
         if (err && errlen)
-            snprintf(err, errlen, "capability gap: dos.library.AddBuffers needs refused: device-level described");
+            snprintf(err, errlen, "capability gap: dos.library.AddBuffers refused: changes host filesystem device buffering and is outside isolated guest routing");
         r->d[0] = 0;
         return 1;
     case 123:  /* CompareDates(const struct DateStamp * date1, const struct DateStamp * date2) -> LONG  [-738] */
@@ -893,137 +1140,225 @@ int emu68k_gen_dos(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
               (const struct DateStamp *)&emu_struct_1);
             return 0;
     }
-    case 124:  /* DateToStr: no crossing [-744] */
+    case 124:  /* DateToStr(struct DateTime * datetime) -> BOOL  [-744] */
+    {
+        struct DateTime emu_struct_0;
+        if (!r->d[1])
+        {
+            if (err && errlen)
+                snprintf(err, errlen, "capability gap: DateToStr.datetime requires a structure");
+            return 1;
+        }
+        if (emu68k_require_guest_range(r->d[1], M68K_DateTime_SIZEOF,
+                                         "DateToStr.datetime", err, errlen) < 0)
+            return 1;
+        memset(&emu_struct_0, 0, sizeof(emu_struct_0));
+        emu68k_from_guest_sized(guest0, r->d[1], &emu_struct_0,
+                             emu_fields_DateTime, EMU_NFIELDS(emu_fields_DateTime), M68K_DateTime_SIZEOF);
+        emu68k_from_guest_sized(guest0, r->d[1] + M68K_DateTime_dat_Stamp_ds_Days,
+            &emu_struct_0.dat_Stamp, emu_fields_DateStamp,
+            EMU_NFIELDS(emu_fields_DateStamp), M68K_DateStamp_SIZEOF);
+        ULONG emu_struct_field_0_1 = (ULONG)
+            emu68k_scalar_from_guest(guest0, r->d[1] + M68K_DateTime_dat_StrDay, 4);
+        if (emu_struct_field_0_1 &&
+            emu68k_require_guest_range(emu_struct_field_0_1, 16,
+                "DateToStr.datetime.dat_StrDay", err, errlen) < 0)
+            return 1;
+        emu_struct_0.dat_StrDay = (__typeof__(emu_struct_0.dat_StrDay))EMU_GPTR(guest0, emu_struct_field_0_1);
+        ULONG emu_struct_field_0_2 = (ULONG)
+            emu68k_scalar_from_guest(guest0, r->d[1] + M68K_DateTime_dat_StrDate, 4);
+        if (emu_struct_field_0_2 &&
+            emu68k_require_guest_range(emu_struct_field_0_2, 16,
+                "DateToStr.datetime.dat_StrDate", err, errlen) < 0)
+            return 1;
+        emu_struct_0.dat_StrDate = (__typeof__(emu_struct_0.dat_StrDate))EMU_GPTR(guest0, emu_struct_field_0_2);
+        ULONG emu_struct_field_0_3 = (ULONG)
+            emu68k_scalar_from_guest(guest0, r->d[1] + M68K_DateTime_dat_StrTime, 4);
+        if (emu_struct_field_0_3 &&
+            emu68k_require_guest_range(emu_struct_field_0_3, 16,
+                "DateToStr.datetime.dat_StrTime", err, errlen) < 0)
+            return 1;
+        emu_struct_0.dat_StrTime = (__typeof__(emu_struct_0.dat_StrTime))EMU_GPTR(guest0, emu_struct_field_0_3);
+            r->d[0] = (ULONG)DateToStr((struct DateTime *)&emu_struct_0);
+        emu68k_to_guest_sized(guest0, r->d[1], &emu_struct_0,
+                           emu_fields_DateTime, EMU_NFIELDS(emu_fields_DateTime), M68K_DateTime_SIZEOF);
+        emu68k_to_guest_sized(guest0, r->d[1] + M68K_DateTime_dat_Stamp_ds_Days,
+            &emu_struct_0.dat_Stamp, emu_fields_DateStamp,
+            EMU_NFIELDS(emu_fields_DateStamp), M68K_DateStamp_SIZEOF);
+        ULONG emu_post_guest_0_1;
+        if (emu68k_host_ptr_to_guest(guest0, (APTR)emu_struct_0.dat_StrDay,
+                &emu_post_guest_0_1, "DateToStr.datetime.dat_StrDay", err, errlen) < 0)
+            return 1;
+        emu68k_scalar_to_guest(guest0, r->d[1] + M68K_DateTime_dat_StrDay, 4,
+                                 emu_post_guest_0_1);
+        ULONG emu_post_guest_0_2;
+        if (emu68k_host_ptr_to_guest(guest0, (APTR)emu_struct_0.dat_StrDate,
+                &emu_post_guest_0_2, "DateToStr.datetime.dat_StrDate", err, errlen) < 0)
+            return 1;
+        emu68k_scalar_to_guest(guest0, r->d[1] + M68K_DateTime_dat_StrDate, 4,
+                                 emu_post_guest_0_2);
+        ULONG emu_post_guest_0_3;
+        if (emu68k_host_ptr_to_guest(guest0, (APTR)emu_struct_0.dat_StrTime,
+                &emu_post_guest_0_3, "DateToStr.datetime.dat_StrTime", err, errlen) < 0)
+            return 1;
+        emu68k_scalar_to_guest(guest0, r->d[1] + M68K_DateTime_dat_StrTime, 4,
+                                 emu_post_guest_0_3);
+            return 0;
+    }
+    case 125:  /* StrToDate(struct DateTime * datetime) -> BOOL  [-750] */
+    {
+        struct DateTime emu_struct_0;
+        if (!r->d[1])
+        {
+            if (err && errlen)
+                snprintf(err, errlen, "capability gap: StrToDate.datetime requires a structure");
+            return 1;
+        }
+        if (emu68k_require_guest_range(r->d[1], M68K_DateTime_SIZEOF,
+                                         "StrToDate.datetime", err, errlen) < 0)
+            return 1;
+        memset(&emu_struct_0, 0, sizeof(emu_struct_0));
+        emu68k_from_guest_sized(guest0, r->d[1], &emu_struct_0,
+                             emu_fields_DateTime, EMU_NFIELDS(emu_fields_DateTime), M68K_DateTime_SIZEOF);
+        emu68k_from_guest_sized(guest0, r->d[1] + M68K_DateTime_dat_Stamp_ds_Days,
+            &emu_struct_0.dat_Stamp, emu_fields_DateStamp,
+            EMU_NFIELDS(emu_fields_DateStamp), M68K_DateStamp_SIZEOF);
+        ULONG emu_struct_field_0_1 = (ULONG)
+            emu68k_scalar_from_guest(guest0, r->d[1] + M68K_DateTime_dat_StrDay, 4);
+        if (emu_struct_field_0_1 &&
+            emu68k_require_guest_range(emu_struct_field_0_1, 16,
+                "StrToDate.datetime.dat_StrDay", err, errlen) < 0)
+            return 1;
+        emu_struct_0.dat_StrDay = (__typeof__(emu_struct_0.dat_StrDay))EMU_GPTR(guest0, emu_struct_field_0_1);
+        ULONG emu_struct_field_0_2 = (ULONG)
+            emu68k_scalar_from_guest(guest0, r->d[1] + M68K_DateTime_dat_StrDate, 4);
+        if (emu_struct_field_0_2 &&
+            emu68k_require_guest_range(emu_struct_field_0_2, 16,
+                "StrToDate.datetime.dat_StrDate", err, errlen) < 0)
+            return 1;
+        emu_struct_0.dat_StrDate = (__typeof__(emu_struct_0.dat_StrDate))EMU_GPTR(guest0, emu_struct_field_0_2);
+        ULONG emu_struct_field_0_3 = (ULONG)
+            emu68k_scalar_from_guest(guest0, r->d[1] + M68K_DateTime_dat_StrTime, 4);
+        if (emu_struct_field_0_3 &&
+            emu68k_require_guest_range(emu_struct_field_0_3, 16,
+                "StrToDate.datetime.dat_StrTime", err, errlen) < 0)
+            return 1;
+        emu_struct_0.dat_StrTime = (__typeof__(emu_struct_0.dat_StrTime))EMU_GPTR(guest0, emu_struct_field_0_3);
+            r->d[0] = (ULONG)StrToDate((struct DateTime *)&emu_struct_0);
+        emu68k_to_guest_sized(guest0, r->d[1], &emu_struct_0,
+                           emu_fields_DateTime, EMU_NFIELDS(emu_fields_DateTime), M68K_DateTime_SIZEOF);
+        emu68k_to_guest_sized(guest0, r->d[1] + M68K_DateTime_dat_Stamp_ds_Days,
+            &emu_struct_0.dat_Stamp, emu_fields_DateStamp,
+            EMU_NFIELDS(emu_fields_DateStamp), M68K_DateStamp_SIZEOF);
+        ULONG emu_post_guest_0_1;
+        if (emu68k_host_ptr_to_guest(guest0, (APTR)emu_struct_0.dat_StrDay,
+                &emu_post_guest_0_1, "StrToDate.datetime.dat_StrDay", err, errlen) < 0)
+            return 1;
+        emu68k_scalar_to_guest(guest0, r->d[1] + M68K_DateTime_dat_StrDay, 4,
+                                 emu_post_guest_0_1);
+        ULONG emu_post_guest_0_2;
+        if (emu68k_host_ptr_to_guest(guest0, (APTR)emu_struct_0.dat_StrDate,
+                &emu_post_guest_0_2, "StrToDate.datetime.dat_StrDate", err, errlen) < 0)
+            return 1;
+        emu68k_scalar_to_guest(guest0, r->d[1] + M68K_DateTime_dat_StrDate, 4,
+                                 emu_post_guest_0_2);
+        ULONG emu_post_guest_0_3;
+        if (emu68k_host_ptr_to_guest(guest0, (APTR)emu_struct_0.dat_StrTime,
+                &emu_post_guest_0_3, "StrToDate.datetime.dat_StrTime", err, errlen) < 0)
+            return 1;
+        emu68k_scalar_to_guest(guest0, r->d[1] + M68K_DateTime_dat_StrTime, 4,
+                                 emu_post_guest_0_3);
+            return 0;
+    }
+    case 126:  /* InternalLoadSeg: explicit reviewed refusal [-756] */
         if (err && errlen)
-            snprintf(err, errlen, "capability gap: dos.library.DateToStr needs struct DateTime * described");
+            snprintf(err, errlen, "capability gap: dos.library.InternalLoadSeg refused: combines native file handles with function-pointer arrays and loader callbacks that cannot execute as 68k callbacks");
         r->d[0] = 0;
         return 1;
-    case 125:  /* StrToDate: no crossing [-750] */
+    case 127:  /* InternalUnLoadSeg: explicit reviewed refusal [-762] */
         if (err && errlen)
-            snprintf(err, errlen, "capability gap: dos.library.StrToDate needs struct DateTime * described");
+            snprintf(err, errlen, "capability gap: dos.library.InternalUnLoadSeg refused: walks a seglist using a native free callback; guest seglists are owned by the handwritten hunk loader");
         r->d[0] = 0;
         return 1;
-    case 126:  /* InternalLoadSeg: no crossing [-756] */
+    case 128:  /* NewLoadSeg: explicit reviewed refusal [-768] */
         if (err && errlen)
-            snprintf(err, errlen, "capability gap: dos.library.InternalLoadSeg needs BPTR fh, BPTR table, LONG *, LONG_FUNC * described");
+            snprintf(err, errlen, "capability gap: dos.library.NewLoadSeg refused: served by the handwritten guest hunk loader when its currently undefined taglist is empty");
         r->d[0] = 0;
         return 1;
-    case 127:  /* InternalUnLoadSeg: no crossing [-762] */
+    case 129:  /* AddSegment: explicit reviewed refusal [-774] */
         if (err && errlen)
-            snprintf(err, errlen, "capability gap: dos.library.InternalUnLoadSeg needs BPTR seglist, VOID_FUNC freefunc described");
+            snprintf(err, errlen, "capability gap: dos.library.AddSegment refused: would publish a guest executable seglist in the native DOS segment registry");
         r->d[0] = 0;
         return 1;
-    case 128:  /* NewLoadSeg: no crossing [-768] */
+    case 130:  /* FindSegment(CONST_STRPTR name, struct Segment * seg, LONG system) -> struct Segment *  [-780] */
+    {
+        APTR emu_object_1;
+        if (emu68k_object_from_guest(guest0, r->d[2], EMU_OBJ_Segment, 1,
+                                        "Segment", &emu_object_1, err, errlen) < 0)
+            return 1;
+        APTR emu_result = (APTR)FindSegment((CONST_STRPTR)EMU_GPTR(guest0, r->d[1]),
+              (struct Segment *)emu_object_1,
+              (LONG)r->d[3]);
+        if (emu68k_object_to_guest(guest0, emu_result, EMU_OBJ_Segment,
+                                      base, NULL,
+                                      "Segment", &r->d[0], err, errlen) < 0)
+            return 1;
+            return 0;
+    }
+    case 131:  /* RemSegment(struct Segment * seg) -> LONG  [-786] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->d[1], EMU_OBJ_Segment, 1,
+                                        "Segment", &emu_object_0, err, errlen) < 0)
+            return 1;
+            r->d[0] = (ULONG)RemSegment((struct Segment *)emu_object_0);
+            return 0;
+    }
+    case 132:  /* CheckSignal: explicit reviewed refusal [-792] */
         if (err && errlen)
-            snprintf(err, errlen, "capability gap: dos.library.NewLoadSeg needs const struct TagItem * described");
+            snprintf(err, errlen, "capability gap: dos.library.CheckSignal refused: the native task signals belong to the JIT host task, not the guest task model");
         r->d[0] = 0;
         return 1;
-    case 129:  /* AddSegment: no crossing [-774] */
+    case 133:  /* ReadArgs: explicit reviewed refusal [-798] */
         if (err && errlen)
-            snprintf(err, errlen, "capability gap: dos.library.AddSegment needs BPTR seg described");
-        r->d[0] = 0;
-        return 1;
-    case 130:  /* FindSegment: no crossing [-780] */
-        if (err && errlen)
-            snprintf(err, errlen, "capability gap: dos.library.FindSegment needs returns a pointer (struct Segment *) described");
-        r->d[0] = 0;
-        return 1;
-    case 131:  /* RemSegment: no crossing [-786] */
-        if (err && errlen)
-            snprintf(err, errlen, "capability gap: dos.library.RemSegment needs struct Segment * described");
-        r->d[0] = 0;
-        return 1;
-    case 132:  /* CheckSignal: no crossing [-792] */
-        if (err && errlen)
-            snprintf(err, errlen, "capability gap: dos.library.CheckSignal needs refused: the host task's signals are not the guest's described");
-        r->d[0] = 0;
-        return 1;
-    case 133:  /* ReadArgs: no crossing [-798] */
-        if (err && errlen)
-            snprintf(err, errlen, "capability gap: dos.library.ReadArgs needs returns a pointer (struct RDArgs *) described");
+            snprintf(err, errlen, "capability gap: dos.library.ReadArgs refused: served by the handwritten DOS handler because the RDArgs result and parsed storage must be guest-addressable");
         r->d[0] = 0;
         return 1;
     case 134:  /* FindArg(CONST_STRPTR templ, CONST_STRPTR keyword) -> LONG  [-804] */
         r->d[0] = (ULONG)FindArg((CONST_STRPTR)EMU_GPTR(guest0, r->d[1]),
               (CONST_STRPTR)EMU_GPTR(guest0, r->d[2]));
         return 0;
-    case 135:  /* ReadItem: no crossing [-810] */
+    case 135:  /* ReadItem: explicit reviewed refusal [-810] */
         if (err && errlen)
-            snprintf(err, errlen, "capability gap: dos.library.ReadItem needs struct CSource * described");
+            snprintf(err, errlen, "capability gap: dos.library.ReadItem refused: CSource contains a retained guest buffer whose validated extent depends on its mutable CS_Length and CS_CurChr fields");
         r->d[0] = 0;
         return 1;
-    case 136:  /* StrToLong: no crossing [-816] */
+    case 136:  /* StrToLong(CONST_STRPTR string, LONG * value) -> LONG  [-816] */
+    {
+        LONG emu_scalar_1 = 0;
+        if (emu68k_require_guest_range(r->d[2], 4,
+                                         "StrToLong.value", err, errlen) < 0)
+            return 1;
+            r->d[0] = (ULONG)StrToLong((CONST_STRPTR)EMU_GPTR(guest0, r->d[1]),
+              (LONG *)&emu_scalar_1);
+        emu68k_scalar_to_guest(guest0, r->d[2], 4, (UQUAD)emu_scalar_1);
+            return 0;
+    }
+    case 137:  /* MatchFirst: explicit reviewed refusal [-822] */
         if (err && errlen)
-            snprintf(err, errlen, "capability gap: dos.library.StrToLong needs LONG * described");
+            snprintf(err, errlen, "capability gap: dos.library.MatchFirst refused: served by an OS-side retained AnchorPath shadow whose result is copied back to guest layout");
         r->d[0] = 0;
         return 1;
-    case 137:  /* MatchFirst(CONST_STRPTR pat, struct AnchorPath * AP) -> LONG  [-822] */
-    {
-        struct AnchorPath emu_struct_1;
-        struct AnchorPath *emu_structp_1 = NULL;
-        if (r->d[2])
-        {
-            emu_structp_1 = &emu_struct_1;
-            if (emu68k_require_guest_range(r->d[2], M68K_AnchorPath_SIZEOF,
-                                             "MatchFirst.AP", err, errlen) < 0)
-                return 1;
-            memset(&emu_struct_1, 0, sizeof(emu_struct_1));
-        emu68k_from_guest_sized(guest0, r->d[2], &emu_struct_1,
-                             emu_fields_AnchorPath, EMU_NFIELDS(emu_fields_AnchorPath), M68K_AnchorPath_SIZEOF);
-        }
-            r->d[0] = (ULONG)MatchFirst((CONST_STRPTR)EMU_GPTR(guest0, r->d[1]),
-              (struct AnchorPath *)emu_structp_1);
-        if (emu_structp_1)
-        {
-            emu68k_to_guest_sized(guest0, r->d[2], &emu_struct_1,
-                               emu_fields_AnchorPath, EMU_NFIELDS(emu_fields_AnchorPath), M68K_AnchorPath_SIZEOF);
-        }
-            return 0;
-    }
-    case 138:  /* MatchNext(struct AnchorPath * AP) -> LONG  [-828] */
-    {
-        struct AnchorPath emu_struct_0;
-        struct AnchorPath *emu_structp_0 = NULL;
-        if (r->d[1])
-        {
-            emu_structp_0 = &emu_struct_0;
-            if (emu68k_require_guest_range(r->d[1], M68K_AnchorPath_SIZEOF,
-                                             "MatchNext.AP", err, errlen) < 0)
-                return 1;
-            memset(&emu_struct_0, 0, sizeof(emu_struct_0));
-        emu68k_from_guest_sized(guest0, r->d[1], &emu_struct_0,
-                             emu_fields_AnchorPath, EMU_NFIELDS(emu_fields_AnchorPath), M68K_AnchorPath_SIZEOF);
-        }
-            r->d[0] = (ULONG)MatchNext((struct AnchorPath *)emu_structp_0);
-        if (emu_structp_0)
-        {
-            emu68k_to_guest_sized(guest0, r->d[1], &emu_struct_0,
-                               emu_fields_AnchorPath, EMU_NFIELDS(emu_fields_AnchorPath), M68K_AnchorPath_SIZEOF);
-        }
-            return 0;
-    }
-    case 139:  /* MatchEnd(struct AnchorPath * AP) -> void  [-834] */
-    {
-        struct AnchorPath emu_struct_0;
-        struct AnchorPath *emu_structp_0 = NULL;
-        if (r->d[1])
-        {
-            emu_structp_0 = &emu_struct_0;
-            if (emu68k_require_guest_range(r->d[1], M68K_AnchorPath_SIZEOF,
-                                             "MatchEnd.AP", err, errlen) < 0)
-                return 1;
-            memset(&emu_struct_0, 0, sizeof(emu_struct_0));
-        emu68k_from_guest_sized(guest0, r->d[1], &emu_struct_0,
-                             emu_fields_AnchorPath, EMU_NFIELDS(emu_fields_AnchorPath), M68K_AnchorPath_SIZEOF);
-        }
-            MatchEnd((struct AnchorPath *)emu_structp_0);
-        if (emu_structp_0)
-        {
-            emu68k_to_guest_sized(guest0, r->d[1], &emu_struct_0,
-                               emu_fields_AnchorPath, EMU_NFIELDS(emu_fields_AnchorPath), M68K_AnchorPath_SIZEOF);
-        }
-            return 0;
-    }
+    case 138:  /* MatchNext: explicit reviewed refusal [-828] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: dos.library.MatchNext refused: served by the OS-side retained AnchorPath scan shadow created by MatchFirst");
+        r->d[0] = 0;
+        return 1;
+    case 139:  /* MatchEnd: explicit reviewed refusal [-834] */
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: dos.library.MatchEnd refused: paired OS-side release for a retained native AnchorPath scan shadow");
+        r->d[0] = 0;
+        return 1;
     case 140:  /* ParsePattern(CONST_STRPTR Source, STRPTR Dest, LONG DestLength) -> LONG  [-840] */
         r->d[0] = (ULONG)ParsePattern((CONST_STRPTR)EMU_GPTR(guest0, r->d[1]),
               (STRPTR)EMU_GPTR(guest0, r->d[2]),
@@ -1033,19 +1368,19 @@ int emu68k_gen_dos(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
         r->d[0] = (ULONG)MatchPattern((CONST_STRPTR)EMU_GPTR(guest0, r->d[1]),
               (CONST_STRPTR)EMU_GPTR(guest0, r->d[2]));
         return 0;
-    case 143:  /* FreeArgs: no crossing [-858] */
+    case 143:  /* FreeArgs: explicit reviewed refusal [-858] */
         if (err && errlen)
-            snprintf(err, errlen, "capability gap: dos.library.FreeArgs needs struct RDArgs * described");
+            snprintf(err, errlen, "capability gap: dos.library.FreeArgs refused: paired handwritten release for run-owned guest ReadArgs storage");
         r->d[0] = 0;
         return 1;
-    case 145:  /* FilePart: no crossing [-870] */
+    case 145:  /* FilePart: explicit reviewed refusal [-870] */
         if (err && errlen)
-            snprintf(err, errlen, "capability gap: dos.library.FilePart needs returns a pointer (STRPTR) described");
+            snprintf(err, errlen, "capability gap: dos.library.FilePart refused: served by the OS-side DOS handler to return an offset into the original guest string rather than a native pointer");
         r->d[0] = 0;
         return 1;
-    case 146:  /* PathPart: no crossing [-876] */
+    case 146:  /* PathPart: explicit reviewed refusal [-876] */
         if (err && errlen)
-            snprintf(err, errlen, "capability gap: dos.library.PathPart needs returns a pointer (STRPTR) described");
+            snprintf(err, errlen, "capability gap: dos.library.PathPart refused: served by the OS-side DOS handler to return an offset into the original guest string rather than a native pointer");
         r->d[0] = 0;
         return 1;
     case 147:  /* AddPart(STRPTR dirname, CONST_STRPTR filename, ULONG size) -> BOOL  [-882] */
@@ -1053,50 +1388,56 @@ int emu68k_gen_dos(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
               (CONST_STRPTR)EMU_GPTR(guest0, r->d[2]),
               (ULONG)r->d[3]);
         return 0;
-    case 148:  /* StartNotify: no crossing [-888] */
+    case 148:  /* StartNotify(struct NotifyRequest * notify) -> BOOL  [-888] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->d[1], EMU_OBJ_NotifyRequest, 1,
+                                        "NotifyRequest", &emu_object_0, err, errlen) < 0)
+            return 1;
+            r->d[0] = (ULONG)StartNotify((struct NotifyRequest *)emu_object_0);
+            return 0;
+    }
+    case 149:  /* EndNotify(struct NotifyRequest * notify) -> void  [-894] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->d[1], EMU_OBJ_NotifyRequest, 1,
+                                        "NotifyRequest", &emu_object_0, err, errlen) < 0)
+            return 1;
+            EndNotify((struct NotifyRequest *)emu_object_0);
+            return 0;
+    }
+    case 150:  /* SetVar: explicit reviewed refusal [-900] */
         if (err && errlen)
-            snprintf(err, errlen, "capability gap: dos.library.StartNotify needs struct NotifyRequest * described");
+            snprintf(err, errlen, "capability gap: dos.library.SetVar refused: served by the OS-side DOS handler with both guest strings rebased for the native call");
         r->d[0] = 0;
         return 1;
-    case 149:  /* EndNotify: no crossing [-894] */
+    case 151:  /* GetVar: explicit reviewed refusal [-906] */
         if (err && errlen)
-            snprintf(err, errlen, "capability gap: dos.library.EndNotify needs struct NotifyRequest * described");
+            snprintf(err, errlen, "capability gap: dos.library.GetVar refused: served by the OS-side DOS handler so native DOS writes directly into checked guest byte storage");
         r->d[0] = 0;
         return 1;
-    case 150:  /* SetVar(CONST_STRPTR name, CONST_STRPTR buffer, LONG size, LONG flags) -> BOOL  [-900] */
-        r->d[0] = (ULONG)SetVar((CONST_STRPTR)EMU_GPTR(guest0, r->d[1]),
-              (CONST_STRPTR)EMU_GPTR(guest0, r->d[2]),
-              (LONG)r->d[3],
-              (LONG)r->d[4]);
-        return 0;
-    case 151:  /* GetVar(CONST_STRPTR name, STRPTR buffer, LONG size, LONG flags) -> LONG  [-906] */
-        r->d[0] = (ULONG)GetVar((CONST_STRPTR)EMU_GPTR(guest0, r->d[1]),
-              (STRPTR)EMU_GPTR(guest0, r->d[2]),
-              (LONG)r->d[3],
-              (LONG)r->d[4]);
-        return 0;
     case 152:  /* DeleteVar(CONST_STRPTR name, ULONG flags) -> LONG  [-912] */
         r->d[0] = (ULONG)DeleteVar((CONST_STRPTR)EMU_GPTR(guest0, r->d[1]),
               (ULONG)r->d[2]);
         return 0;
-    case 153:  /* FindVar: no crossing [-918] */
+    case 153:  /* FindVar: explicit reviewed refusal [-918] */
         if (err && errlen)
-            snprintf(err, errlen, "capability gap: dos.library.FindVar needs returns a pointer (struct LocalVar *) described");
+            snprintf(err, errlen, "capability gap: dos.library.FindVar refused: returns a linked LocalVar inside the host process's local-variable list, not guest CLI state");
         r->d[0] = 0;
         return 1;
-    case 154:  /* CliInit: no crossing [-924] */
+    case 154:  /* CliInit: explicit reviewed refusal [-924] */
         if (err && errlen)
-            snprintf(err, errlen, "capability gap: dos.library.CliInit needs struct DosPacket * described");
+            snprintf(err, errlen, "capability gap: dos.library.CliInit refused: consumes a native startup DosPacket to initialize the host CLI, not a guest packet facade");
         r->d[0] = 0;
         return 1;
-    case 155:  /* CliInitNewcli: no crossing [-930] */
+    case 155:  /* CliInitNewcli: explicit reviewed refusal [-930] */
         if (err && errlen)
-            snprintf(err, errlen, "capability gap: dos.library.CliInitNewcli needs struct DosPacket * described");
+            snprintf(err, errlen, "capability gap: dos.library.CliInitNewcli refused: consumes a native startup DosPacket and mutates host CLI process state");
         r->d[0] = 0;
         return 1;
-    case 156:  /* CliInitRun: no crossing [-936] */
+    case 156:  /* CliInitRun: explicit reviewed refusal [-936] */
         if (err && errlen)
-            snprintf(err, errlen, "capability gap: dos.library.CliInitRun needs struct DosPacket * described");
+            snprintf(err, errlen, "capability gap: dos.library.CliInitRun refused: consumes a native startup DosPacket and launches through the host CLI");
         r->d[0] = 0;
         return 1;
     case 157:  /* WriteChars(CONST_STRPTR buf, ULONG buflen) -> LONG  [-942] */
@@ -1106,9 +1447,9 @@ int emu68k_gen_dos(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
     case 158:  /* PutStr(CONST_STRPTR string) -> LONG  [-948] */
         r->d[0] = (ULONG)PutStr((CONST_STRPTR)EMU_GPTR(guest0, r->d[1]));
         return 0;
-    case 159:  /* VPrintf: no crossing [-954] */
+    case 159:  /* VPrintf: explicit reviewed refusal [-954] */
         if (err && errlen)
-            snprintf(err, errlen, "capability gap: dos.library.VPrintf needs RAWARG argarray described");
+            snprintf(err, errlen, "capability gap: dos.library.VPrintf refused: served by the handwritten guest formatter and run output sink so RAWARG remains a 68k argument stream");
         r->d[0] = 0;
         return 1;
     case 161:  /* ParsePatternNoCase(CONST_STRPTR Source, STRPTR Dest, LONG DestLength) -> LONG  [-966] */
@@ -1120,11 +1461,14 @@ int emu68k_gen_dos(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
         r->d[0] = (ULONG)MatchPatternNoCase((CONST_STRPTR)EMU_GPTR(guest0, r->d[1]),
               (CONST_STRPTR)EMU_GPTR(guest0, r->d[2]));
         return 0;
-    case 163:  /* DosGetString: no crossing [-978] */
-        if (err && errlen)
-            snprintf(err, errlen, "capability gap: dos.library.DosGetString needs returns a pointer (STRPTR) described");
-        r->d[0] = 0;
-        return 1;
+    case 163:  /* DosGetString(LONG stringNum) -> STRPTR  [-978] */
+    {
+        CONST_STRPTR emu_result = (CONST_STRPTR)DosGetString((LONG)r->d[1]);
+        if (emu68k_cstr_result_to_guest(guest0, emu_result, 4096,
+                                           &r->d[0], err, errlen) < 0)
+            return 1;
+            return 0;
+    }
     case 164:  /* SameDevice(BPTR lock1, BPTR lock2) -> BOOL  [-984] */
     {
         BPTR emu_bptr_0;
@@ -1139,24 +1483,24 @@ int emu68k_gen_dos(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
               emu_bptr_1);
         return 0;
     }
-    case 165:  /* ExAllEnd: no crossing [-990] */
+    case 165:  /* ExAllEnd: explicit reviewed refusal [-990] */
         if (err && errlen)
-            snprintf(err, errlen, "capability gap: dos.library.ExAllEnd needs BPTR lock, struct ExAllControl *, struct ExAllData * described");
+            snprintf(err, errlen, "capability gap: dos.library.ExAllEnd refused: paired termination for the refused retained ExAllControl scan state");
         r->d[0] = 0;
         return 1;
-    case 166:  /* SetOwner: no crossing [-996] */
+    case 166:  /* SetOwner: explicit reviewed refusal [-996] */
         if (err && errlen)
-            snprintf(err, errlen, "capability gap: dos.library.SetOwner needs refused: device-level described");
+            snprintf(err, errlen, "capability gap: dos.library.SetOwner refused: changes host filesystem ownership metadata and is outside isolated guest routing");
         r->d[0] = 0;
         return 1;
-    case 169:  /* ScanVars: no crossing [-1014] */
+    case 169:  /* ScanVars: explicit reviewed refusal [-1014] */
         if (err && errlen)
-            snprintf(err, errlen, "capability gap: dos.library.ScanVars needs APTR userdata, struct Hook * described");
+            snprintf(err, errlen, "capability gap: dos.library.ScanVars refused: invokes a guest Hook from native DOS with a native pointer-bearing local-variable message");
         r->d[0] = 0;
         return 1;
-    case 196:  /* GetSegListInfo: no crossing [-1176] */
+    case 196:  /* GetSegListInfo: explicit reviewed refusal [-1176] */
         if (err && errlen)
-            snprintf(err, errlen, "capability gap: dos.library.GetSegListInfo needs BPTR seglist, const struct TagItem * described");
+            snprintf(err, errlen, "capability gap: dos.library.GetSegListInfo refused: queries a native seglist with output-pointer tags, while guest seglists are guest-arena hunk chains");
         r->d[0] = 0;
         return 1;
     case 226:  /* AssignAddToList(CONST_STRPTR name, BPTR lock, ULONG position) -> BOOL  [-1356] */

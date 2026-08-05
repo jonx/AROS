@@ -334,6 +334,8 @@ int emu68k_gen_workbench(int lvo, struct Emu68kRegs *r,
                   char *err, ULONG errlen);
 /* Domains hand-served machinery shares with the crossings. */
 extern const struct EmuTagDomain *const emu68k_domain_intuition_new_object;
+/* Mirrors hand-served machinery shares with the crossings. */
+extern const struct EmuMirror *const emu68k_mirror_Gadget;
 /* name, generated entry point, and where its base comes from. */
 #define EMU68K_GEN_LIBS(X) \
     X("exec.library", emu68k_gen_exec, GENBASE_EXEC) \

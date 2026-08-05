@@ -30,6 +30,7 @@ static const struct EmuMirror emu_mirror_Gadget =
     M68K_Gadget_SIZEOF, M68K_ExtGadget_Flags, 0x8000,
     offsetof(struct ExtGadget, NextGadget), M68K_ExtGadget_NextGadget, 4096
 };
+const struct EmuMirror *const emu68k_mirror_Gadget = &emu_mirror_Gadget;
 
 static const struct EmuTagDesc emu_tagdesc_intuition_open_window[] =
 {
@@ -1436,6 +1437,20 @@ int emu68k_gen_intuition(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
             return 1;
             DisposeObject((APTR)emu_object_0);
         emu68k_object_consume(guest0, r->a[0], EMU_OBJ_Object);
+            return 0;
+    }
+    case 108:  /* SetAttrsA(APTR object, struct TagItem * tagList) -> IPTR  [-648] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_Object, 1,
+                                        "Object", &emu_object_0, err, errlen) < 0)
+            return 1;
+        struct TagItem emu_tags_1[71];
+        UQUAD emu_tagscratch_1[(sizeof(struct BitMap) + 7) / 8 + (sizeof(struct TextAttr) + 7) / 8 + (sizeof(struct IntuiText) + 7) / 8];
+        if (emu68k_tags_to_native(guest0, r->a[1], &emu_tagdomain_intuition_new_object, emu_tags_1, 71, emu_tagscratch_1, sizeof emu_tagscratch_1, err, errlen) < 0)
+            return 1;
+            r->d[0] = (ULONG)SetAttrsA((APTR)emu_object_0,
+              (struct TagItem *)(r->a[1] ? emu_tags_1 : NULL));   /* narrowed: an integer, never an address */
             return 0;
     }
     case 109:  /* GetAttr(ULONG attrID, Object * object, IPTR * storagePtr) -> ULONG  [-654] */

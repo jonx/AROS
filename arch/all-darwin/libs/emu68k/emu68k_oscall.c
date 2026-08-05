@@ -188,6 +188,7 @@ void emu68k_scalar_to_guest(APTR guest0, ULONG addr, UBYTE width, UQUAD value)
  * anything that walks or rewrites guest memory has to know which it has. */
 #define EMU68K_OBJ_GUEST_OWNED  0x0001   /* a mirror of the program's memory  */
 #define EMU68K_OBJ_ADOPT_FRESH  0x0002   /* created by the adoption in flight */
+#define EMU68K_OBJ_GADGET_VIEW  0x0004   /* facade carries a converted Gadget */
 
 struct Emu68kObject
 {
@@ -1393,6 +1394,49 @@ static LONG class_super_stub(struct Emu68kRunState *rs, APTR guest0,
     return 0;
 }
 
+/* Whether a native class chain roots in the named system class. Decides
+ * which struct view a facade of its objects carries. */
+static BOOL class_roots_in(Class *cl, const char *id)
+{
+    int depth;
+    for (depth = 0; cl && depth < 32; cl = cl->cl_Super, depth++)
+        if (cl->cl_ID && strcmp((const char *)cl->cl_ID, id) == 0)
+            return TRUE;
+    return FALSE;
+}
+
+/* A facade of a Gadget-rooted object must READ like a Gadget to the guest:
+ * guest library code walks and tests its own gadgets (FreeGadgets checks
+ * GadgetType before disposing). Converted ONCE, at creation, with the same
+ * reviewed field map the Gadget mirror uses (scalars only - pointer fields
+ * stay guest-meaningful): later guest read-modify-writes, like gadtools
+ * setting GTYP_GADTOOLS, must survive further crossings. The family link is
+ * guest-side too: any known gadget whose NATIVE NextGadget is this object
+ * gets this facade's address written into its guest NextGadget. */
+static void facade_gadget_view(struct Emu68kRunState *rs, APTR guest0,
+                               APTR nobj, ULONG token)
+{
+    const struct EmuMirror *m = emu68k_mirror_Gadget;
+    struct Emu68kObject *self = object_by_native(rs, nobj);
+    int i;
+
+    if (!m || !self) return;
+    self->flags |= EMU68K_OBJ_GADGET_VIEW;
+    emu68k_to_guest(guest0, token, nobj, m->fields, m->field_count);
+    if (m->native_link < 0 || m->guest_link < 0) return;
+    for (i = 0; i < EMU68K_MAX_OBJECTS; i++)
+    {
+        struct Emu68kObject *o = &rs->objects[i];
+        if (!o->native || o == self) continue;
+        if (o->type != EMU_OBJ_Gadget &&
+            !(o->type == EMU_OBJ_Object && (o->flags & EMU68K_OBJ_GADGET_VIEW)))
+            continue;
+        if (*(APTR *)((UBYTE *)o->native + m->native_link) == nobj)
+            emu68k_scalar_to_guest(guest0, o->token + (ULONG)m->guest_link, 4,
+                                   token);
+    }
+}
+
 static int super_dispatch(struct Emu68kRunState *rs, APTR guest0, APTR base,
                           struct Emu68kRegs *r, char *err, ULONG errlen)
 {
@@ -1448,10 +1492,15 @@ static int super_dispatch(struct Emu68kRunState *rs, APTR guest0, APTR base,
         if (off + size > inst_end) inst_end = off + size;
         if (inst_end > 4096) inst_end = 4096;
     }
-    if (emu68k_object_to_guest_facade(guest0, nobj, EMU_OBJ_Object, NULL,
-                                      NULL, "Object", inst_end, NULL, 0,
-                                      &token, err, errlen) < 0)
-        return 1;
+    {
+        BOOL is_new = object_by_native(rs, nobj) == NULL;
+        if (emu68k_object_to_guest_facade(guest0, nobj, EMU_OBJ_Object, NULL,
+                                          NULL, "Object", inst_end, NULL, 0,
+                                          &token, err, errlen) < 0)
+            return 1;
+        if (is_new && class_roots_in((Class *)super, "gadgetclass"))
+            facade_gadget_view(rs, guest0, nobj, token);
+    }
     r->d[0] = token;
     return 0;
 }

@@ -4,6 +4,7 @@
 
 #include <exec/memory.h>
 #include <exec/types.h>
+#include <dos/exfat.h>
 #include <libraries/partition.h>
 #include <proto/exec.h>
 #include <proto/partition.h>
@@ -19,6 +20,37 @@ struct MBRData {
     struct PCPartitionTable *entry;
     UBYTE position;
 };
+
+static void ProbeExfatPartition(struct Library *PartitionBase,
+    struct PartitionHandle *ph)
+{
+    ULONG size_longs = ph->de.de_SizeBlock;
+    ULONG size;
+    LONG error;
+    UBYTE *block;
+
+    if (size_longs < 128 || size_longs > 8192
+        || (size_longs & (size_longs - 1)) != 0)
+        return;
+    size = size_longs << 2;
+    block = AllocMem(size, MEMF_ANY);
+    if (block == NULL)
+        return;
+    error = readBlock(PartitionBase, ph, 0, block);
+    bug("[exfat-discovery] MBR probe: read=%ld block=%lu "
+        "jump=%02lx%02lx%02lx oem='%c%c%c%c%c%c%c%c' sig=%02lx%02lx\n",
+        (long)error, (unsigned long)size,
+        (unsigned long)block[0], (unsigned long)block[1],
+        (unsigned long)block[2], block[3], block[4], block[5], block[6],
+        block[7], block[8], block[9], block[10],
+        (unsigned long)block[510], (unsigned long)block[511]);
+    if (error == 0 && IsExfatBootSector(block, size))
+    {
+        setDosType(&ph->de, ID_EXFAT_DISK);
+        bug("[exfat-discovery] MBR content selected FATX\n");
+    }
+    FreeMem(block, size);
+}
 
 struct FATBootSector {
     UBYTE bs_jmp_boot[3];
@@ -162,6 +194,7 @@ static struct PartitionHandle *PartitionMBRNewHandle(struct Library *PartitionBa
 
                 /* Map type ID to a DOSType */
                 setDosType(&ph->de, MBR_FindDosType(data->entry->type));
+                ProbeExfatPartition(PartitionBase, ph);
 
                 /* Set position as priority */
                 ph->ln.ln_Pri = MBR_MAX_PARTITIONS - 1 - position;
@@ -563,4 +596,3 @@ const struct PTFunctionTable PartitionMBR =
     PartitionMBRDestroyPartitionTable,
     NULL
 };
-

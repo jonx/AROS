@@ -56,6 +56,7 @@ ARM_BSP := aros-$(AROS_TARGET_CPU)-bsp.rom
 #MM kernel-fs-afs-quick \
 #MM kernel-fs-cdvdfs-quick \
 #MM kernel-fs-fat-quick \
+#MM kernel-fs-exfat-quick \
 #MM kernel-fs-sfs-quick \
 #MM kernel-fs-ram-quick \
 #MM kernel-processor-quick \
@@ -112,6 +113,7 @@ ARM_BSP := aros-$(AROS_TARGET_CPU)-bsp.rom
 #MM kernel-fs-afs \
 #MM kernel-fs-cdvdfs \
 #MM kernel-fs-fat \
+#MM kernel-fs-exfat \
 #MM kernel-fs-sfs \
 #MM kernel-fs-ram \
 #MM kernel-processor \
@@ -157,7 +159,7 @@ PKG_RSRC      := openfirmware misc bootloader dosboot lddemon FileSystem shell s
 PKG_RSRC_ARCH := processor
 PKG_DEVS      := input gameport keyboard console sdcard memdisk
 PKG_DEVS_ARCH := timer
-PKG_HANDLERS  := con ram cdrom sfs fat afs
+PKG_HANDLERS  := con ram cdrom sfs fat exfat afs
 # Poseidon (library, classes, HCD) lives on disk and is started from the
 # Startup-Sequence: its library init needs intuition, which comes up
 # after the ROM resident pass.

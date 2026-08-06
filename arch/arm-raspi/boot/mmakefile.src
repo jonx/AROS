@@ -71,6 +71,7 @@ ARM_BSP := aros-$(AROS_TARGET_CPU)-bsp.rom
 #MM kernel-fs-afs-quick \
 #MM kernel-fs-cdvdfs-quick \
 #MM kernel-fs-fat-quick \
+#MM kernel-fs-exfat-quick \
 #MM kernel-fs-sfs-quick \
 #MM kernel-fs-ram-quick \
 #MM kernel-processor-quick \
@@ -125,6 +126,7 @@ ARM_BSP := aros-$(AROS_TARGET_CPU)-bsp.rom
 #MM kernel-fs-afs \
 #MM kernel-fs-cdvdfs \
 #MM kernel-fs-fat \
+#MM kernel-fs-exfat \
 #MM kernel-fs-sfs \
 #MM kernel-fs-ram \
 #MM kernel-processor \
@@ -167,7 +169,7 @@ PKG_RSRC      := openfirmware misc bootloader dosboot lddemon usbromstartup File
 PKG_RSRC_ARCH := processor battclock
 PKG_DEVS      := input gameport keyboard console sdcard USBHardware/usb2otg
 PKG_DEVS_ARCH := timer
-PKG_HANDLERS  := con ram cdrom sfs fat afs
+PKG_HANDLERS  := con ram cdrom sfs fat exfat afs
 PKG_HIDDS     := hiddclass inputclass gfx keyboard mouse i2c i2c-bcm2708 vc4gfx
 PKG_CLASSES   := USB/hub USB/massstorage
 

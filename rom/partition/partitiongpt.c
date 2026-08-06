@@ -22,6 +22,7 @@
  */
 
 #include <exec/memory.h>
+#include <dos/exfat.h>
 #include <libraries/partition.h>
 #include <proto/debug.h>
 #include <proto/exec.h>
@@ -210,6 +211,26 @@ static void GPT_PatchDosEnvec(struct DosEnvec *de, struct GPTPartition *p)
     de->de_BootPri = bootpri;
 }
 
+static void ProbeExfatPartition(struct Library *PartitionBase,
+    struct PartitionHandle *ph)
+{
+    ULONG size_longs = ph->de.de_SizeBlock;
+    ULONG size;
+    UBYTE *block;
+
+    if (size_longs < 128 || size_longs > 8192
+        || (size_longs & (size_longs - 1)) != 0)
+        return;
+    size = size_longs << 2;
+    block = AllocMem(size, MEMF_ANY);
+    if (block == NULL)
+        return;
+    if (readBlock(PartitionBase, ph, 0, block) == 0
+        && IsExfatBootSector(block, size))
+        setDosType(&ph->de, ID_EXFAT_DISK);
+    FreeMem(block, size);
+}
+
 static LONG GPTCheckHeader(struct Library *PartitionBase, struct PartitionHandle *root, struct GPTHeader *hdr, UQUAD block)
 {
     /* Load the GPT header */
@@ -362,6 +383,7 @@ static LONG GPTReadPartitionTable(struct Library *PartitionBase, struct Partitio
 
                         /* Map UUID to a DOSType */
                         GPT_PatchDosEnvec(&gph->ph.de, p);
+                        ProbeExfatPartition(PartitionBase, &gph->ph);
 
                         /* Store the whole entry and convert name into ASCII form */
                         CopyMem(p, &gph[1], entrysize);

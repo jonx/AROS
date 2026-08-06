@@ -18,6 +18,7 @@
 #include <utility/tagitem.h>
 #include <devices/bootblock.h>
 #include <devices/timer.h>
+#include <dos/exfat.h>
 
 #include <proto/exec.h>
 #include <proto/expansion.h>
@@ -45,6 +46,7 @@ static const struct _dt {
     { 0xffffff00, AROS_MAKE_ID('D','O','S','\0'), "afs-handler"   },
     { 0xffffff00, AROS_MAKE_ID('E','X','T','\0'), "ext-handler"   },
     { 0xffffff00, AROS_MAKE_ID('F','A','T','\0'), "fat-handler"   },
+    { 0xffffffff, AROS_MAKE_ID('F','A','T','X' ), EXFAT_HANDLER_NAME },
     { 0xffffff00, AROS_MAKE_ID('L','V','M','\0'), "lvm-handler"   },
     { 0xffffff00, AROS_MAKE_ID('M','N','X','\0'), "minix-handler" },
     { 0xffffffff, AROS_MAKE_ID('N','T','F','S' ), "ntfs-handler"  },
@@ -150,12 +152,16 @@ static VOID AddPartitionVolume(struct NepClassMS *ncm,
     LONG ppos;
     TEXT *devname, *handler;
     LONG bootable;
+    IPTR contenttype, mappedtype;
 
     D(bug("[Boot] AddPartitionVolume\n"));
     pp = AllocVec(sizeof(struct DosEnvec) + sizeof(IPTR) * 4,
         MEMF_PUBLIC | MEMF_CLEAR);
     if (pp)
     {
+        ptyp.id[0] = 0;
+        contenttype = 0;
+        mappedtype = 0;
         attrs = QueryPartitionAttrs(table);
         while ((attrs->attribute != PTA_DONE) && (attrs->attribute != PTA_NAME))
             attrs++;  /* look for name attr */
@@ -211,8 +217,10 @@ static VOID AddPartitionVolume(struct NepClassMS *ncm,
             name[i++] = '0' + (UBYTE)(ppos % 10);
             name[i] = '\0';
             D(bug("[Boot] Partition name: %s type: %lu bootable: %d\n", name, ptyp.id[0], bootable));
-            /* set DOSTYPE based on the partition type */
-            pp[4 + DE_DOSTYPE] = MatchPartType(ptyp.id[0]);
+            contenttype = pp[4 + DE_DOSTYPE];
+            mappedtype = MatchPartType(ptyp.id[0]);
+            pp[4 + DE_DOSTYPE] = ExfatSelectPartitionDosType(
+                contenttype, mappedtype);
             /* set some common DOSENV fields */
             pp[4 + DE_TABLESIZE] = DE_BOOTBLOCKS;
             pp[4 + DE_NUMBUFFERS] = 20;
@@ -251,6 +259,13 @@ static VOID AddPartitionVolume(struct NepClassMS *ncm,
 
         D(bug("[Boot] Looking up handler for 0x%08lX\n", pp[4+DE_DOSTYPE]));
         handler = MatchHandler(pp[4 + DE_DOSTYPE]);
+
+        bug("[exfat-discovery] %s: part=%02lx content=%08lx mapped=%08lx "
+            "final=%08lx handler=%s\n", (const char *)name,
+            (unsigned long)ptyp.id[0],
+            (unsigned long)contenttype, (unsigned long)mappedtype,
+            (unsigned long)pp[4 + DE_DOSTYPE],
+            handler != NULL ? (const char *)handler : "(none)");
 
         /* Skip unknown partition types */
         if (handler != NULL)
@@ -325,4 +340,3 @@ BOOL CheckPartitions(struct NepClassMS *ncm)
 
     return found;
 }
-

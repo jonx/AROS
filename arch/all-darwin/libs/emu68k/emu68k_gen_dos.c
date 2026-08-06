@@ -979,9 +979,11 @@ int emu68k_gen_dos(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
             return 1;
         APTR emu_result = (APTR)GetDeviceProc((CONST_STRPTR)EMU_GPTR(guest0, r->d[1]),
               (struct DevProc *)emu_object_1);
-        if (emu68k_object_to_guest(guest0, emu_result, EMU_OBJ_DevProc,
-                                      base, emu_object_cleanup_DevProc,
-                                      "DevProc", &r->d[0], err, errlen) < 0)
+        if (emu68k_object_to_guest_facade(guest0, emu_result, EMU_OBJ_DevProc,
+                                             base, emu_object_cleanup_DevProc,
+                                             "DevProc", M68K_DevProc_SIZEOF,
+                                             emu_fields_DevProc, EMU_NFIELDS(emu_fields_DevProc),
+                                             &r->d[0], err, errlen) < 0)
             return 1;
             return 0;
     }

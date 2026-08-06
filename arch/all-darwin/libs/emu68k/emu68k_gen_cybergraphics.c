@@ -15,6 +15,16 @@
 #include "emu68k_gen.h"
 #include "emu68k_layouts.h"
 
+/* A RastPort the program allocated itself: mirrored natively under its
+ * guest address, converted in and back out around every call. */
+static const struct EmuMirror emu_mirror_RastPort =
+{
+    emu_fields_RastPort, EMU_NFIELDS(emu_fields_RastPort),
+    sizeof(struct RastPort), M68K_RastPort_SIZEOF,
+    0, -1, 0,
+    -1, -1, 1
+};
+
 static const struct EmuTagDesc emu_tagdesc_cybergraphics_best_mode[] =
 {
     { CYBRBIDTG_Depth, EMU_TAG_U32, "CYBRBIDTG_Depth", NULL, 0, 0, 0, 0, 0 },
@@ -110,8 +120,8 @@ int emu68k_gen_cybergraphics(int lvo, struct Emu68kRegs *r, APTR guest0, APTR ba
                 (ULONG)emu_buffer_size_0, "ScalePixelArray.srcRect", err, errlen) < 0)
             return 1;
         APTR emu_object_4;
-        if (emu68k_object_from_guest(guest0, r->a[1], EMU_OBJ_RastPort, 0,
-                                        "RastPort", &emu_object_4, err, errlen) < 0)
+        if (emu68k_object_adopt_guest(guest0, r->a[1], EMU_OBJ_RastPort,
+                        "RastPort", &emu_mirror_RastPort, &emu_object_4, err, errlen) < 0)
             return 1;
             r->d[0] = (ULONG)ScalePixelArray((APTR)EMU_GPTR(guest0, r->a[0]),
               (UWORD)r->d[0],
@@ -123,6 +133,9 @@ int emu68k_gen_cybergraphics(int lvo, struct Emu68kRegs *r, APTR guest0, APTR ba
               (UWORD)r->d[5],
               (UWORD)r->d[6],
               (UBYTE)r->d[7]);
+        if (emu68k_object_sync_guest(guest0, r->a[1], EMU_OBJ_RastPort,
+                                     "RastPort", &emu_mirror_RastPort, err, errlen) < 0)
+            return 1;
             return 0;
     }
     case 16:  /* GetCyberMapAttr(struct BitMap * bitMap, IPTR attribute) -> IPTR  [-96] */
@@ -153,24 +166,30 @@ int emu68k_gen_cybergraphics(int lvo, struct Emu68kRegs *r, APTR guest0, APTR ba
     case 18:  /* ReadRGBPixel(struct RastPort * rp, UWORD x, UWORD y) -> ULONG  [-108] */
     {
         APTR emu_object_0;
-        if (emu68k_object_from_guest(guest0, r->a[1], EMU_OBJ_RastPort, 1,
-                                        "RastPort", &emu_object_0, err, errlen) < 0)
+        if (emu68k_object_adopt_guest(guest0, r->a[1], EMU_OBJ_RastPort,
+                        "RastPort", &emu_mirror_RastPort, &emu_object_0, err, errlen) < 0)
             return 1;
             r->d[0] = (ULONG)ReadRGBPixel((struct RastPort *)emu_object_0,
               (UWORD)r->d[0],
               (UWORD)r->d[1]);
+        if (emu68k_object_sync_guest(guest0, r->a[1], EMU_OBJ_RastPort,
+                                     "RastPort", &emu_mirror_RastPort, err, errlen) < 0)
+            return 1;
             return 0;
     }
     case 19:  /* WriteRGBPixel(struct RastPort * rp, UWORD x, UWORD y, ULONG pixel) -> LONG  [-114] */
     {
         APTR emu_object_0;
-        if (emu68k_object_from_guest(guest0, r->a[1], EMU_OBJ_RastPort, 1,
-                                        "RastPort", &emu_object_0, err, errlen) < 0)
+        if (emu68k_object_adopt_guest(guest0, r->a[1], EMU_OBJ_RastPort,
+                        "RastPort", &emu_mirror_RastPort, &emu_object_0, err, errlen) < 0)
             return 1;
             r->d[0] = (ULONG)WriteRGBPixel((struct RastPort *)emu_object_0,
               (UWORD)r->d[0],
               (UWORD)r->d[1],
               (ULONG)r->d[2]);
+        if (emu68k_object_sync_guest(guest0, r->a[1], EMU_OBJ_RastPort,
+                                     "RastPort", &emu_mirror_RastPort, err, errlen) < 0)
+            return 1;
             return 0;
     }
     case 20:  /* ReadPixelArray(APTR dst, UWORD destx, UWORD desty, UWORD dstmod, struct RastPort * rp, UWORD srcx, UWORD srcy, UWORD width, UWORD height, UBYTE dstformat) -> ULONG  [-120] */
@@ -204,8 +223,8 @@ int emu68k_gen_cybergraphics(int lvo, struct Emu68kRegs *r, APTR guest0, APTR ba
                 (ULONG)emu_buffer_size_0, "ReadPixelArray.dst", err, errlen) < 0)
             return 1;
         APTR emu_object_4;
-        if (emu68k_object_from_guest(guest0, r->a[1], EMU_OBJ_RastPort, 0,
-                                        "RastPort", &emu_object_4, err, errlen) < 0)
+        if (emu68k_object_adopt_guest(guest0, r->a[1], EMU_OBJ_RastPort,
+                        "RastPort", &emu_mirror_RastPort, &emu_object_4, err, errlen) < 0)
             return 1;
             r->d[0] = (ULONG)ReadPixelArray((APTR)EMU_GPTR(guest0, r->a[0]),
               (UWORD)r->d[0],
@@ -217,6 +236,9 @@ int emu68k_gen_cybergraphics(int lvo, struct Emu68kRegs *r, APTR guest0, APTR ba
               (UWORD)r->d[5],
               (UWORD)r->d[6],
               (UBYTE)r->d[7]);
+        if (emu68k_object_sync_guest(guest0, r->a[1], EMU_OBJ_RastPort,
+                                     "RastPort", &emu_mirror_RastPort, err, errlen) < 0)
+            return 1;
             return 0;
     }
     case 21:  /* WritePixelArray(APTR src, UWORD srcx, UWORD srcy, UWORD srcmod, struct RastPort * rp, UWORD destx, UWORD desty, UWORD width, UWORD height, UBYTE srcformat) -> ULONG  [-126] */
@@ -250,8 +272,8 @@ int emu68k_gen_cybergraphics(int lvo, struct Emu68kRegs *r, APTR guest0, APTR ba
                 (ULONG)emu_buffer_size_0, "WritePixelArray.src", err, errlen) < 0)
             return 1;
         APTR emu_object_4;
-        if (emu68k_object_from_guest(guest0, r->a[1], EMU_OBJ_RastPort, 0,
-                                        "RastPort", &emu_object_4, err, errlen) < 0)
+        if (emu68k_object_adopt_guest(guest0, r->a[1], EMU_OBJ_RastPort,
+                        "RastPort", &emu_mirror_RastPort, &emu_object_4, err, errlen) < 0)
             return 1;
             r->d[0] = (ULONG)WritePixelArray((APTR)EMU_GPTR(guest0, r->a[0]),
               (UWORD)r->d[0],
@@ -263,13 +285,16 @@ int emu68k_gen_cybergraphics(int lvo, struct Emu68kRegs *r, APTR guest0, APTR ba
               (UWORD)r->d[5],
               (UWORD)r->d[6],
               (UBYTE)r->d[7]);
+        if (emu68k_object_sync_guest(guest0, r->a[1], EMU_OBJ_RastPort,
+                                     "RastPort", &emu_mirror_RastPort, err, errlen) < 0)
+            return 1;
             return 0;
     }
     case 22:  /* MovePixelArray(UWORD SrcX, UWORD SrcY, struct RastPort * RastPort, UWORD DstX, UWORD DstY, UWORD SizeX, UWORD SizeY) -> ULONG  [-132] */
     {
         APTR emu_object_2;
-        if (emu68k_object_from_guest(guest0, r->a[1], EMU_OBJ_RastPort, 1,
-                                        "RastPort", &emu_object_2, err, errlen) < 0)
+        if (emu68k_object_adopt_guest(guest0, r->a[1], EMU_OBJ_RastPort,
+                        "RastPort", &emu_mirror_RastPort, &emu_object_2, err, errlen) < 0)
             return 1;
             r->d[0] = (ULONG)MovePixelArray((UWORD)r->d[0],
               (UWORD)r->d[1],
@@ -278,26 +303,32 @@ int emu68k_gen_cybergraphics(int lvo, struct Emu68kRegs *r, APTR guest0, APTR ba
               (UWORD)r->d[3],
               (UWORD)r->d[4],
               (UWORD)r->d[5]);
+        if (emu68k_object_sync_guest(guest0, r->a[1], EMU_OBJ_RastPort,
+                                     "RastPort", &emu_mirror_RastPort, err, errlen) < 0)
+            return 1;
             return 0;
     }
     case 24:  /* InvertPixelArray(struct RastPort * rp, UWORD destx, UWORD desty, UWORD width, UWORD height) -> ULONG  [-144] */
     {
         APTR emu_object_0;
-        if (emu68k_object_from_guest(guest0, r->a[1], EMU_OBJ_RastPort, 1,
-                                        "RastPort", &emu_object_0, err, errlen) < 0)
+        if (emu68k_object_adopt_guest(guest0, r->a[1], EMU_OBJ_RastPort,
+                        "RastPort", &emu_mirror_RastPort, &emu_object_0, err, errlen) < 0)
             return 1;
             r->d[0] = (ULONG)InvertPixelArray((struct RastPort *)emu_object_0,
               (UWORD)r->d[0],
               (UWORD)r->d[1],
               (UWORD)r->d[2],
               (UWORD)r->d[3]);
+        if (emu68k_object_sync_guest(guest0, r->a[1], EMU_OBJ_RastPort,
+                                     "RastPort", &emu_mirror_RastPort, err, errlen) < 0)
+            return 1;
             return 0;
     }
     case 25:  /* FillPixelArray(struct RastPort * rp, UWORD destx, UWORD desty, UWORD width, UWORD height, ULONG pixel) -> ULONG  [-150] */
     {
         APTR emu_object_0;
-        if (emu68k_object_from_guest(guest0, r->a[1], EMU_OBJ_RastPort, 1,
-                                        "RastPort", &emu_object_0, err, errlen) < 0)
+        if (emu68k_object_adopt_guest(guest0, r->a[1], EMU_OBJ_RastPort,
+                        "RastPort", &emu_mirror_RastPort, &emu_object_0, err, errlen) < 0)
             return 1;
             r->d[0] = (ULONG)FillPixelArray((struct RastPort *)emu_object_0,
               (UWORD)r->d[0],
@@ -305,6 +336,9 @@ int emu68k_gen_cybergraphics(int lvo, struct Emu68kRegs *r, APTR guest0, APTR ba
               (UWORD)r->d[2],
               (UWORD)r->d[3],
               (ULONG)r->d[4]);
+        if (emu68k_object_sync_guest(guest0, r->a[1], EMU_OBJ_RastPort,
+                                     "RastPort", &emu_mirror_RastPort, err, errlen) < 0)
+            return 1;
             return 0;
     }
     case 26:  /* DoCDrawMethodTagList: explicit reviewed refusal [-156] */
@@ -343,8 +377,8 @@ int emu68k_gen_cybergraphics(int lvo, struct Emu68kRegs *r, APTR guest0, APTR ba
     case 31:  /* ExtractColor(struct RastPort * RastPort, struct BitMap * SingleMap, ULONG Colour, ULONG sX, ULONG sY, ULONG Width, ULONG Height) -> ULONG  [-186] */
     {
         APTR emu_object_0;
-        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_RastPort, 1,
-                                        "RastPort", &emu_object_0, err, errlen) < 0)
+        if (emu68k_object_adopt_guest(guest0, r->a[0], EMU_OBJ_RastPort,
+                        "RastPort", &emu_mirror_RastPort, &emu_object_0, err, errlen) < 0)
             return 1;
         struct BitMap emu_struct_1;
         if (!r->a[1])
@@ -366,6 +400,9 @@ int emu68k_gen_cybergraphics(int lvo, struct Emu68kRegs *r, APTR guest0, APTR ba
               (ULONG)r->d[2],
               (ULONG)r->d[3],
               (ULONG)r->d[4]);
+        if (emu68k_object_sync_guest(guest0, r->a[0], EMU_OBJ_RastPort,
+                                     "RastPort", &emu_mirror_RastPort, err, errlen) < 0)
+            return 1;
         emu68k_to_guest_sized(guest0, r->a[1], &emu_struct_1,
                            emu_fields_BitMap, EMU_NFIELDS(emu_fields_BitMap), M68K_BitMap_SIZEOF);
             return 0;
@@ -401,8 +438,8 @@ int emu68k_gen_cybergraphics(int lvo, struct Emu68kRegs *r, APTR guest0, APTR ba
                 (ULONG)emu_buffer_size_0, "WriteLUTPixelArray.srcRect", err, errlen) < 0)
             return 1;
         APTR emu_object_4;
-        if (emu68k_object_from_guest(guest0, r->a[1], EMU_OBJ_RastPort, 0,
-                                        "RastPort", &emu_object_4, err, errlen) < 0)
+        if (emu68k_object_adopt_guest(guest0, r->a[1], EMU_OBJ_RastPort,
+                        "RastPort", &emu_mirror_RastPort, &emu_object_4, err, errlen) < 0)
             return 1;
         ULONG emu_array_count_5 = 256;
         ULONG emu_array_size_5 = sizeof(ULONG) * 256;
@@ -444,6 +481,9 @@ int emu68k_gen_cybergraphics(int lvo, struct Emu68kRegs *r, APTR guest0, APTR ba
               (UBYTE)r->d[7]);
         if (emu_array_scratch_5)
             emu68k_scratch_free(emu_array_scratch_5, emu_array_size_5);
+        if (emu68k_object_sync_guest(guest0, r->a[1], EMU_OBJ_RastPort,
+                                     "RastPort", &emu_mirror_RastPort, err, errlen) < 0)
+            return 1;
             return 0;
     }
     case 36:  /* WritePixelArrayAlpha(APTR src, UWORD srcx, UWORD srcy, UWORD srcmod, struct RastPort * rp, UWORD destx, UWORD desty, UWORD width, UWORD height, ULONG globalalpha) -> ULONG  [-216] */
@@ -477,8 +517,8 @@ int emu68k_gen_cybergraphics(int lvo, struct Emu68kRegs *r, APTR guest0, APTR ba
                 (ULONG)emu_buffer_size_0, "WritePixelArrayAlpha.src", err, errlen) < 0)
             return 1;
         APTR emu_object_4;
-        if (emu68k_object_from_guest(guest0, r->a[1], EMU_OBJ_RastPort, 0,
-                                        "RastPort", &emu_object_4, err, errlen) < 0)
+        if (emu68k_object_adopt_guest(guest0, r->a[1], EMU_OBJ_RastPort,
+                        "RastPort", &emu_mirror_RastPort, &emu_object_4, err, errlen) < 0)
             return 1;
             r->d[0] = (ULONG)WritePixelArrayAlpha((APTR)EMU_GPTR(guest0, r->a[0]),
               (UWORD)r->d[0],
@@ -490,6 +530,9 @@ int emu68k_gen_cybergraphics(int lvo, struct Emu68kRegs *r, APTR guest0, APTR ba
               (UWORD)r->d[5],
               (UWORD)r->d[6],
               (ULONG)r->d[7]);
+        if (emu68k_object_sync_guest(guest0, r->a[1], EMU_OBJ_RastPort,
+                                     "RastPort", &emu_mirror_RastPort, err, errlen) < 0)
+            return 1;
             return 0;
     }
     case 37:  /* BltTemplateAlpha(APTR src, LONG srcx, LONG srcmod, struct RastPort * rp, LONG destx, LONG desty, LONG width, LONG height) -> void  [-222] */
@@ -523,8 +566,8 @@ int emu68k_gen_cybergraphics(int lvo, struct Emu68kRegs *r, APTR guest0, APTR ba
                 (ULONG)emu_buffer_size_0, "BltTemplateAlpha.src", err, errlen) < 0)
             return 1;
         APTR emu_object_3;
-        if (emu68k_object_from_guest(guest0, r->a[1], EMU_OBJ_RastPort, 0,
-                                        "RastPort", &emu_object_3, err, errlen) < 0)
+        if (emu68k_object_adopt_guest(guest0, r->a[1], EMU_OBJ_RastPort,
+                        "RastPort", &emu_mirror_RastPort, &emu_object_3, err, errlen) < 0)
             return 1;
             BltTemplateAlpha((APTR)EMU_GPTR(guest0, r->a[0]),
               (LONG)r->d[0],
@@ -534,13 +577,16 @@ int emu68k_gen_cybergraphics(int lvo, struct Emu68kRegs *r, APTR guest0, APTR ba
               (LONG)r->d[3],
               (LONG)r->d[4],
               (LONG)r->d[5]);
+        if (emu68k_object_sync_guest(guest0, r->a[1], EMU_OBJ_RastPort,
+                                     "RastPort", &emu_mirror_RastPort, err, errlen) < 0)
+            return 1;
             return 0;
     }
     case 38:  /* ProcessPixelArray(struct RastPort * rp, ULONG destX, ULONG destY, ULONG sizeX, ULONG sizeY, ULONG operation, LONG value, struct TagItem * taglist) -> VOID  [-228] */
     {
         APTR emu_object_0;
-        if (emu68k_object_from_guest(guest0, r->a[1], EMU_OBJ_RastPort, 0,
-                                        "RastPort", &emu_object_0, err, errlen) < 0)
+        if (emu68k_object_adopt_guest(guest0, r->a[1], EMU_OBJ_RastPort,
+                        "RastPort", &emu_mirror_RastPort, &emu_object_0, err, errlen) < 0)
             return 1;
         struct TagItem emu_tags_7[9];
         if (emu68k_tags_to_native(guest0, r->a[2], &emu_tagdomain_cybergraphics_process_pixels, emu_tags_7, 9, NULL, 0, err, errlen) < 0)
@@ -553,6 +599,9 @@ int emu68k_gen_cybergraphics(int lvo, struct Emu68kRegs *r, APTR guest0, APTR ba
               (ULONG)r->d[4],
               (LONG)r->d[5],
               (struct TagItem *)(r->a[2] ? emu_tags_7 : NULL));
+        if (emu68k_object_sync_guest(guest0, r->a[1], EMU_OBJ_RastPort,
+                                     "RastPort", &emu_mirror_RastPort, err, errlen) < 0)
+            return 1;
             return 0;
     }
     }

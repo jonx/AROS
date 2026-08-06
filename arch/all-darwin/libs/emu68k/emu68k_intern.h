@@ -50,18 +50,27 @@ struct Emu68kHostIf
     APTR (*run_guest0)(emu68k_run_h r);
     ULONG (*run_guest_alloc)(emu68k_run_h r, unsigned long size);
     ULONG (*run_device_base)(emu68k_run_h r, const char *name);
+    void (*run_set_mouse_buttons)(emu68k_run_h r, unsigned int buttons);
     int (*run_call_hook)(emu68k_run_h r, unsigned long entry,
                          unsigned long hook, unsigned long object,
                          unsigned long message, unsigned int *result,
                          char *err, unsigned errlen);
+    const char *(*run_progdir)(emu68k_run_h r);
 };
 
 struct Emu68kOSCallCtx
 {
     APTR dosbase;
     emu68k_run_h run;
+    /* Directory of the program the CURRENTLY RUNNING guest context was loaded
+     * from, or NULL for the run's own program.  All contexts of a run share
+     * one native process, so PROGDIR: would otherwise resolve to whichever
+     * program that process was started for - wrong for every child a guest
+     * starts itself. */
+    const char *(*progdir)(emu68k_run_h r);
     ULONG (*guest_alloc)(emu68k_run_h r, unsigned long size);
     ULONG (*device_base)(emu68k_run_h r, const char *name);
+    void (*set_mouse_buttons)(emu68k_run_h r, unsigned int buttons);
     int (*call_hook)(emu68k_run_h r, unsigned long entry,
                      unsigned long hook, unsigned long object,
                      unsigned long message, unsigned int *result,

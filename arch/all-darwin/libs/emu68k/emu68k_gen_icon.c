@@ -15,6 +15,16 @@
 #include "emu68k_gen.h"
 #include "emu68k_layouts.h"
 
+/* A RastPort the program allocated itself: mirrored natively under its
+ * guest address, converted in and back out around every call. */
+static const struct EmuMirror emu_mirror_RastPort =
+{
+    emu_fields_RastPort, EMU_NFIELDS(emu_fields_RastPort),
+    sizeof(struct RastPort), M68K_RastPort_SIZEOF,
+    0, -1, 0,
+    -1, -1, 1
+};
+
 static const struct EmuTagDesc emu_tagdesc_icon_duplicate[] =
 {
     { ICONDUPA_DuplicateDrawerData, EMU_TAG_U32, "ICONDUPA_DuplicateDrawerData", NULL, 0, 0, 0, 0, 0 },
@@ -189,8 +199,8 @@ int emu68k_gen_icon(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
     case 28:  /* GetIconRectangleA(struct RastPort * rp, struct DiskObject * icon, STRPTR label, struct Rectangle * rectangle, struct TagItem * tags) -> BOOL  [-168] */
     {
         APTR emu_object_0;
-        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_RastPort, 1,
-                                        "RastPort", &emu_object_0, err, errlen) < 0)
+        if (emu68k_object_adopt_guest(guest0, r->a[0], EMU_OBJ_RastPort,
+                        "RastPort", &emu_mirror_RastPort, &emu_object_0, err, errlen) < 0)
             return 1;
         APTR emu_object_1;
         if (emu68k_object_from_guest(guest0, r->a[1], EMU_OBJ_DiskObject, 1,
@@ -217,6 +227,9 @@ int emu68k_gen_icon(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
               (STRPTR)EMU_GPTR(guest0, r->a[2]),
               (struct Rectangle *)&emu_struct_3,
               (struct TagItem *)(r->a[4] ? emu_tags_4 : NULL));
+        if (emu68k_object_sync_guest(guest0, r->a[0], EMU_OBJ_RastPort,
+                                     "RastPort", &emu_mirror_RastPort, err, errlen) < 0)
+            return 1;
         emu68k_to_guest_sized(guest0, r->a[3], &emu_struct_3,
                            emu_fields_Rectangle, EMU_NFIELDS(emu_fields_Rectangle), M68K_Rectangle_SIZEOF);
             return 0;

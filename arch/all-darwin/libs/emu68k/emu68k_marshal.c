@@ -885,6 +885,19 @@ void emu68k_to_guest_sized(APTR guest0, ULONG gbase, const void *native,
          * written back: what the guest put there is still what it means. */
         if (f->kind == EMU_F_GUESTPTR)
             continue;
+        if (f->kind == EMU_F_BPTR)
+        {
+            /* A native BPTR is 64-bit and means nothing in the arena. Give
+             * the guest the same 32-bit token it would get from a call that
+             * returned this lock, so it can pass it straight back. */
+            for (e = 0; e < count; e++)
+            {
+                BPTR b = *(BPTR *)(void *)(nat + f->n_off + e * f->n_w);
+                guest_write(g + f->g_off + e * f->g_w, f->g_w,
+                            b ? emu68k_handle_token(guest0, b) : 0);
+            }
+            continue;
+        }
         if (f->kind == EMU_F_BYTES)
             CopyMem((APTR)(nat + f->n_off), g + f->g_off, count);
         else
@@ -921,6 +934,9 @@ void emu68k_from_guest_sized(APTR guest0, ULONG gbase, void *native,
                 if (f->kind == EMU_F_GUESTPTR)
                     *(APTR *)(void *)(nat + f->n_off + e * f->n_w) =
                         v ? (APTR)((UBYTE *)guest0 + v) : NULL;
+                else if (f->kind == EMU_F_BPTR)
+                    *(BPTR *)(void *)(nat + f->n_off + e * f->n_w) =
+                        v ? emu68k_handle_bptr(guest0, v) : BNULL;
                 else
                     native_write(nat + f->n_off + e * f->n_w, f->n_w, v);
             }

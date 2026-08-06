@@ -27,6 +27,36 @@ static const struct EmuMirror emu_mirror_Gadget =
     offsetof(struct ExtGadget, NextGadget), M68K_ExtGadget_NextGadget, 4096
 };
 
+/* A Menu the program allocated itself: mirrored natively under its
+ * guest address, converted in and back out around every call. */
+static const struct EmuMirror emu_mirror_Menu =
+{
+    emu_fields_Menu, EMU_NFIELDS(emu_fields_Menu),
+    sizeof(struct Menu), M68K_Menu_SIZEOF,
+    0, -1, 0,
+    offsetof(struct Menu, NextMenu), M68K_Menu_NextMenu, 1024
+};
+
+/* A MenuItem the program allocated itself: mirrored natively under its
+ * guest address, converted in and back out around every call. */
+static const struct EmuMirror emu_mirror_MenuItem =
+{
+    emu_fields_MenuItem, EMU_NFIELDS(emu_fields_MenuItem),
+    sizeof(struct MenuItem), M68K_MenuItem_SIZEOF,
+    0, -1, 0,
+    offsetof(struct MenuItem, NextItem), M68K_MenuItem_NextItem, 1024
+};
+
+/* A RastPort the program allocated itself: mirrored natively under its
+ * guest address, converted in and back out around every call. */
+static const struct EmuMirror emu_mirror_RastPort =
+{
+    emu_fields_RastPort, EMU_NFIELDS(emu_fields_RastPort),
+    sizeof(struct RastPort), M68K_RastPort_SIZEOF,
+    0, -1, 0,
+    -1, -1, 1
+};
+
 static const struct EmuTagDesc emu_tagdesc_gadtools_create_gadget[] =
 {
     { GA_Disabled, EMU_TAG_U32, "GA_Disabled", NULL, 0, 0, 0, 0, 0 },
@@ -325,6 +355,19 @@ int emu68k_gen_gadtools(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
                 return 1;
             emu68k_scalar_to_guest(guest0,
                 r->d[0] + M68K_Gadget_NextGadget, 4, emu_nested_token_0);
+            ULONG emu_sub_object_token_0_0 = 0;
+            if (emu_facade_native->NextGadget)
+            {
+                if (emu68k_object_to_guest_facade(guest0,
+                        emu_facade_native->NextGadget->NextGadget, EMU_OBJ_Gadget,
+                        NULL, NULL, "Gadget", M68K_Gadget_SIZEOF,
+                        emu_fields_Gadget, EMU_NFIELDS(emu_fields_Gadget),
+                        &emu_sub_object_token_0_0, err, errlen) < 0)
+                    return 1;
+                emu68k_scalar_to_guest(guest0,
+                    emu_nested_token_0 + M68K_Gadget_NextGadget, 4,
+                    emu_sub_object_token_0_0);
+            }
             emu68k_scalar_to_guest(guest0,
                 r->d[0] + M68K_Gadget_UserData, 4,
                 (ULONG)(IPTR)emu_facade_native->UserData);
@@ -522,23 +565,90 @@ int emu68k_gen_gadtools(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
             struct Menu *emu_facade_native = (struct Menu *)emu_result;
             ULONG emu_nested_token_0 = 0;
             if (emu68k_object_to_guest_facade(guest0,
-                    emu_facade_native->FirstItem, EMU_OBJ_MenuItem,
-                    NULL, NULL, "MenuItem", M68K_MenuItem_SIZEOF,
-                    emu_fields_MenuItem, EMU_NFIELDS(emu_fields_MenuItem),
+                    emu_facade_native->NextMenu, EMU_OBJ_Menu,
+                    NULL, NULL, "Menu", M68K_Menu_SIZEOF,
+                    emu_fields_Menu, EMU_NFIELDS(emu_fields_Menu),
                     &emu_nested_token_0, err, errlen) < 0)
                 return 1;
             emu68k_scalar_to_guest(guest0,
-                r->d[0] + M68K_Menu_FirstItem, 4, emu_nested_token_0);
+                r->d[0] + M68K_Menu_NextMenu, 4, emu_nested_token_0);
+            ULONG emu_sub_object_token_0_0 = 0;
+            if (emu_facade_native->NextMenu)
+            {
+                if (emu68k_object_to_guest_facade(guest0,
+                        emu_facade_native->NextMenu->NextMenu, EMU_OBJ_Menu,
+                        NULL, NULL, "Menu", M68K_Menu_SIZEOF,
+                        emu_fields_Menu, EMU_NFIELDS(emu_fields_Menu),
+                        &emu_sub_object_token_0_0, err, errlen) < 0)
+                    return 1;
+                emu68k_scalar_to_guest(guest0,
+                    emu_nested_token_0 + M68K_Menu_NextMenu, 4,
+                    emu_sub_object_token_0_0);
+            }
+            ULONG emu_sub_object_token_0_1 = 0;
+            if (emu_facade_native->NextMenu)
+            {
+                if (emu68k_object_to_guest_facade(guest0,
+                        emu_facade_native->NextMenu->FirstItem, EMU_OBJ_MenuItem,
+                        NULL, NULL, "MenuItem", M68K_MenuItem_SIZEOF,
+                        emu_fields_MenuItem, EMU_NFIELDS(emu_fields_MenuItem),
+                        &emu_sub_object_token_0_1, err, errlen) < 0)
+                    return 1;
+                emu68k_scalar_to_guest(guest0,
+                    emu_nested_token_0 + M68K_Menu_FirstItem, 4,
+                    emu_sub_object_token_0_1);
+            }
+            ULONG emu_nested_token_1 = 0;
+            if (emu68k_object_to_guest_facade(guest0,
+                    emu_facade_native->FirstItem, EMU_OBJ_MenuItem,
+                    NULL, NULL, "MenuItem", M68K_MenuItem_SIZEOF,
+                    emu_fields_MenuItem, EMU_NFIELDS(emu_fields_MenuItem),
+                    &emu_nested_token_1, err, errlen) < 0)
+                return 1;
+            emu68k_scalar_to_guest(guest0,
+                r->d[0] + M68K_Menu_FirstItem, 4, emu_nested_token_1);
+            ULONG emu_sub_object_token_1_0 = 0;
+            if (emu_facade_native->FirstItem)
+            {
+                if (emu68k_object_to_guest_facade(guest0,
+                        emu_facade_native->FirstItem->NextItem, EMU_OBJ_MenuItem,
+                        NULL, NULL, "MenuItem", M68K_MenuItem_SIZEOF,
+                        emu_fields_MenuItem, EMU_NFIELDS(emu_fields_MenuItem),
+                        &emu_sub_object_token_1_0, err, errlen) < 0)
+                    return 1;
+                emu68k_scalar_to_guest(guest0,
+                    emu_nested_token_1 + M68K_MenuItem_NextItem, 4,
+                    emu_sub_object_token_1_0);
+            }
+            ULONG emu_sub_object_token_1_1 = 0;
+            if (emu_facade_native->FirstItem)
+            {
+                if (emu68k_object_to_guest_facade(guest0,
+                        emu_facade_native->FirstItem->SubItem, EMU_OBJ_MenuItem,
+                        NULL, NULL, "MenuItem", M68K_MenuItem_SIZEOF,
+                        emu_fields_MenuItem, EMU_NFIELDS(emu_fields_MenuItem),
+                        &emu_sub_object_token_1_1, err, errlen) < 0)
+                    return 1;
+                emu68k_scalar_to_guest(guest0,
+                    emu_nested_token_1 + M68K_MenuItem_SubItem, 4,
+                    emu_sub_object_token_1_1);
+            }
         }
             return 0;
     }
     case 9:  /* FreeMenus(struct Menu * menu) -> void  [-54] */
     {
         APTR emu_object_0;
-        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_Menu, 1,
-                                        "Menu", &emu_object_0, err, errlen) < 0)
+        if (emu68k_object_adopt_guest(guest0, r->a[0], EMU_OBJ_Menu,
+                        "Menu", &emu_mirror_Menu, &emu_object_0, err, errlen) < 0)
             return 1;
             FreeMenus((struct Menu *)emu_object_0);
+        if (emu68k_object_sync_guest(guest0, r->a[0], EMU_OBJ_Menu,
+                                     "Menu", &emu_mirror_Menu, err, errlen) < 0)
+            return 1;
+        emu68k_object_release(guest0,
+            (ULONG)emu68k_scalar_from_guest(guest0, r->a[0] + M68K_Menu_NextMenu, 4),
+            EMU_OBJ_Menu);
         emu68k_object_release(guest0,
             (ULONG)emu68k_scalar_from_guest(guest0, r->a[0] + M68K_Menu_FirstItem, 4),
             EMU_OBJ_MenuItem);
@@ -548,8 +658,8 @@ int emu68k_gen_gadtools(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
     case 10:  /* LayoutMenuItemsA(struct MenuItem * menuitem, APTR vi, struct TagItem * tagList) -> BOOL  [-60] */
     {
         APTR emu_object_0;
-        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_MenuItem, 1,
-                                        "MenuItem", &emu_object_0, err, errlen) < 0)
+        if (emu68k_object_adopt_guest(guest0, r->a[0], EMU_OBJ_MenuItem,
+                        "MenuItem", &emu_mirror_MenuItem, &emu_object_0, err, errlen) < 0)
             return 1;
         APTR emu_object_1;
         if (emu68k_object_from_guest(guest0, r->a[1], EMU_OBJ_VisualInfo, 0,
@@ -562,13 +672,16 @@ int emu68k_gen_gadtools(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
             r->d[0] = (ULONG)LayoutMenuItemsA((struct MenuItem *)emu_object_0,
               (APTR)emu_object_1,
               (struct TagItem *)(r->a[2] ? emu_tags_2 : NULL));
+        if (emu68k_object_sync_guest(guest0, r->a[0], EMU_OBJ_MenuItem,
+                                     "MenuItem", &emu_mirror_MenuItem, err, errlen) < 0)
+            return 1;
             return 0;
     }
     case 11:  /* LayoutMenusA(struct Menu * menu, APTR vi, struct TagItem * tagList) -> BOOL  [-66] */
     {
         APTR emu_object_0;
-        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_Menu, 1,
-                                        "Menu", &emu_object_0, err, errlen) < 0)
+        if (emu68k_object_adopt_guest(guest0, r->a[0], EMU_OBJ_Menu,
+                        "Menu", &emu_mirror_Menu, &emu_object_0, err, errlen) < 0)
             return 1;
         APTR emu_object_1;
         if (emu68k_object_from_guest(guest0, r->a[1], EMU_OBJ_VisualInfo, 0,
@@ -581,6 +694,9 @@ int emu68k_gen_gadtools(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
             r->d[0] = (ULONG)LayoutMenusA((struct Menu *)emu_object_0,
               (APTR)emu_object_1,
               (struct TagItem *)(r->a[2] ? emu_tags_2 : NULL));
+        if (emu68k_object_sync_guest(guest0, r->a[0], EMU_OBJ_Menu,
+                                     "Menu", &emu_mirror_Menu, err, errlen) < 0)
+            return 1;
             return 0;
     }
     case 12:  /* GT_GetIMsg: explicit reviewed refusal [-72] */
@@ -667,6 +783,19 @@ int emu68k_gen_gadtools(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
                 return 1;
             emu68k_scalar_to_guest(guest0,
                 r->d[0] + M68K_Gadget_NextGadget, 4, emu_nested_token_0);
+            ULONG emu_sub_object_token_0_0 = 0;
+            if (emu_facade_native->NextGadget)
+            {
+                if (emu68k_object_to_guest_facade(guest0,
+                        emu_facade_native->NextGadget->NextGadget, EMU_OBJ_Gadget,
+                        NULL, NULL, "Gadget", M68K_Gadget_SIZEOF,
+                        emu_fields_Gadget, EMU_NFIELDS(emu_fields_Gadget),
+                        &emu_sub_object_token_0_0, err, errlen) < 0)
+                    return 1;
+                emu68k_scalar_to_guest(guest0,
+                    emu_nested_token_0 + M68K_Gadget_NextGadget, 4,
+                    emu_sub_object_token_0_0);
+            }
             emu68k_scalar_to_guest(guest0,
                 r->d[0] + M68K_Gadget_UserData, 4,
                 (ULONG)(IPTR)emu_facade_native->UserData);
@@ -677,8 +806,8 @@ int emu68k_gen_gadtools(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
     case 20:  /* DrawBevelBoxA(struct RastPort * rport, WORD left, WORD top, WORD width, WORD height, struct TagItem * taglist) -> void  [-120] */
     {
         APTR emu_object_0;
-        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_RastPort, 0,
-                                        "RastPort", &emu_object_0, err, errlen) < 0)
+        if (emu68k_object_adopt_guest(guest0, r->a[0], EMU_OBJ_RastPort,
+                        "RastPort", &emu_mirror_RastPort, &emu_object_0, err, errlen) < 0)
             return 1;
         struct TagItem emu_tags_5[9];
         if (emu68k_tags_to_native(guest0, r->a[1], &emu_tagdomain_gadtools_draw_bevel, emu_tags_5, 9, NULL, 0, err, errlen) < 0)
@@ -689,6 +818,9 @@ int emu68k_gen_gadtools(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
               (WORD)r->d[2],
               (WORD)r->d[3],
               (struct TagItem *)(r->a[1] ? emu_tags_5 : NULL));
+        if (emu68k_object_sync_guest(guest0, r->a[0], EMU_OBJ_RastPort,
+                                     "RastPort", &emu_mirror_RastPort, err, errlen) < 0)
+            return 1;
         emu68k_to_guest_sized(guest0, r->a[0], emu_object_0,
             emu_fields_RastPort, EMU_NFIELDS(emu_fields_RastPort), M68K_RastPort_SIZEOF);
             return 0;

@@ -180,6 +180,13 @@ struct EmuStructDesc
 #define M68K_ExAllControl_eac_MatchString 8   /* native @16 - CONVERT */
 #define M68K_ExAllControl_eac_MatchFunc 12   /* native @24 - CONVERT */
 
+/* struct DevProc: 16 bytes on m68k (DevProc), 32 native (DevProc) */
+#define M68K_DevProc_SIZEOF 16
+#define M68K_DevProc_dvp_Port 0
+#define M68K_DevProc_dvp_Lock 4   /* native @8 - CONVERT */
+#define M68K_DevProc_dvp_Flags 8   /* native @16 - CONVERT */
+#define M68K_DevProc_dvp_DevNode 12   /* native @24 - CONVERT */
+
 /* struct TagItem: 8 bytes on m68k (TagItem), 16 native (TagItem) */
 #define M68K_TagItem_SIZEOF 8
 #define M68K_TagItem_ti_Tag 0
@@ -1034,6 +1041,84 @@ struct EmuStructDesc
 #define M68K_ExtGadget_BoundsWidth 52   /* native @88 - CONVERT */
 #define M68K_ExtGadget_BoundsHeight 54   /* native @90 - CONVERT */
 
+/* struct Border: 16 bytes on m68k (Border), 24 native (Border) */
+#define M68K_Border_SIZEOF 16
+#define M68K_Border_LeftEdge 0
+#define M68K_Border_TopEdge 2
+#define M68K_Border_FrontPen 4
+#define M68K_Border_BackPen 5
+#define M68K_Border_DrawMode 6
+#define M68K_Border_Count 7
+#define M68K_Border_XY 8
+#define M68K_Border_NextBorder 12   /* native @16 - CONVERT */
+
+/* struct Image: 20 bytes on m68k (Image), 40 native (Image) */
+#define M68K_Image_SIZEOF 20
+#define M68K_Image_LeftEdge 0
+#define M68K_Image_TopEdge 2
+#define M68K_Image_Width 4
+#define M68K_Image_Height 6
+#define M68K_Image_Depth 8
+#define M68K_Image_ImageData 10   /* native @16 - CONVERT */
+#define M68K_Image_PlanePick 14   /* native @24 - CONVERT */
+#define M68K_Image_PlaneOnOff 15   /* native @25 - CONVERT */
+#define M68K_Image_NextImage 16   /* native @32 - CONVERT */
+
+/* struct Layer: 168 bytes on m68k (Layer), 336 native (Layer) */
+#define M68K_Layer_SIZEOF 168
+#define M68K_Layer_front 0
+#define M68K_Layer_back 4   /* native @8 - CONVERT */
+#define M68K_Layer_ClipRect 8   /* native @16 - CONVERT */
+#define M68K_Layer_rp 12   /* native @24 - CONVERT */
+#define M68K_Layer_bounds_MinX 16   /* native @32 - CONVERT */
+#define M68K_Layer_bounds_MinY 18   /* native @34 - CONVERT */
+#define M68K_Layer_bounds_MaxX 20   /* native @36 - CONVERT */
+#define M68K_Layer_bounds_MaxY 22   /* native @38 - CONVERT */
+#define M68K_Layer_parent 24   /* native @40 - CONVERT */
+#define M68K_Layer_priority 28   /* native @48 - CONVERT */
+#define M68K_Layer_Flags 30   /* native @50 - CONVERT */
+#define M68K_Layer_SuperBitMap 32   /* native @56 - CONVERT */
+#define M68K_Layer_SuperClipRect 36   /* native @64 - CONVERT */
+#define M68K_Layer_Window 40   /* native @72 - CONVERT */
+#define M68K_Layer_Scroll_X 44   /* native @80 - CONVERT */
+#define M68K_Layer_Scroll_Y 46   /* native @82 - CONVERT */
+#define M68K_Layer_cr 48   /* native @88 - CONVERT */
+#define M68K_Layer_cr2 52   /* native @96 - CONVERT */
+#define M68K_Layer_crnew 56   /* native @104 - CONVERT */
+#define M68K_Layer_SuperSaveClipRects 60   /* native @112 - CONVERT */
+#define M68K_Layer__cliprects 64   /* native @120 - CONVERT */
+#define M68K_Layer_LayerInfo 68   /* native @128 - CONVERT */
+#define M68K_Layer_Lock_ss_Link_ln_Succ 72   /* native @136 - CONVERT */
+#define M68K_Layer_Lock_ss_Link_ln_Pred 76   /* native @144 - CONVERT */
+#define M68K_Layer_Lock_ss_Link_ln_Type 80   /* native @152 - CONVERT */
+#define M68K_Layer_Lock_ss_Link_ln_Pri 81   /* native @153 - CONVERT */
+#define M68K_Layer_Lock_ss_Link_ln_Name 82   /* native @160 - CONVERT */
+#define M68K_Layer_Lock_ss_NestCount 86   /* native @168 - CONVERT */
+#define M68K_Layer_Lock_ss_WaitQueue_mlh_Head 88   /* native @176 - CONVERT */
+#define M68K_Layer_Lock_ss_WaitQueue_mlh_Tail 92   /* native @184 - CONVERT */
+#define M68K_Layer_Lock_ss_WaitQueue_mlh_TailPred 96   /* native @192 - CONVERT */
+#define M68K_Layer_Lock_ss_MultipleLink_sr_Link_mln_Succ 100   /* native @200 - CONVERT */
+#define M68K_Layer_Lock_ss_MultipleLink_sr_Link_mln_Pred 104   /* native @208 - CONVERT */
+#define M68K_Layer_Lock_ss_MultipleLink_sr_Waiter 108   /* native @216 - CONVERT */
+#define M68K_Layer_Lock_ss_MultipleLink_sr_Pad_slock 112   /* native @224 - CONVERT */
+#define M68K_Layer_Lock_ss_MultipleLink_sr_Pad_s_Owner 116   /* native @232 - CONVERT */
+#define M68K_Layer_Lock_ss_Owner 120   /* native @240 - CONVERT */
+#define M68K_Layer_Lock_ss_QueueCount 124   /* native @248 - CONVERT */
+#define M68K_Layer_BackFill 126   /* native @256 - CONVERT */
+#define M68K_Layer_VisibleRegion 130   /* native @264 - CONVERT */
+#define M68K_Layer_ClipRegion 134   /* native @272 - CONVERT */
+#define M68K_Layer_saveClipRects 138   /* native @280 - CONVERT */
+#define M68K_Layer_Width 142   /* native @288 - CONVERT */
+#define M68K_Layer_Height 144   /* native @290 - CONVERT */
+#define M68K_Layer_shape 146   /* native @296 - CONVERT */
+#define M68K_Layer_shaperegion 150   /* native @304 - CONVERT */
+#define M68K_Layer_visibleshape 154   /* native @312 - CONVERT */
+#define M68K_Layer_nesting 158   /* native @320 - CONVERT */
+#define M68K_Layer_SuperSaveClipRectCounter 160   /* native @322 - CONVERT */
+#define M68K_Layer_visible 161   /* native @323 - CONVERT */
+#define M68K_Layer_reserved2 162   /* native @324 - CONVERT */
+#define M68K_Layer_DamageList 164   /* native @328 - CONVERT */
+
 /* struct CyberModeNode: 60 bytes on m68k (CyberModeNode), 88 native (CyberModeNode) */
 #define M68K_CyberModeNode_SIZEOF 60
 #define M68K_CyberModeNode_Node_ln_Succ 0
@@ -1059,6 +1144,52 @@ struct EmuStructDesc
 #define M68K_CDrawMsg_cdm_BytesPerPix 22   /* native @26 - CONVERT */
 #define M68K_CDrawMsg_cdm_ColorModel 24   /* native @28 - CONVERT */
 
+/* struct Locale: 168 bytes on m68k (Locale), 312 native (Locale) */
+#define M68K_Locale_SIZEOF 168
+#define M68K_Locale_loc_LocaleName 0
+#define M68K_Locale_loc_LanguageName 4   /* native @8 - CONVERT */
+#define M68K_Locale_loc_PrefLanguages 8   /* native @16 - CONVERT */
+#define M68K_Locale_loc_Flags 48   /* native @96 - CONVERT */
+#define M68K_Locale_loc_CodeSet 52   /* native @100 - CONVERT */
+#define M68K_Locale_loc_CountryCode 56   /* native @104 - CONVERT */
+#define M68K_Locale_loc_TelephoneCode 60   /* native @108 - CONVERT */
+#define M68K_Locale_loc_GMTOffset 64   /* native @112 - CONVERT */
+#define M68K_Locale_loc_MeasuringSystem 68   /* native @116 - CONVERT */
+#define M68K_Locale_loc_CalendarType 69   /* native @117 - CONVERT */
+#define M68K_Locale_loc_Reserved0 70   /* native @118 - CONVERT */
+#define M68K_Locale_loc_DateTimeFormat 72   /* native @120 - CONVERT */
+#define M68K_Locale_loc_DateFormat 76   /* native @128 - CONVERT */
+#define M68K_Locale_loc_TimeFormat 80   /* native @136 - CONVERT */
+#define M68K_Locale_loc_ShortDateTimeFormat 84   /* native @144 - CONVERT */
+#define M68K_Locale_loc_ShortDateFormat 88   /* native @152 - CONVERT */
+#define M68K_Locale_loc_ShortTimeFormat 92   /* native @160 - CONVERT */
+#define M68K_Locale_loc_DecimalPoint 96   /* native @168 - CONVERT */
+#define M68K_Locale_loc_GroupSeparator 100   /* native @176 - CONVERT */
+#define M68K_Locale_loc_FracGroupSeparator 104   /* native @184 - CONVERT */
+#define M68K_Locale_loc_Grouping 108   /* native @192 - CONVERT */
+#define M68K_Locale_loc_FracGrouping 112   /* native @200 - CONVERT */
+#define M68K_Locale_loc_MonDecimalPoint 116   /* native @208 - CONVERT */
+#define M68K_Locale_loc_MonGroupSeparator 120   /* native @216 - CONVERT */
+#define M68K_Locale_loc_MonFracGroupSeparator 124   /* native @224 - CONVERT */
+#define M68K_Locale_loc_MonGrouping 128   /* native @232 - CONVERT */
+#define M68K_Locale_loc_MonFracGrouping 132   /* native @240 - CONVERT */
+#define M68K_Locale_loc_MonFracDigits 136   /* native @248 - CONVERT */
+#define M68K_Locale_loc_MonIntFracDigits 137   /* native @249 - CONVERT */
+#define M68K_Locale_loc_Reserved1 138   /* native @250 - CONVERT */
+#define M68K_Locale_loc_MonCS 140   /* native @256 - CONVERT */
+#define M68K_Locale_loc_MonSmallCS 144   /* native @264 - CONVERT */
+#define M68K_Locale_loc_MonIntCS 148   /* native @272 - CONVERT */
+#define M68K_Locale_loc_MonPositiveSign 152   /* native @280 - CONVERT */
+#define M68K_Locale_loc_MonPositiveSpaceSep 156   /* native @288 - CONVERT */
+#define M68K_Locale_loc_MonPositiveSignPos 157   /* native @289 - CONVERT */
+#define M68K_Locale_loc_MonPositiveCSPos 158   /* native @290 - CONVERT */
+#define M68K_Locale_loc_Reserved2 159   /* native @291 - CONVERT */
+#define M68K_Locale_loc_MonNegativeSign 160   /* native @296 - CONVERT */
+#define M68K_Locale_loc_MonNegativeSpaceSep 164   /* native @304 - CONVERT */
+#define M68K_Locale_loc_MonNegativeSignPos 165   /* native @305 - CONVERT */
+#define M68K_Locale_loc_MonNegativeCSPos 166   /* native @306 - CONVERT */
+#define M68K_Locale_loc_Reserved3 167   /* native @307 - CONVERT */
+
 /* The conversion tables. Each row is one field: where it lives on
  * each side, how wide it is on each side, and what may be done to it.
  * A generic walker (emu68k_marshal.c) is all that is needed to convert
@@ -1069,6 +1200,10 @@ struct EmuStructDesc
 #define EMU_F_GUESTPTR 3 /* guest addresses of raw bytes, rebased;
                           * guest -> native only, since a native
                           * address has no guest form to write back  */
+#define EMU_F_BPTR   4   /* a BPTR field: mapped through the same handle
+                          * table BPTR arguments and results use, so a
+                          * structure a program reads (DevProc's dvp_Lock)
+                          * carries a lock it can pass straight back      */
 
 static const struct EmuField emu_fields_FileInfoBlock[] = {
     {    0,    0,    1, 4, 8, EMU_F_SCALAR },   /* fib_DiskKey              IPTR */
@@ -1216,6 +1351,15 @@ static const struct EmuField emu_fields_ExAllControl[] = {
  *   eac_LastKey (IPTR)
  *   eac_MatchString (UBYTE *)
  *   eac_MatchFunc (struct Hook *)
+ */
+
+static const struct EmuField emu_fields_DevProc[] = {
+    {    4,    8,    1, 4, 8, EMU_F_BPTR },   /* dvp_Lock                 BPTR */
+    {    8,   16,    1, 4, 4, EMU_F_SCALAR },   /* dvp_Flags                ULONG */
+};
+/* NOT converted, and deliberately not guessed at:
+ *   dvp_Port (struct MsgPort *)
+ *   dvp_DevNode (struct DosList *)
  */
 
 static const struct EmuField emu_fields_Node[] = {
@@ -2108,6 +2252,90 @@ static const struct EmuField emu_fields_ExtGadget[] = {
  *   SpecialInfo (APTR)
  */
 
+static const struct EmuField emu_fields_Border[] = {
+    {    0,    0,    1, 2, 2, EMU_F_SCALAR },   /* LeftEdge                 WORD */
+    {    2,    2,    1, 2, 2, EMU_F_SCALAR },   /* TopEdge                  WORD */
+    {    4,    4,    1, 1, 1, EMU_F_SCALAR },   /* FrontPen                 UBYTE */
+    {    5,    5,    1, 1, 1, EMU_F_SCALAR },   /* BackPen                  UBYTE */
+    {    6,    6,    1, 1, 1, EMU_F_SCALAR },   /* DrawMode                 UBYTE */
+    {    7,    7,    1, 1, 1, EMU_F_SCALAR },   /* Count                    BYTE */
+};
+/* NOT converted, and deliberately not guessed at:
+ *   XY (WORD *)
+ *   NextBorder (struct Border *)
+ */
+
+static const struct EmuField emu_fields_Image[] = {
+    {    0,    0,    1, 2, 2, EMU_F_SCALAR },   /* LeftEdge                 WORD */
+    {    2,    2,    1, 2, 2, EMU_F_SCALAR },   /* TopEdge                  WORD */
+    {    4,    4,    1, 2, 2, EMU_F_SCALAR },   /* Width                    WORD */
+    {    6,    6,    1, 2, 2, EMU_F_SCALAR },   /* Height                   WORD */
+    {    8,    8,    1, 2, 2, EMU_F_SCALAR },   /* Depth                    WORD */
+    {   14,   24,    1, 1, 1, EMU_F_SCALAR },   /* PlanePick                UBYTE */
+    {   15,   25,    1, 1, 1, EMU_F_SCALAR },   /* PlaneOnOff               UBYTE */
+};
+/* NOT converted, and deliberately not guessed at:
+ *   ImageData (UWORD *)
+ *   NextImage (struct Image *)
+ */
+
+static const struct EmuField emu_fields_Layer[] = {
+    {   16,   32,    1, 2, 2, EMU_F_SCALAR },   /* bounds_MinX              WORD */
+    {   18,   34,    1, 2, 2, EMU_F_SCALAR },   /* bounds_MinY              WORD */
+    {   20,   36,    1, 2, 2, EMU_F_SCALAR },   /* bounds_MaxX              WORD */
+    {   22,   38,    1, 2, 2, EMU_F_SCALAR },   /* bounds_MaxY              WORD */
+    {   28,   48,    1, 2, 2, EMU_F_SCALAR },   /* priority                 UWORD */
+    {   30,   50,    1, 2, 2, EMU_F_SCALAR },   /* Flags                    UWORD */
+    {   44,   80,    1, 2, 2, EMU_F_SCALAR },   /* Scroll_X                 WORD */
+    {   46,   82,    1, 2, 2, EMU_F_SCALAR },   /* Scroll_Y                 WORD */
+    {   80,  152,    1, 1, 1, EMU_F_SCALAR },   /* Lock_ss_Link_ln_Type     UBYTE */
+    {   81,  153,    1, 1, 1, EMU_F_SCALAR },   /* Lock_ss_Link_ln_Pri      BYTE */
+    {   86,  168,    1, 2, 2, EMU_F_SCALAR },   /* Lock_ss_NestCount        WORD */
+    {  124,  248,    1, 2, 2, EMU_F_SCALAR },   /* Lock_ss_QueueCount       WORD */
+    {  142,  288,    1, 2, 2, EMU_F_SCALAR },   /* Width                    WORD */
+    {  144,  290,    1, 2, 2, EMU_F_SCALAR },   /* Height                   WORD */
+    {  158,  320,    1, 2, 2, EMU_F_SCALAR },   /* nesting                  UWORD */
+    {  160,  322,    1, 1, 1, EMU_F_SCALAR },   /* SuperSaveClipRectCounter UBYTE */
+    {  161,  323,    1, 1, 1, EMU_F_SCALAR },   /* visible                  UBYTE */
+    {  162,  324,    2, 1, 1, EMU_F_BYTES },   /* reserved2                UBYTE[2] */
+};
+/* NOT converted, and deliberately not guessed at:
+ *   front (struct Layer *)
+ *   back (struct Layer *)
+ *   ClipRect (struct ClipRect *)
+ *   rp (struct RastPort *)
+ *   parent (struct Layer *)
+ *   SuperBitMap (struct BitMap *)
+ *   SuperClipRect (struct ClipRect *)
+ *   Window (APTR)
+ *   cr (struct ClipRect *)
+ *   cr2 (struct ClipRect *)
+ *   crnew (struct ClipRect *)
+ *   SuperSaveClipRects (struct ClipRect *)
+ *   _cliprects (struct ClipRect *)
+ *   LayerInfo (struct Layer_Info *)
+ *   Lock_ss_Link_ln_Succ (struct Node *)
+ *   Lock_ss_Link_ln_Pred (struct Node *)
+ *   Lock_ss_Link_ln_Name (char *)
+ *   Lock_ss_WaitQueue_mlh_Head (struct MinNode *)
+ *   Lock_ss_WaitQueue_mlh_Tail (struct MinNode *)
+ *   Lock_ss_WaitQueue_mlh_TailPred (struct MinNode *)
+ *   Lock_ss_MultipleLink_sr_Link_mln_Succ (struct MinNode *)
+ *   Lock_ss_MultipleLink_sr_Link_mln_Pred (struct MinNode *)
+ *   Lock_ss_MultipleLink_sr_Waiter (struct Task *)
+ *   Lock_ss_MultipleLink_sr_Pad_slock (struct spinlock_t::(unnamed at /Users/jkn/aros-build/bin/darwin-aarch64/AROS/Developer/include/aros/types/spinlock_s.h:25:18))
+ *   Lock_ss_MultipleLink_sr_Pad_s_Owner (void *)
+ *   Lock_ss_Owner (struct Task *)
+ *   BackFill (struct Hook *)
+ *   VisibleRegion (struct Region *)
+ *   ClipRegion (struct Region *)
+ *   saveClipRects (struct Region *)
+ *   shape (struct Region *)
+ *   shaperegion (struct Region *)
+ *   visibleshape (struct Region *)
+ *   DamageList (struct Region *)
+ */
+
 static const struct EmuField emu_fields_CyberModeNode[] = {
     {    8,   16,    1, 1, 1, EMU_F_SCALAR },   /* Node_ln_Type             UBYTE */
     {    9,   17,    1, 1, 1, EMU_F_SCALAR },   /* Node_ln_Pri              BYTE */
@@ -2135,6 +2363,54 @@ static const struct EmuField emu_fields_CDrawMsg[] = {
 };
 /* NOT converted, and deliberately not guessed at:
  *   cdm_MemPtr (APTR)
+ */
+
+static const struct EmuField emu_fields_Locale[] = {
+    {   48,   96,    1, 4, 4, EMU_F_SCALAR },   /* loc_Flags                ULONG */
+    {   52,  100,    1, 4, 4, EMU_F_SCALAR },   /* loc_CodeSet              ULONG */
+    {   56,  104,    1, 4, 4, EMU_F_SCALAR },   /* loc_CountryCode          ULONG */
+    {   60,  108,    1, 4, 4, EMU_F_SCALAR },   /* loc_TelephoneCode        ULONG */
+    {   64,  112,    1, 4, 4, EMU_F_SCALAR },   /* loc_GMTOffset            LONG */
+    {   68,  116,    1, 1, 1, EMU_F_SCALAR },   /* loc_MeasuringSystem      UBYTE */
+    {   69,  117,    1, 1, 1, EMU_F_SCALAR },   /* loc_CalendarType         UBYTE */
+    {   70,  118,    2, 1, 1, EMU_F_BYTES },   /* loc_Reserved0            UBYTE[2] */
+    {  136,  248,    1, 1, 1, EMU_F_SCALAR },   /* loc_MonFracDigits        UBYTE */
+    {  137,  249,    1, 1, 1, EMU_F_SCALAR },   /* loc_MonIntFracDigits     UBYTE */
+    {  138,  250,    2, 1, 1, EMU_F_BYTES },   /* loc_Reserved1            UBYTE[2] */
+    {  156,  288,    1, 1, 1, EMU_F_SCALAR },   /* loc_MonPositiveSpaceSep  UBYTE */
+    {  157,  289,    1, 1, 1, EMU_F_SCALAR },   /* loc_MonPositiveSignPos   UBYTE */
+    {  158,  290,    1, 1, 1, EMU_F_SCALAR },   /* loc_MonPositiveCSPos     UBYTE */
+    {  159,  291,    1, 1, 1, EMU_F_SCALAR },   /* loc_Reserved2            UBYTE */
+    {  164,  304,    1, 1, 1, EMU_F_SCALAR },   /* loc_MonNegativeSpaceSep  UBYTE */
+    {  165,  305,    1, 1, 1, EMU_F_SCALAR },   /* loc_MonNegativeSignPos   UBYTE */
+    {  166,  306,    1, 1, 1, EMU_F_SCALAR },   /* loc_MonNegativeCSPos     UBYTE */
+    {  167,  307,    1, 1, 1, EMU_F_SCALAR },   /* loc_Reserved3            UBYTE */
+};
+/* NOT converted, and deliberately not guessed at:
+ *   loc_LocaleName (STRPTR)
+ *   loc_LanguageName (STRPTR)
+ *   loc_PrefLanguages (STRPTR[10])
+ *   loc_DateTimeFormat (STRPTR)
+ *   loc_DateFormat (STRPTR)
+ *   loc_TimeFormat (STRPTR)
+ *   loc_ShortDateTimeFormat (STRPTR)
+ *   loc_ShortDateFormat (STRPTR)
+ *   loc_ShortTimeFormat (STRPTR)
+ *   loc_DecimalPoint (STRPTR)
+ *   loc_GroupSeparator (STRPTR)
+ *   loc_FracGroupSeparator (STRPTR)
+ *   loc_Grouping (UBYTE *)
+ *   loc_FracGrouping (UBYTE *)
+ *   loc_MonDecimalPoint (STRPTR)
+ *   loc_MonGroupSeparator (STRPTR)
+ *   loc_MonFracGroupSeparator (STRPTR)
+ *   loc_MonGrouping (UBYTE *)
+ *   loc_MonFracGrouping (UBYTE *)
+ *   loc_MonCS (STRPTR)
+ *   loc_MonSmallCS (STRPTR)
+ *   loc_MonIntCS (STRPTR)
+ *   loc_MonPositiveSign (STRPTR)
+ *   loc_MonNegativeSign (STRPTR)
  */
 
 /* Followed pointer fields (policy struct_metadata.follow_fields):

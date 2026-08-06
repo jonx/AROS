@@ -94,16 +94,33 @@ int emu68k_gen_locale(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
             snprintf(err, errlen, "capability gap: locale.library.FormatString needs returns a pointer (APTR) described");
         r->d[0] = 0;
         return 1;
-    case 12:  /* GetCatalogStr: no crossing [-72] */
-        if (err && errlen)
-            snprintf(err, errlen, "capability gap: locale.library.GetCatalogStr needs returns a pointer (CONST_STRPTR) described");
-        r->d[0] = 0;
-        return 1;
-    case 13:  /* GetLocaleStr: no crossing [-78] */
-        if (err && errlen)
-            snprintf(err, errlen, "capability gap: locale.library.GetLocaleStr needs returns a pointer (CONST_STRPTR) described");
-        r->d[0] = 0;
-        return 1;
+    case 12:  /* GetCatalogStr(const struct Catalog * catalog, ULONG stringNum, CONST_STRPTR defaultString) -> CONST_STRPTR  [-72] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_Catalog, 1,
+                                        "Catalog", &emu_object_0, err, errlen) < 0)
+            return 1;
+        CONST_STRPTR emu_result = (CONST_STRPTR)GetCatalogStr((const struct Catalog *)emu_object_0,
+              (ULONG)r->d[0],
+              (CONST_STRPTR)EMU_GPTR(guest0, r->a[1]));
+        if (emu68k_cstr_result_to_guest(guest0, emu_result, 4096,
+                                           &r->d[0], err, errlen) < 0)
+            return 1;
+            return 0;
+    }
+    case 13:  /* GetLocaleStr(const struct Locale * locale, ULONG stringNum) -> CONST_STRPTR  [-78] */
+    {
+        APTR emu_object_0;
+        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_Locale, 0,
+                                        "Locale", &emu_object_0, err, errlen) < 0)
+            return 1;
+        CONST_STRPTR emu_result = (CONST_STRPTR)GetLocaleStr((const struct Locale *)emu_object_0,
+              (ULONG)r->d[0]);
+        if (emu68k_cstr_result_to_guest(guest0, emu_result, 4096,
+                                           &r->d[0], err, errlen) < 0)
+            return 1;
+            return 0;
+    }
     case 14:  /* IsAlNum(const struct Locale * locale, ULONG character) -> ULONG  [-84] */
     {
         APTR emu_object_0;

@@ -26,6 +26,16 @@ static const struct EmuMirror emu_mirror_BitMap =
     -1, -1, 1
 };
 
+/* A RastPort the program allocated itself: mirrored natively under its
+ * guest address, converted in and back out around every call. */
+static const struct EmuMirror emu_mirror_RastPort =
+{
+    emu_fields_RastPort, EMU_NFIELDS(emu_fields_RastPort),
+    sizeof(struct RastPort), M68K_RastPort_SIZEOF,
+    0, -1, 0,
+    -1, -1, 1
+};
+
 static const struct EmuTagDesc emu_tagdesc_layers_scale[] =
 {
     { LA_SRCX, EMU_TAG_U32, "LA_SRCX", NULL, 0, 0, 0, 0, 0 },
@@ -116,9 +126,11 @@ int emu68k_gen_layers(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
         if (emu68k_object_sync_guest(guest0, r->a[2], EMU_OBJ_BitMap,
                                      "BitMap", &emu_mirror_BitMap, err, errlen) < 0)
             return 1;
-        if (emu68k_object_to_guest(guest0, emu_result, EMU_OBJ_Layer,
-                                      base, emu_object_cleanup_Layer,
-                                      "Layer", &r->d[0], err, errlen) < 0)
+        if (emu68k_object_to_guest_facade(guest0, emu_result, EMU_OBJ_Layer,
+                                             base, emu_object_cleanup_Layer,
+                                             "Layer", M68K_Layer_SIZEOF,
+                                             emu_fields_Layer, EMU_NFIELDS(emu_fields_Layer),
+                                             &r->d[0], err, errlen) < 0)
             return 1;
             return 0;
     }
@@ -150,9 +162,11 @@ int emu68k_gen_layers(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
         if (emu68k_object_sync_guest(guest0, r->a[2], EMU_OBJ_BitMap,
                                      "BitMap", &emu_mirror_BitMap, err, errlen) < 0)
             return 1;
-        if (emu68k_object_to_guest(guest0, emu_result, EMU_OBJ_Layer,
-                                      base, emu_object_cleanup_Layer,
-                                      "Layer", &r->d[0], err, errlen) < 0)
+        if (emu68k_object_to_guest_facade(guest0, emu_result, EMU_OBJ_Layer,
+                                             base, emu_object_cleanup_Layer,
+                                             "Layer", M68K_Layer_SIZEOF,
+                                             emu_fields_Layer, EMU_NFIELDS(emu_fields_Layer),
+                                             &r->d[0], err, errlen) < 0)
             return 1;
             return 0;
     }
@@ -290,8 +304,8 @@ int emu68k_gen_layers(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
     case 21:  /* SwapBitsRastPortClipRect(struct RastPort * rp, struct ClipRect * cr) -> void  [-126] */
     {
         APTR emu_object_0;
-        if (emu68k_object_from_guest(guest0, r->a[0], EMU_OBJ_RastPort, 1,
-                                        "RastPort", &emu_object_0, err, errlen) < 0)
+        if (emu68k_object_adopt_guest(guest0, r->a[0], EMU_OBJ_RastPort,
+                        "RastPort", &emu_mirror_RastPort, &emu_object_0, err, errlen) < 0)
             return 1;
         APTR emu_object_1;
         if (emu68k_object_from_guest(guest0, r->a[1], EMU_OBJ_ClipRect, 1,
@@ -299,6 +313,9 @@ int emu68k_gen_layers(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
             return 1;
             SwapBitsRastPortClipRect((struct RastPort *)emu_object_0,
               (struct ClipRect *)emu_object_1);
+        if (emu68k_object_sync_guest(guest0, r->a[0], EMU_OBJ_RastPort,
+                                     "RastPort", &emu_mirror_RastPort, err, errlen) < 0)
+            return 1;
             return 0;
     }
     case 22:  /* WhichLayer(struct Layer_Info * li, LONG x, LONG y) -> struct Layer *  [-132] */
@@ -310,9 +327,11 @@ int emu68k_gen_layers(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
         APTR emu_result = (APTR)WhichLayer((struct Layer_Info *)emu_object_0,
               (LONG)r->d[0],
               (LONG)r->d[1]);
-        if (emu68k_object_to_guest(guest0, emu_result, EMU_OBJ_Layer,
-                                      base, NULL,
-                                      "Layer", &r->d[0], err, errlen) < 0)
+        if (emu68k_object_to_guest_facade(guest0, emu_result, EMU_OBJ_Layer,
+                                             base, NULL,
+                                             "Layer", M68K_Layer_SIZEOF,
+                                             emu_fields_Layer, EMU_NFIELDS(emu_fields_Layer),
+                                             &r->d[0], err, errlen) < 0)
             return 1;
             return 0;
     }
@@ -441,9 +460,11 @@ int emu68k_gen_layers(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
         if (emu68k_object_sync_guest(guest0, r->a[2], EMU_OBJ_BitMap,
                                      "BitMap", &emu_mirror_BitMap, err, errlen) < 0)
             return 1;
-        if (emu68k_object_to_guest(guest0, emu_result, EMU_OBJ_Layer,
-                                      base, emu_object_cleanup_Layer,
-                                      "Layer", &r->d[0], err, errlen) < 0)
+        if (emu68k_object_to_guest_facade(guest0, emu_result, EMU_OBJ_Layer,
+                                             base, emu_object_cleanup_Layer,
+                                             "Layer", M68K_Layer_SIZEOF,
+                                             emu_fields_Layer, EMU_NFIELDS(emu_fields_Layer),
+                                             &r->d[0], err, errlen) < 0)
             return 1;
             return 0;
     }
@@ -482,9 +503,11 @@ int emu68k_gen_layers(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
         if (emu68k_object_sync_guest(guest0, r->a[2], EMU_OBJ_BitMap,
                                      "BitMap", &emu_mirror_BitMap, err, errlen) < 0)
             return 1;
-        if (emu68k_object_to_guest(guest0, emu_result, EMU_OBJ_Layer,
-                                      base, emu_object_cleanup_Layer,
-                                      "Layer", &r->d[0], err, errlen) < 0)
+        if (emu68k_object_to_guest_facade(guest0, emu_result, EMU_OBJ_Layer,
+                                             base, emu_object_cleanup_Layer,
+                                             "Layer", M68K_Layer_SIZEOF,
+                                             emu_fields_Layer, EMU_NFIELDS(emu_fields_Layer),
+                                             &r->d[0], err, errlen) < 0)
             return 1;
             return 0;
     }
@@ -576,9 +599,11 @@ int emu68k_gen_layers(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
         if (emu68k_object_sync_guest(guest0, r->a[1], EMU_OBJ_BitMap,
                                      "BitMap", &emu_mirror_BitMap, err, errlen) < 0)
             return 1;
-        if (emu68k_object_to_guest(guest0, emu_result, EMU_OBJ_Layer,
-                                      base, emu_object_cleanup_Layer,
-                                      "Layer", &r->d[0], err, errlen) < 0)
+        if (emu68k_object_to_guest_facade(guest0, emu_result, EMU_OBJ_Layer,
+                                             base, emu_object_cleanup_Layer,
+                                             "Layer", M68K_Layer_SIZEOF,
+                                             emu_fields_Layer, EMU_NFIELDS(emu_fields_Layer),
+                                             &r->d[0], err, errlen) < 0)
             return 1;
             return 0;
     }
@@ -606,9 +631,11 @@ int emu68k_gen_layers(int lvo, struct Emu68kRegs *r, APTR guest0, APTR base,
         if (emu68k_object_sync_guest(guest0, r->a[1], EMU_OBJ_BitMap,
                                      "BitMap", &emu_mirror_BitMap, err, errlen) < 0)
             return 1;
-        if (emu68k_object_to_guest(guest0, emu_result, EMU_OBJ_Layer,
-                                      base, emu_object_cleanup_Layer,
-                                      "Layer", &r->d[0], err, errlen) < 0)
+        if (emu68k_object_to_guest_facade(guest0, emu_result, EMU_OBJ_Layer,
+                                             base, emu_object_cleanup_Layer,
+                                             "Layer", M68K_Layer_SIZEOF,
+                                             emu_fields_Layer, EMU_NFIELDS(emu_fields_Layer),
+                                             &r->d[0], err, errlen) < 0)
             return 1;
             return 0;
     }

@@ -56,6 +56,10 @@ struct Emu68kHostIf
                          unsigned long message, unsigned int *result,
                          char *err, unsigned errlen);
     const char *(*run_progdir)(emu68k_run_h r);
+    int (*run_set_workbench)(emu68k_run_h r, unsigned long argc,
+                             const unsigned int *locks,
+                             const char *const *names,
+                             char *err, unsigned errlen);
 };
 
 struct Emu68kOSCallCtx

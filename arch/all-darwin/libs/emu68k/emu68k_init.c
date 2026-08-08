@@ -35,6 +35,7 @@ static const char *const emu68k_syms[] =
     "emu68k_run_device_base",
     "emu68k_run_set_mouse_buttons",
     "emu68k_run_progdir",
+    "emu68k_run_set_workbench",
     NULL
 };
 
@@ -129,6 +130,7 @@ static int Emu68k_InitLib(LIBBASETYPEPTR LIBBASE)
     LIBBASE->host.run_device_base = syms[11];
     LIBBASE->host.run_set_mouse_buttons = syms[12];
     LIBBASE->host.run_progdir = syms[13];
+    LIBBASE->host.run_set_workbench = syms[14];
     LIBBASE->host_ok = TRUE;
 
     {   /* optional: an older dylib without the symbolizer hook still binds */

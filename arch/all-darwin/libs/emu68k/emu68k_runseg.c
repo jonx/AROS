@@ -13,6 +13,7 @@
 #include <exec/tasks.h>
 #include <dos/dos.h>
 #include <dos/dosextens.h>
+#include <workbench/startup.h>
 
 #include <proto/exec.h>
 #include <proto/dos.h>
@@ -26,6 +27,11 @@ void Emu68k_OSCallEndRun(APTR guest0);
 void Emu68k_OSCallPreopen(void);
 int Emu68k_OSCall(const char *libname, int lvo, APTR regs, APTR guest0,
                   APTR user, char *err, ULONG errlen);
+ULONG emu68k_handle_token(APTR guest0, BPTR b);
+
+/* Workbench arguments carried into the guest: the tool plus the icons it was
+ * dropped on. */
+#define EMU68K_WBARGS_MAX 32
 
 /* dispatcher roundtrips per quantum: small enough that CTRL-C and other tasks
  * stay responsive, large enough that the lock traffic is noise */
@@ -114,6 +120,24 @@ static void emu68k_sink(const char *buf, long len, void *user)
         Write(sc->out, (APTR)buf, len);
 }
 
+/* Give the Workbench launch back what it lent us, in the documented order:
+ * the directory lock goes first, then the message, under Forbid() so the
+ * seglist cannot be unloaded from under the code still returning through it. */
+static void emu68k_wb_finish(APTR DOSBase, struct WBStartup *wbs,
+                             BPTR wbdir, BPTR saved_dir)
+{
+    if (wbdir)
+    {
+        CurrentDir(saved_dir);
+        UnLock(wbdir);
+    }
+    if (wbs)
+    {
+        Forbid();
+        ReplyMsg((struct Message *)wbs);
+    }
+}
+
 AROS_LH2(LONG, Emu68k_RunSeg,
          AROS_LHA(struct Emu68kLaunchCtx *, ctx,    A0),
          AROS_LHA(LONG *,                   result, A1),
@@ -132,6 +156,8 @@ AROS_LH2(LONG, Emu68k_RunSeg,
     ULONG argslen;
     int rc;
     LONG ran = DOSFALSE;
+    struct WBStartup *wbs = NULL;
+    BPTR wbdir = BNULL, saved_dir = BNULL;
 
     if (!ctx || ctx->elc_Version < 2 || !ctx->elc_Image || !ctx->elc_ImageSize)
         return DOSFALSE;
@@ -152,6 +178,31 @@ AROS_LH2(LONG, Emu68k_RunSeg,
     me = (struct Process *)FindTask(NULL);
     saved_winptr = me->pr_WindowPtr;
     me->pr_WindowPtr = (APTR)-1;
+
+    /* A Workbench launch hands the program its startup message on this
+     * process's own port, and expects it back when the program is finished.
+     * Nothing else here will take it: the guest gets a synthetic message of
+     * its own and never sees this one. Left on the port it becomes the next
+     * thing any dos call on this process collects while waiting for its packet
+     * reply, which dos reports as AN_AsyncPkt and the program dies. Take it the
+     * way any Workbench program does, adopt the directory it was started from
+     * (a Workbench process starts with none), and reply at the end of the run. */
+    if (!me->pr_CLI)
+    {
+        /* Workbench sends the message after creating the process, so it may
+         * not have arrived yet - the wait is the protocol, not a delay. It
+         * also accepts a break, because a process can reach here with no CLI
+         * and no Workbench behind it, and a launch that hangs unkillably is a
+         * worse failure than one that runs without its arguments. */
+        Wait((1UL << me->pr_MsgPort.mp_SigBit) | SIGBREAKF_CTRL_C);
+        wbs = (struct WBStartup *)GetMsg(&me->pr_MsgPort);
+        if (wbs && wbs->sm_NumArgs > 0 && wbs->sm_ArgList &&
+            wbs->sm_ArgList[0].wa_Lock)
+        {
+            wbdir = DupLock(wbs->sm_ArgList[0].wa_Lock);
+            if (wbdir) saved_dir = CurrentDir(wbdir);
+        }
+    }
 
     sc.dosbase = DOSBase;
     sc.out     = Output();
@@ -180,6 +231,7 @@ AROS_LH2(LONG, Emu68k_RunSeg,
             ctx->elc_Name ? (const char *)ctx->elc_Name : "", err);
         *result = RETURN_FAIL;
         me->pr_WindowPtr = saved_winptr;
+        emu68k_wb_finish(DOSBase, wbs, wbdir, saved_dir);
         CloseLibrary(DOSBase);
         return DOSTRUE;               /* handled: a routing decision, not a decline */
     }
@@ -214,6 +266,7 @@ AROS_LH2(LONG, Emu68k_RunSeg,
         }
         *result = RETURN_FAIL;
         me->pr_WindowPtr = saved_winptr;
+        emu68k_wb_finish(DOSBase, wbs, wbdir, saved_dir);
         CloseLibrary(DOSBase);
         return DOSTRUE;                  /* handled: reported, not silently declined */
     }
@@ -232,6 +285,36 @@ AROS_LH2(LONG, Emu68k_RunSeg,
     osctx.progdir = Emu68kBase->host.run_progdir;
     if (Emu68kBase->host.set_oscall)
         Emu68kBase->host.set_oscall(Emu68k_OSCall, &osctx);
+
+    /* Give the guest the same launch it would have had on the Amiga: a
+     * WBStartup of its own, carrying each argument's name and a token for its
+     * lock. Without this a Workbench-launched program sees pr_CLI clear and no
+     * message, which is a state it has no code for. Beyond a handful of icons
+     * the tail is dropped rather than refusing the launch - the tool and its
+     * project are what programs read. */
+    if (wbs && Emu68kBase->host.run_set_workbench &&
+        Emu68kBase->host.run_guest0)
+    {
+        APTR guest0 = Emu68kBase->host.run_guest0(run);
+        LONG argc = wbs->sm_NumArgs, i;
+        unsigned int locks[EMU68K_WBARGS_MAX];
+        const char *names[EMU68K_WBARGS_MAX];
+
+        if (argc < 0) argc = 0;
+        if (argc > EMU68K_WBARGS_MAX) argc = EMU68K_WBARGS_MAX;
+        for (i = 0; i < argc; i++)
+        {
+            BPTR lock = wbs->sm_ArgList[i].wa_Lock;
+            locks[i] = lock ? emu68k_handle_token(guest0, lock) : 0;
+            names[i] = (const char *)wbs->sm_ArgList[i].wa_Name;
+        }
+        err[0] = 0;
+        if (argc && Emu68kBase->host.run_set_workbench(run, (unsigned long)argc,
+                                                       locks, names,
+                                                       err, sizeof err))
+            bug("[emu68k.library] \"%s\": Workbench startup not delivered: %s\n",
+                ctx->elc_Name ? (const char *)ctx->elc_Name : "", err);
+    }
 
     D(bug("[emu68k.library] run \"%s\" origin=%lu args=%lub\n",
           ctx->elc_Name ? (const char *)ctx->elc_Name : "",
@@ -320,7 +403,8 @@ AROS_LH2(LONG, Emu68k_RunSeg,
         Emu68k_OSCallEndRun(Emu68kBase->host.run_guest0(run));
     Emu68kBase->host.run_free(run);
     me->pr_WindowPtr = saved_winptr;
-        CloseLibrary(DOSBase);
+    emu68k_wb_finish(DOSBase, wbs, wbdir, saved_dir);
+    CloseLibrary(DOSBase);
     return ran;
 
     AROS_LIBFUNC_EXIT

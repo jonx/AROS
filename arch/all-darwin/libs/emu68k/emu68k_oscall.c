@@ -3117,6 +3117,178 @@ LONG emu68k_object_sync_guest(APTR guest0, ULONG addr, UWORD type,
     return 0;
 }
 
+/* ---- A FONT THE PROGRAM LOADED ITSELF -------------------------------------
+ *
+ * Software of the period ships its own bitmap fonts and loads them with
+ * LoadSeg rather than through diskfont, then hands graphics the TextFont
+ * inside the segment it just loaded.  That structure is guest memory, and
+ * tf_CharData, tf_CharLoc, tf_CharSpace and tf_CharKern hold guest addresses,
+ * so no native library can use it as it stands.
+ *
+ * A font differs from the mirrored structures above in the way that matters:
+ * the library renders from it and never writes to it.  So it is adopted ONCE
+ * into a native TextFont built over copies of its glyph tables, registered
+ * under its guest address so the program reads its own pointer back out of
+ * rp->Font, and released with the run.  Nothing is copied back, because
+ * nothing on the native side changes it.
+ *
+ * The raster is bytes and crosses as bytes; CharLoc, CharSpace and CharKern
+ * are big-endian tables and are converted element by element. */
+static APTR gen_base_for(const char *libname, APTR DOSBase);
+
+static void emu_object_cleanup_guest_textfont(APTR base, APTR object)
+{
+    struct GfxBase *GfxBase = (struct GfxBase *)base;
+    if (GfxBase && object)
+        StripFont((struct TextFont *)object);
+    FreeVec(object);
+}
+
+static struct Emu68kObject *textfont_adopt_guest(APTR guest0, ULONG addr,
+                                                 char *err, ULONG errlen)
+{
+    struct Emu68kRunState *rs = run_state(guest0);
+    struct Emu68kObject *o;
+    struct TextFont *font;
+    UBYTE *block;
+    ULONG lo, hi, chars, modulo, ysize;
+    ULONG gdata, gloc, gspace, gkern, gname;
+    ULONG databytes, locbytes, spanbytes, namelen = 0;
+    ULONG head, off_loc, off_data, off_space, off_kern, off_name, total, i;
+
+    if (!rs)
+    {
+        if (err && errlen)
+            snprintf(err, errlen, "no per-run state to adopt a TextFont");
+        return NULL;
+    }
+    if (emu68k_require_guest_range(addr, M68K_TextFont_SIZEOF, "TextFont",
+                                   err, errlen) < 0)
+        return NULL;
+
+    ysize  = (ULONG)emu68k_scalar_from_guest(guest0, addr + M68K_TextFont_tf_YSize, 2);
+    modulo = (ULONG)emu68k_scalar_from_guest(guest0, addr + M68K_TextFont_tf_Modulo, 2);
+    lo     = (ULONG)emu68k_scalar_from_guest(guest0, addr + M68K_TextFont_tf_LoChar, 1);
+    hi     = (ULONG)emu68k_scalar_from_guest(guest0, addr + M68K_TextFont_tf_HiChar, 1);
+    gdata  = gr32(guest0, addr + M68K_TextFont_tf_CharData);
+    gloc   = gr32(guest0, addr + M68K_TextFont_tf_CharLoc);
+    gspace = gr32(guest0, addr + M68K_TextFont_tf_CharSpace);
+    gkern  = gr32(guest0, addr + M68K_TextFont_tf_CharKern);
+    gname  = gr32(guest0, addr + M68K_TextFont_tf_Message_mn_Node_ln_Name);
+
+    if (hi < lo || !ysize || !modulo || !gdata || !gloc)
+    {
+        if (err && errlen)
+            snprintf(err, errlen, "capability gap: %08lx is not a usable "
+                     "TextFont (YSize %lu, Modulo %lu, chars %lu..%lu)",
+                     (unsigned long)addr, (unsigned long)ysize,
+                     (unsigned long)modulo, (unsigned long)lo,
+                     (unsigned long)hi);
+        return NULL;
+    }
+    chars     = hi - lo + 2;             /* plus the trailing default glyph */
+    databytes = modulo * ysize;
+    locbytes  = chars * 4;
+    spanbytes = chars * 2;
+    if (emu68k_require_guest_range(gdata, databytes, "TextFont glyph data",
+                                   err, errlen) < 0 ||
+        emu68k_require_guest_range(gloc, locbytes, "TextFont CharLoc",
+                                   err, errlen) < 0 ||
+        (gspace && emu68k_require_guest_range(gspace, spanbytes,
+                                   "TextFont CharSpace", err, errlen) < 0) ||
+        (gkern && emu68k_require_guest_range(gkern, spanbytes,
+                                   "TextFont CharKern", err, errlen) < 0))
+        return NULL;
+
+    o = object_slot(rs);
+    if (!o)
+    {
+        if (err && errlen)
+            snprintf(err, errlen, "more live objects than this bridge keeps: "
+                     "adopting a TextFont needs one more");
+        return NULL;
+    }
+
+    if (gname && emu68k_require_guest_range(gname, 1, "TextFont name",
+                                            NULL, 0) >= 0)
+        while (namelen < 64 &&
+               emu68k_scalar_from_guest(guest0, gname + namelen, 1))
+            namelen++;
+
+    /* One allocation, the font first, so releasing it is a single FreeVec. */
+    head      = (sizeof(struct TextFont) + 7u) & ~7u;
+    off_loc   = head;
+    off_data  = off_loc + locbytes;
+    off_space = off_data + ((databytes + 1u) & ~1u);
+    off_kern  = off_space + spanbytes;
+    off_name  = off_kern + spanbytes;
+    total     = off_name + namelen + 1u;
+
+    block = AllocVec(total, MEMF_CLEAR | MEMF_PUBLIC);
+    if (!block)
+    {
+        if (err && errlen)
+            snprintf(err, errlen, "no memory for a %lu-byte native copy of the "
+                     "program's font", (unsigned long)total);
+        return NULL;
+    }
+    font = (struct TextFont *)(void *)block;
+
+    font->tf_Message.mn_Node.ln_Type = NT_FONT;
+    for (i = 0; i < namelen; i++)
+        block[off_name + i] = (UBYTE)emu68k_scalar_from_guest(guest0, gname + i, 1);
+    font->tf_Message.mn_Node.ln_Name = namelen ? (char *)(block + off_name) : NULL;
+    font->tf_YSize     = (UWORD)ysize;
+    font->tf_Style     = (UBYTE)emu68k_scalar_from_guest(guest0, addr + M68K_TextFont_tf_Style, 1);
+    font->tf_Flags     = (UBYTE)emu68k_scalar_from_guest(guest0, addr + M68K_TextFont_tf_Flags, 1);
+    font->tf_XSize     = (UWORD)emu68k_scalar_from_guest(guest0, addr + M68K_TextFont_tf_XSize, 2);
+    font->tf_Baseline  = (UWORD)emu68k_scalar_from_guest(guest0, addr + M68K_TextFont_tf_Baseline, 2);
+    font->tf_BoldSmear = (UWORD)emu68k_scalar_from_guest(guest0, addr + M68K_TextFont_tf_BoldSmear, 2);
+    font->tf_Accessors = 1;
+    font->tf_LoChar    = (UBYTE)lo;
+    font->tf_HiChar    = (UBYTE)hi;
+    font->tf_Modulo    = (UWORD)modulo;
+
+    CopyMem(gptr(guest0, gdata), block + off_data, databytes);
+    font->tf_CharData = block + off_data;
+    for (i = 0; i < chars; i++)
+        ((ULONG *)(void *)(block + off_loc))[i] = gr32(guest0, gloc + i * 4);
+    font->tf_CharLoc = block + off_loc;
+    if (gspace)
+    {
+        for (i = 0; i < chars; i++)
+            ((UWORD *)(void *)(block + off_space))[i] =
+                (UWORD)emu68k_scalar_from_guest(guest0, gspace + i * 2, 2);
+        font->tf_CharSpace = block + off_space;
+    }
+    if (gkern)
+    {
+        for (i = 0; i < chars; i++)
+            ((UWORD *)(void *)(block + off_kern))[i] =
+                (UWORD)emu68k_scalar_from_guest(guest0, gkern + i * 2, 2);
+        font->tf_CharKern = block + off_kern;
+    }
+
+    o->token   = addr;
+    o->native  = font;
+    o->base    = gen_base_for("graphics.library", NULL);
+    o->cleanup = emu_object_cleanup_guest_textfont;
+    o->refs    = 1;
+    o->type    = EMU_OBJ_TextFont;
+    o->flags   = EMU68K_OBJ_GUEST_OWNED;
+    return o;
+}
+
+/* Resolve a TextFont argument: a font this bridge issued, or one the program
+ * loaded itself, adopted on first sight. */
+static struct Emu68kObject *textfont_resolve(APTR guest0, ULONG addr,
+                                             char *err, ULONG errlen)
+{
+    struct Emu68kObject *o = object_by_token(run_state(guest0), addr);
+    if (o) return o->type == EMU_OBJ_TextFont ? o : NULL;
+    return textfont_adopt_guest(guest0, addr, err, errlen);
+}
+
 LONG emu68k_object_from_guest(APTR guest0, ULONG token, UWORD type,
                               BOOL nullable, const char *type_name,
                               APTR *native, char *err, ULONG errlen)
@@ -3133,6 +3305,8 @@ LONG emu68k_object_from_guest(APTR guest0, ULONG token, UWORD type,
         return -1;
     }
     o = object_by_token(run_state(guest0), token);
+    if (!o && type == EMU_OBJ_TextFont)
+        o = textfont_adopt_guest(guest0, token, NULL, 0);
     if (!o)
     {
         if (err && errlen)
@@ -4961,21 +5135,39 @@ int Emu68k_OSCall(const char *libname, int lvo, APTR regs, APTR guest0,
             return 0;
         }
 
+        if (lvo == GRAPHICS_LVO_EXTENDFONT)
+        {
+            struct Emu68kObject *tfo = r->a[0]
+                ? textfont_resolve(guest0, r->a[0], err, errlen) : NULL;
+            if (!tfo) return 1;
+            if (r->a[1])
+            {
+                /* The tag list selects a different rendering path; converting
+                 * it means deciding what each tag does to an adopted font. */
+                if (err && errlen)
+                    snprintf(err, errlen, "capability gap: ExtendFont with a "
+                             "tag list");
+                return 1;
+            }
+            r->d[0] = ExtendFont((struct TextFont *)tfo->native, NULL);
+            return 0;
+        }
+
         if (lvo == GRAPHICS_LVO_SETFONT)
         {
             struct Emu68kObject *rpo = object_by_token(rs, r->a[1]);
-            struct Emu68kObject *tfo = object_by_token(rs, r->a[0]);
+            struct Emu68kObject *tfo = r->a[0]
+                ? textfont_resolve(guest0, r->a[0], err, errlen) : NULL;
             struct GfxBase *GfxBase = (struct GfxBase *)gen_base_for(
                 "graphics.library", DOSBase);
             struct TextFont *font;
             ULONG font_token = r->a[0];
 
-            if (!r->a[1] || (rpo && rpo->type != EMU_OBJ_RastPort) ||
-                (tfo && tfo->type != EMU_OBJ_TextFont))
+            if (!r->a[1] || (rpo && rpo->type != EMU_OBJ_RastPort))
                 return 1;
             if (r->a[0] && !tfo)
             {
-                if (err && errlen)
+                if (err && errlen && !err[0])
                     snprintf(err, errlen, "SetFont received unknown TextFont %08lx",
                              (unsigned long)r->a[0]);
                 return 1;

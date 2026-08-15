@@ -162,7 +162,25 @@ AROS_LH2(LONG, Emu68k_RunSeg,
     if (!ctx || ctx->elc_Version < 2 || !ctx->elc_Image || !ctx->elc_ImageSize)
         return DOSFALSE;
     if (!Emu68kBase->host_ok)
-        return DOSFALSE;
+    {
+        /* This is a broken Macaros installation, not an unsupported program.
+         * Handle it here so DOS does not silently fall through to its generic
+         * "not executable" result. The packaged host also warns at launch, but
+         * this message covers development and any later load failure. */
+        DOSBase = OpenLibrary("dos.library", 36);
+        if (DOSBase)
+        {
+            BPTR out = Output();
+            if (out)
+                FPuts(out, "emu68k: legacy 68k support is unavailable because "
+                           "the Macaros host engine is missing or could not be loaded. "
+                           "Reinstall Macaros from the release disk image.\n");
+            CloseLibrary(DOSBase);
+        }
+        bug("[emu68k.library] host engine unavailable; 68k launch handled as failure\n");
+        if (result) *result = RETURN_FAIL;
+        return DOSTRUE;
+    }
 
     DOSBase = OpenLibrary("dos.library", 36);
     if (!DOSBase)

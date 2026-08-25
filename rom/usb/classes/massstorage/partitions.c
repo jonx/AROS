@@ -45,8 +45,9 @@ static const struct _dt {
     { 0xffffff00, AROS_MAKE_ID('C','P','M','\0'), "cpm-handler"   },
     { 0xffffff00, AROS_MAKE_ID('D','O','S','\0'), "afs-handler"   },
     { 0xffffff00, AROS_MAKE_ID('E','X','T','\0'), "ext-handler"   },
-    { 0xffffff00, AROS_MAKE_ID('F','A','T','\0'), "fat-handler"   },
+    /* Before the masked FAT entry: 'FATX' & 0xffffff00 == 'FAT\0' */
     { 0xffffffff, AROS_MAKE_ID('F','A','T','X' ), EXFAT_HANDLER_NAME },
+    { 0xffffff00, AROS_MAKE_ID('F','A','T','\0'), "fat-handler"   },
     { 0xffffff00, AROS_MAKE_ID('L','V','M','\0'), "lvm-handler"   },
     { 0xffffff00, AROS_MAKE_ID('M','N','X','\0'), "minix-handler" },
     { 0xffffffff, AROS_MAKE_ID('N','T','F','S' ), "ntfs-handler"  },

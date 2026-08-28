@@ -2,7 +2,8 @@ include $(SRCDIR)/config/aros.cfg
 
 #MM- workbench-darwin-$(CPU) : workbench-devs-hostdisk
 
-USER_CPPFLAGS := -DHOST_OS_$(ARCH) -DHOST_OS_$(AROS_TARGET_VARIANT)
+USER_CPPFLAGS := -DAROS_ARCHITECTURE="\"$(AROS_TARGET_PLATFORM)\"" \
+	       -DHOST_OS_$(ARCH) -DHOST_OS_$(AROS_TARGET_VARIANT)
 USER_INCLUDES := -I$(SRCDIR)/arch/all-unix/devs/hostdisk			\
 	       -I$(SRCDIR)/arch/all-hosted/devs/hostdisk		\
 	       -isystem $(GENINCDIR) $(KERNEL_INCLUDES)
@@ -12,6 +13,6 @@ USER_INCLUDES := -I$(SRCDIR)/arch/all-unix/devs/hostdisk			\
 # iOS SDK doesn't have disk IOCTL definitions, so no geometry routines.
 
 %build_archspecific mainmmake=workbench-devs-hostdisk modname=hostdisk maindir=arch/all-hosted/devs/hostdisk \
-    arch=darwin- files="geometry"
+    arch=darwin- files="../../all-unix/devs/hostdisk/hostdisk_host geometry"
 
 %common

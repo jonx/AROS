@@ -95,6 +95,15 @@ LONG DoExamineNext(struct emulbase *emulbase,  struct filehandle *fh, struct Fil
 LONG DoExamineAll(struct emulbase *emulbase, struct filehandle *fh, struct ExAllData *ead,
                   struct ExAllControl *eac, ULONG size, ULONG type, struct DosLibrary *DOSBase);
 
+/*
+ * Mount a host folder while the system runs. dp_Arg1 is a plain C string of the
+ * same form the launcher's AROS_HOST_VOLUME uses, "<Vol>:<hostpath>[;WRITE]".
+ * Private to this handler, hence a name rather than a number in the DOS range.
+ */
+#define ACTION_ADD_HOSTVOLUME AROS_MAKE_ID('H','V','O','L')
+
+LONG EmulAddHostVolume(struct emulbase *emulbase, CONST_STRPTR spec);
+
 char *GetHomeDir(struct emulbase *emulbase, char *user);
 char *GetHostEnv(struct emulbase *emulbase, const char *name);
 /* Name bridge (R-CHARSET + R-NORM): AROS Latin-1 name -> host name (UTF-8 + NFC

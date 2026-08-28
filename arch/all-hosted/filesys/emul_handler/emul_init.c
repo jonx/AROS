@@ -145,6 +145,36 @@ static void mount_one_hostvol(APTR ExpansionBase, char *spec)
     }
 }
 
+/*
+ * Mount one host folder now, on a running system. The launcher hook below does
+ * the same thing at start-up; this is the same step reached later, when the
+ * user asks for another folder from the host side. The handler process is the
+ * one place with the seglist for its own main, so the request comes here rather
+ * than being built by whoever asked.
+ */
+LONG EmulAddHostVolume(struct emulbase *emulbase, CONST_STRPTR spec)
+{
+    APTR ExpansionBase;
+    char copy[512];
+
+    (void)emulbase;
+    if (!spec || !spec[0] || !strchr((const char *)spec, ':'))
+        return FALSE;
+
+    /* mount_one_hostvol keeps the string as the device name, so it must outlive
+     * this call: it is copied into the node by MakeDosNode. */
+    strncpy(copy, (const char *)spec, sizeof(copy) - 1);
+    copy[sizeof(copy) - 1] = 0;
+
+    ExpansionBase = OpenLibrary("expansion.library", 0);
+    if (!ExpansionBase)
+        return FALSE;
+
+    mount_one_hostvol(ExpansionBase, copy);
+    CloseLibrary(ExpansionBase);
+    return TRUE;
+}
+
 static LONG mount_hostvol(struct emulbase *emulbase)
 {
     APTR ExpansionBase;

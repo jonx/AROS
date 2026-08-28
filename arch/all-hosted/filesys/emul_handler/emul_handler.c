@@ -1352,6 +1352,16 @@ static void handlePacket(struct emulbase *emulbase, struct filehandle *fhv, stru
         Res1 = (Res2 == 0) ? DOSTRUE : DOSFALSE;
         break;
 
+    case ACTION_ADD_HOSTVOLUME:
+        /* Mount another host folder while the system runs. dp_Arg1 is a plain C
+         * string, "<Vol>:<hostpath>[;WRITE]", because both ends of this private
+         * action are ours. */
+        DCMD(bug("[emul] ACTION_ADD_HOSTVOLUME: %s\n", (char *)dp->dp_Arg1));
+        Res1 = EmulAddHostVolume(emulbase, (CONST_STRPTR)dp->dp_Arg1)
+             ? DOSTRUE : DOSFALSE;
+        Res2 = Res1 ? 0 : ERROR_OBJECT_WRONG_TYPE;
+        break;
+
 /* FIXME: not supported yet
     case ACTION_MORE_CACHE:
     case ACTION_WAIT_CHAR:

@@ -532,7 +532,11 @@ static void cocoa_handle_setting_event(struct CMEvent *e)
 
     case CM_OPT_VOLUME_ADD:
     case CM_OPT_VOLUME_REMOVE:
-        D(bug("[Cocoa:Settings] host volume %s request received, but string option ABI v3 is not consumed yet\n",
+        /* Not taken from here: this task cannot call DOS, and a host folder is
+         * mounted by the filesystem handler that owns it. The host leaves the
+         * request in the shared folder instead, where a background task picks
+         * it up and asks that handler directly. */
+        D(bug("[Cocoa:Settings] host volume %s request ignored (handled through the shared folder)\n",
               e->code == CM_OPT_VOLUME_ADD ? "add" : "remove"));
         break;
 

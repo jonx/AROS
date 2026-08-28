@@ -7,6 +7,10 @@
     appears, dismounts what is withdrawn, and deletes each request it has
     honoured, so a stick granted from the Mac side shows up without a reboot.
 
+    Host folders arrive the same way, as lines in a request file one directory
+    up ("<Vol>:<hostpath>[;WRITE]"), and are handed to the emulated-filesystem
+    handler, which is the one place that can mount them.
+
     Started at boot with `Run <NIL: >NIL: C:MediaWatch [directory]`. Built with
     detach=yes: it loops forever, and a non-detached CLI child would keep the
     boot console window open in front of the desktop after EndCLI.
@@ -24,6 +28,8 @@
 #include <string.h>
 
 #define DEFAULT_DIR  "MacRW:.macaros-media"
+#define VOLUME_FILE  "MacRW:.macaros-volumes"
+#define ACTION_ADD_HOSTVOLUME 0x48564F4C   /* 'HVOL', private to emul-handler */
 #define POLL_TICKS   40         /* ~0.8s (TICKS_PER_SECOND is 50) */
 #define REMOVE_PFX   ".remove-"
 #define MAX_TRIES    3          /* stop retrying a description that will not mount */
@@ -167,6 +173,77 @@ static void scan(CONST_STRPTR dir)
     UnLock(lock);
 }
 
+/*
+ * Host folders the user offered while the system runs, one spec per line. Each
+ * is mounted once; the file is the standing list, so it is re-read rather than
+ * consumed, and a line already mounted is left alone.
+ */
+static void scan_volumes(void)
+{
+    static char mounted[8][64];
+    static int  nmounted = 0;
+    char line[256];
+    struct MsgPort *handler;
+    BPTR file;
+    LONG n, start, i;
+    char *buffer;
+
+    file = Open((CONST_STRPTR)VOLUME_FILE, MODE_OLDFILE);
+    if (!file)
+        return;
+
+    buffer = AllocVec(4096, MEMF_ANY | MEMF_CLEAR);
+    if (!buffer)
+    {
+        Close(file);
+        return;
+    }
+    n = Read(file, buffer, 4095);
+    Close(file);
+    if (n <= 0)
+    {
+        FreeVec(buffer);
+        return;
+    }
+    buffer[n] = '\0';
+
+    /* The handler that owns the share is the one asked to mount: it is an
+       emulated-filesystem volume, which is what understands the request. */
+    handler = (struct MsgPort *)DeviceProc((CONST_STRPTR)"MacRW:");
+
+    for (start = 0; start <= n; start++)
+    {
+        if (buffer[start] != '\n' && buffer[start] != '\0')
+            continue;
+
+        /* one complete line, [line_start, start) */
+        i = start;
+        while (i > 0 && buffer[i - 1] != '\n')
+            i--;
+        if ((ULONG)(start - i) == 0 || (ULONG)(start - i) >= sizeof(line))
+            continue;
+        memcpy(line, &buffer[i], (size_t)(start - i));
+        line[start - i] = '\0';
+        if (!strchr(line, ':'))
+            continue;
+
+        for (i = 0; i < nmounted; i++)
+            if (strcmp(mounted[i], line) == 0)
+                break;
+        if (i < nmounted || nmounted >= (LONG)(sizeof(mounted) / sizeof(mounted[0])))
+            continue;
+
+        if (handler && DoPkt(handler, ACTION_ADD_HOSTVOLUME, (SIPTR)line, 0, 0, 0, 0))
+        {
+            strncpy(mounted[nmounted], line, sizeof(mounted[0]) - 1);
+            mounted[nmounted][sizeof(mounted[0]) - 1] = '\0';
+            nmounted++;
+        }
+    }
+
+    FreeVec(buffer);
+}
+
 int main(void)
 {
     struct Process *me = (struct Process *)FindTask(NULL);
@@ -187,6 +264,7 @@ int main(void)
     for (;;)
     {
         scan((CONST_STRPTR)dir);
+        scan_volumes();
         Delay(POLL_TICKS);
     }
 

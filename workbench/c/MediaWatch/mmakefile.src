@@ -1,0 +1,19 @@
+# MediaWatch -- background task that mounts host media granted from the Mac
+# side, and dismounts what is withdrawn.
+
+include $(SRCDIR)/config/aros.cfg
+
+FILES   := mediawatch
+
+EXEDIR  := $(AROS_C)
+
+#MM- workbench-c : workbench-c-mediawatch
+#MM workbench-c-mediawatch : includes linklibs
+
+# detach=yes: MediaWatch loops forever, and a non-detached CLI child would keep
+# the boot console referenced, so that window never closes after EndCLI.
+%build_prog mmake=workbench-c-mediawatch \
+    progname=MediaWatch targetdir=$(EXEDIR) \
+    files="$(FILES)" detach=yes
+
+%common

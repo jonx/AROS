@@ -623,10 +623,8 @@ void ExfatProcessPackets(struct Globals *glob)
             err = TestLock(base, glob);
             if (err == 0 && glob->sb->write_handle != NULL)
                 err = ERROR_OBJECT_IN_USE;
-            if (err == 0 && (glob->sb->volume_flags
-                    & (EXFAT_VOLUMEFLAG_DIRTY
-                        | EXFAT_VOLUMEFLAG_MEDIAFAIL)) != 0)
-                err = ERROR_DISK_NOT_VALIDATED;
+            if (err == 0)
+                err = exfat_write_refusal(glob->sb);
             if (err == 0)
                 err = LockPath(glob, base, AROS_BSTR_ADDR(dp->dp_Arg2),
                     AROS_BSTR_strlen(dp->dp_Arg2), EXCLUSIVE_LOCK, &lock);
@@ -680,10 +678,8 @@ void ExfatProcessPackets(struct Globals *glob)
                 err = TestLock(target_base, glob);
             if (err == 0 && glob->sb->write_handle != NULL)
                 err = ERROR_OBJECT_IN_USE;
-            if (err == 0 && (glob->sb->volume_flags
-                    & (EXFAT_VOLUMEFLAG_DIRTY
-                        | EXFAT_VOLUMEFLAG_MEDIAFAIL)) != 0)
-                err = ERROR_DISK_NOT_VALIDATED;
+            if (err == 0)
+                err = exfat_write_refusal(glob->sb);
             if (err == 0)
                 err = LockPath(glob, source_base, source_path,
                     source_length, EXCLUSIVE_LOCK, &source);
@@ -759,10 +755,8 @@ void ExfatProcessPackets(struct Globals *glob)
             err = TestLock(base, glob);
             if (err == 0 && glob->sb->write_handle != NULL)
                 err = ERROR_OBJECT_IN_USE;
-            if (err == 0 && (glob->sb->volume_flags
-                    & (EXFAT_VOLUMEFLAG_DIRTY
-                        | EXFAT_VOLUMEFLAG_MEDIAFAIL)) != 0)
-                err = ERROR_DISK_NOT_VALIDATED;
+            if (err == 0)
+                err = exfat_write_refusal(glob->sb);
             if (err == 0)
                 err = LockPath(glob, base, path, path_length,
                     SHARED_LOCK, &lock);
@@ -818,10 +812,8 @@ void ExfatProcessPackets(struct Globals *glob)
             err = TestLock(base, glob);
             if (err == 0 && glob->sb->write_handle != NULL)
                 err = ERROR_OBJECT_IN_USE;
-            if (err == 0 && (glob->sb->volume_flags
-                    & (EXFAT_VOLUMEFLAG_DIRTY
-                        | EXFAT_VOLUMEFLAG_MEDIAFAIL)) != 0)
-                err = ERROR_DISK_NOT_VALIDATED;
+            if (err == 0)
+                err = exfat_write_refusal(glob->sb);
             if (err == 0)
                 err = LockPath(glob, base, AROS_BSTR_ADDR(dp->dp_Arg3),
                     AROS_BSTR_strlen(dp->dp_Arg3), EXCLUSIVE_LOCK, &lock);
@@ -864,10 +856,8 @@ void ExfatProcessPackets(struct Globals *glob)
             err = TestLock(base, glob);
             if (err == 0 && glob->sb->write_handle != NULL)
                 err = ERROR_OBJECT_IN_USE;
-            if (err == 0 && (glob->sb->volume_flags
-                    & (EXFAT_VOLUMEFLAG_DIRTY
-                        | EXFAT_VOLUMEFLAG_MEDIAFAIL)) != 0)
-                err = ERROR_DISK_NOT_VALIDATED;
+            if (err == 0)
+                err = exfat_write_refusal(glob->sb);
             if (err == 0)
                 err = LockPath(glob, base, AROS_BSTR_ADDR(dp->dp_Arg3),
                     AROS_BSTR_strlen(dp->dp_Arg3), EXCLUSIVE_LOCK, &lock);
@@ -918,10 +908,8 @@ void ExfatProcessPackets(struct Globals *glob)
                     err = ERROR_INVALID_COMPONENT_NAME;
             if (err == 0 && glob->sb->write_handle != NULL)
                 err = ERROR_OBJECT_IN_USE;
-            if (err == 0 && (glob->sb->volume_flags
-                    & (EXFAT_VOLUMEFLAG_DIRTY
-                        | EXFAT_VOLUMEFLAG_MEDIAFAIL)) != 0)
-                err = ERROR_DISK_NOT_VALIDATED;
+            if (err == 0)
+                err = exfat_write_refusal(glob->sb);
             if (err == 0)
             {
 #ifdef AROS_FAST_BPTR
@@ -1016,11 +1004,8 @@ void ExfatProcessPackets(struct Globals *glob)
             err = TestLock(base, glob);
             if (err == 0 && update && glob->sb->write_handle != NULL)
                 err = ERROR_OBJECT_IN_USE;
-            if (err == 0 && update
-                && (glob->sb->volume_flags
-                    & (EXFAT_VOLUMEFLAG_DIRTY
-                        | EXFAT_VOLUMEFLAG_MEDIAFAIL)) != 0)
-                err = ERROR_DISK_NOT_VALIDATED;
+            if (err == 0 && update)
+                err = exfat_write_refusal(glob->sb);
             if (err == 0)
                 err = LockPath(glob, base, AROS_BSTR_ADDR(dp->dp_Arg3),
                     AROS_BSTR_strlen(dp->dp_Arg3),
@@ -1060,10 +1045,8 @@ void ExfatProcessPackets(struct Globals *glob)
             err = TestLock(base, glob);
             if (err == 0 && glob->sb->write_handle != NULL)
                 err = ERROR_OBJECT_IN_USE;
-            if (err == 0 && (glob->sb->volume_flags
-                    & (EXFAT_VOLUMEFLAG_DIRTY
-                        | EXFAT_VOLUMEFLAG_MEDIAFAIL)) != 0)
-                err = ERROR_DISK_NOT_VALIDATED;
+            if (err == 0)
+                err = exfat_write_refusal(glob->sb);
             if (err == 0)
                 err = LockPath(glob, base, path, path_length,
                     EXCLUSIVE_LOCK, &lock);
@@ -1407,9 +1390,7 @@ void ExfatProcessPackets(struct Globals *glob)
             if (glob->sb == NULL) { id->id_DiskType = ID_NO_DISK_PRESENT; err = ERROR_NO_DISK; }
             else
             {
-                if ((glob->sb->volume_flags
-                        & (EXFAT_VOLUMEFLAG_DIRTY
-                            | EXFAT_VOLUMEFLAG_MEDIAFAIL)) != 0)
+                if (exfat_write_refusal(glob->sb) != 0)
                     id->id_DiskState = ID_WRITE_PROTECTED;
                 else if (glob->sb->write_transaction_active)
                     id->id_DiskState = ID_VALIDATING;

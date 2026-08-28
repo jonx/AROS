@@ -15,6 +15,7 @@ void ProcessDiskChange(struct Globals *glob);
 BOOL UpdateDisk(struct Globals *glob);
 BOOL SyncDisk(struct Globals *glob);
 void Probe64BitSupport(struct Globals *glob);
+BOOL DeviceWriteProtected(struct Globals *glob);
 LONG ExfatFormatVolume(struct Globals *glob, CONST_STRPTR name,
     ULONG name_length);
 

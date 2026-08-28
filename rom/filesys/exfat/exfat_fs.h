@@ -111,6 +111,9 @@ struct FSSuper
     /* Validated main-boot-sector state.  A volume which arrived dirty stays
        readable, but is not eligible for writes or for clearing that flag. */
     UWORD             volume_flags;
+    /* The device itself refuses writes (write-protect switch, read-only unit).
+       Probed once per medium, so a swapped-in disk gets its own answer. */
+    BOOL              device_write_protected;
     UWORD             write_transaction_original_flags;
     BOOL              write_transaction_active;
     BOOL              write_transaction_failed;
@@ -122,6 +125,25 @@ struct FSSuper
 
     struct VolumeIdentity volume;
 };
+
+/*
+ * Why this volume cannot be written, or 0 when it can.
+ *
+ * A device that refuses writes is reported as write-protected, which is what a
+ * caller can act on: the medium is intact and complete, it simply may not be
+ * changed. An inherited dirty or media-failure flag is a different statement -
+ * the volume's own consistency is unproven - and keeps the stricter contract,
+ * under which even clearing that flag is refused.
+ */
+static inline LONG exfat_write_refusal(const struct FSSuper *sb)
+{
+    if (sb->device_write_protected)
+        return ERROR_DISK_WRITE_PROTECTED;
+    if ((sb->volume_flags
+            & (EXFAT_VOLUMEFLAG_DIRTY | EXFAT_VOLUMEFLAG_MEDIAFAIL)) != 0)
+        return ERROR_DISK_NOT_VALIDATED;
+    return 0;
+}
 
 /* A validated file entry set, independent of the directory buffer. */
 struct exfat_entry

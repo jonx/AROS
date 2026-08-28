@@ -223,6 +223,9 @@ static LONG MountVolume(struct Globals *glob, UQUAD part_start,
     sb->cluster_count = geo.cluster_count;
     sb->root_cluster  = geo.root_cluster;
     sb->volume_flags  = geo.volume_flags;
+    /* Probed per medium, not per device: a swapped-in disk may answer
+       differently from the one it replaced. */
+    sb->device_write_protected = DeviceWriteProtected(glob);
     sb->online = TRUE;
 
     /*

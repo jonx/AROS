@@ -104,6 +104,25 @@ BOOL UpdateDisk(struct Globals *glob)
     return success;
 }
 
+/*
+ * Whether the device refuses writes: a stick with its write-protect switch on,
+ * or a host-side unit the user opened read-only. A device that does not answer
+ * the command is treated as writable, which is the pre-existing behaviour: the
+ * write itself still fails if it cannot be done.
+ */
+BOOL DeviceWriteProtected(struct Globals *glob)
+{
+    glob->diskioreq->iotd_Req.io_Command = TD_PROTSTATUS;
+    glob->diskioreq->iotd_Req.io_Length = 0;
+    glob->diskioreq->iotd_Req.io_Data = NULL;
+    glob->diskioreq->iotd_Req.io_Actual = 0;
+
+    if (DoIO((struct IORequest *)glob->diskioreq) != 0)
+        return FALSE;
+
+    return glob->diskioreq->iotd_Req.io_Actual != 0;
+}
+
 /* Probe the device to determine 64-bit support */
 void Probe64BitSupport(struct Globals *glob)
 {

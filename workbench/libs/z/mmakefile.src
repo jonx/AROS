@@ -7,7 +7,7 @@ include $(SRCDIR)/$(CURDIR)/make.opt
 
 REPOSITORIES :=  \
     cache:// \
-    https://chromium.googlesource.com/chromium/src/+archive/lkgr/third_party
+    https://chromium.googlesource.com/chromium/src/+archive/7cb8430399f0e51f63f51f212240eadf8fe9c613/third_party
 ARCHSUFFIX := "tar.gz"
 PATCHSPEC := $(ARCHBASE)-aros.diff:$(ARCHBASE):-f,-p1
 

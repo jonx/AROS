@@ -21,7 +21,7 @@
 /*
  * Retrieves next item in the directory and updates dirpos.
  * Also skips unwanted special entries (like . and ..) and the R-SIDECAR
- * metadata files (".<name>.amimeta"), which are reserved and never visible
+ * metadata file (.ameta and its ".ameta.*" temporaries), reserved and never visible
  * to AROS as ordinary files.
  * Host call lock is already acquired so we don't need to do it.
  */

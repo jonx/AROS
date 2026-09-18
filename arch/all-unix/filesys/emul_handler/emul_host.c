@@ -148,9 +148,9 @@ static void entry_hostpath(struct filehandle *fh, const char *foundname, char *d
     if (cap) dst[i] = 0;
 }
 
-/* Read the entry's sidecar and apply it to an Examine result: OR the AmigaOS-
- * only protection bits onto *prot (rwx stays from st_mode) and copy the comment
- * (Latin-1). No-op (clean defaults) when there is no sidecar. */
+/* Apply the entry's .ameta metadata to an Examine result: owner, group and
+ * other rwx stay from st_mode, every other bit comes from .ameta, and the
+ * comment is copied (Latin-1). No-op when the entry has no metadata. */
 static void apply_meta(struct emulbase *emulbase, const char *path, ULONG *prot,
                        char *comment, ULONG commentcap)
 {
@@ -160,7 +160,7 @@ static void apply_meta(struct emulbase *emulbase, const char *path, ULONG *prot,
         comment[0] = 0;
     if (MetaRead(emulbase, path, &m) == 1) {
         if (prot)
-            *prot |= (m.prot & HV_FIBF_AMIGA_ONLY);
+            *prot = (*prot & HV_HOST_MASK) | (m.prot & ~HV_HOST_MASK);
         if (comment && commentcap) {
             ULONG k;
             for (k = 0; m.comment[k] && k + 1 < commentcap; k++)
@@ -179,7 +179,7 @@ static void apply_meta_fib(struct emulbase *emulbase, const char *path, ULONG *p
         comment[0] = 0;
     if (MetaRead(emulbase, path, &m) == 1) {
         if (prot)
-            *prot |= (m.prot & HV_FIBF_AMIGA_ONLY);
+            *prot = (*prot & HV_HOST_MASK) | (m.prot & ~HV_HOST_MASK);
         if (comment && commentcap) {
             ULONG k;
             for (k = 0; m.comment[k] && k + 2 < commentcap && k < 255; k++)
@@ -925,7 +925,7 @@ LONG DoDelete(struct emulbase *emulbase, char *name)
 
     HostLib_Unlock();
 
-    /* R-SIDECAR: drop the metadata sidecar alongside the deleted object. */
+    /* R-SIDECAR: drop the deleted object's entry from its directory's .ameta. */
     if (!ret)
         MetaDelete(emulbase, name);
 
@@ -944,9 +944,9 @@ LONG DoChMod(struct emulbase *emulbase, char *filename, ULONG prot)
 
     HostLib_Unlock();
 
-    /* R-SIDECAR: rwx went to st_mode; persist the AmigaOS-only protection bits
-     * (Archive/Pure/Script/Hold) to the sidecar (keeping any existing comment).
-     * MetaWrite removes the sidecar if nothing non-default remains. */
+    /* R-SIDECAR: rwx went to st_mode; record the whole word in .ameta, which
+     * keeps every bit st_mode cannot (keeping any existing comment) and drops
+     * the entry when nothing non-default remains. */
     if (!ret)
     {
         HVMeta m;
@@ -1018,7 +1018,7 @@ LONG DoRename(struct emulbase *emulbase, char *filename, char *newfilename)
 
     HostLib_Unlock();
 
-    /* R-SIDECAR: keep the metadata sidecar paired with its renamed data file. */
+    /* R-SIDECAR: the entry follows the renamed object, to another .ameta too. */
     if (!error)
         MetaRename(emulbase, filename, newfilename);
 
@@ -1202,7 +1202,7 @@ LONG DoExamineEntry(struct emulbase *emulbase, struct filehandle *fh, char *Entr
     if (err)
         return err;
 
-    /* R-SIDECAR: read the entry's sidecar once for the comment + extra prot. */
+    /* R-SIDECAR: read the entry's .ameta metadata once for comment and prot. */
     {
         char ep[1024];
         entry_hostpath(fh, EntryName, ep, sizeof ep);
@@ -1244,7 +1244,7 @@ LONG DoExamineEntry(struct emulbase *emulbase, struct filehandle *fh, char *Entr
         case ED_PROTECTION:
             ead->ed_Prot        = prot_u2a(st.st_mode);
             if (hasmeta)
-                ead->ed_Prot |= (meta.prot & HV_FIBF_AMIGA_ONLY);
+                ead->ed_Prot = (ead->ed_Prot & HV_HOST_MASK) | (meta.prot & ~HV_HOST_MASK);
         case ED_SIZE:
             ead->ed_Size        = st.st_size;
         case ED_TYPE:
@@ -1343,7 +1343,7 @@ LONG DoExamineNext(struct emulbase *emulbase, struct filehandle *fh,
     FIB->fib_Protection = prot_u2a(st.st_mode);
     FIB->fib_Size       = st.st_size;
 
-    /* R-SIDECAR: comment + AmigaOS-only protection bits from ".<name>.amimeta" */
+    /* R-SIDECAR: comment and the bits st_mode cannot hold, from .ameta */
     {
         char ep[1024];
         entry_hostpath(fh, dir->d_name, ep, sizeof ep);

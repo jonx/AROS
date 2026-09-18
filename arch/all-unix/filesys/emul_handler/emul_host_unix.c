@@ -91,6 +91,8 @@ static const char *libcSymbols[] =
     "getpwent",
     "endpwent",
 #endif
+    "fsync",
+    "flock",
     NULL
 };
 

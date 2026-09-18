@@ -1,32 +1,21 @@
 /*
     Copyright © 2026, The AROS Development Team. All rights reserved.
 
-    Desc: ".<name>.amimeta" per-file metadata sidecar (R-SIDECAR) — AROS overlay.
+    Desc: ".ameta", one Amiga metadata file per host directory (R-SIDECAR).
 
-    The pure parse/format logic is the hosted clean-room spike (R-SIDECAR in
-    docs/features/host-volume/spec.md); the file I/O is routed through the
-    overlay's dlsym'd LibCInterface (HostLib-locked) instead of direct libc.
+    The format is shared with other tools that keep AROS files in host
+    directories: one line-oriented UTF-8 file named .ameta in a directory holds
+    the comment and the protection bits a host mode cannot hold for the
+    entries of that directory. emul_ameta.c parses and writes it; this file
+    finds a directory's .ameta, reads it and replaces it through the dlsym'd
+    LibCInterface, HostLib-locked.
 
-    Two AmigaOS metadata items have no faithful POSIX slot and live here:
-      - the file comment (fib_Comment), and
-      - the AmigaOS-only protection bits (Archive/Pure/Script/Hold) that POSIX
-        rwx cannot hold.
-    The rwx bits keep coming from st_mode; the sidecar only carries the extras,
-    and is written ONLY when a value is non-default (so the host dir stays clean).
-
-    Format (line-oriented ASCII, forward-compatible):
-        amimeta 1
-        prot 0x<hex of the full AROS fib_Protection word>
-        comment <AROS comment bytes, percent-escaped past printable ASCII>
-
-    Deviations from the spec (intentional, justified):
-      - Atomic replace uses open(O_CREAT|O_EXCL) on a per-task temp name rather
-        than mkstemp() — mkstemp is not in the overlay's libc symbol set, and a
-        host volume is served by a single handler process so writes to one
-        sidecar are already serialised. The temp name embeds the task pointer so
-        two volumes backing the same host dir never collide.
-      - The comment is stored as escaped AROS (Latin-1) bytes, not re-encoded to
-        UTF-8; it round-trips byte-exact to AROS, which is what matters here.
+    The handler takes owner, group and other rwx from st_mode and every other
+    protection bit from .ameta, the Delete bit included. A write holds an
+    exclusive flock on the directory, re-reads the file, applies the change,
+    drops the entries whose file is gone, writes a temporary ".ameta.t*" file
+    beside it, checks that .ameta was not replaced meanwhile, and renames the
+    temporary file into place, or deletes .ameta when no entry is left.
 */
 
 #include "unix_hints.h"
@@ -41,6 +30,7 @@
 #include <unistd.h>
 #include <string.h>
 #include <sys/types.h>
+#include <sys/stat.h>
 
 #pragma pack()
 
@@ -58,286 +48,474 @@
 #include "emul_host.h"
 #include "emul_unix.h"
 #include "emul_hostvol.h"
+#include "ameta.h"
 
-/* ---- pure path / classification helpers ---------------------------------- */
+#ifndef LOCK_EX
+#define LOCK_EX 2
+#endif
+#ifndef LOCK_UN
+#define LOCK_UN 8
+#endif
 
-size_t hv_sidecar_path(const char *filepath, char *dst, size_t dstcap)
-{
-    const char *slash = strrchr(filepath, '/');
-    const char *base  = slash ? slash + 1 : filepath;
-    size_t dirlen     = (size_t)(base - filepath);
-    size_t need = 0;
-    #define EMIT(b) do { if (need + 1 < dstcap) dst[need] = (b); need++; } while (0)
-    for (size_t i = 0; i < dirlen; i++) EMIT(filepath[i]);
-    EMIT('.');
-    for (const char *q = base; *q; q++) EMIT(*q);
-    static const char suf[] = ".amimeta";
-    for (const char *q = suf; *q; q++) EMIT(*q);
-    #undef EMIT
-    if (dstcap > 0) dst[(need < dstcap) ? need : dstcap - 1] = '\0';
-    return need;
-}
+#define META_NAME      "/.ameta"
+#define PATH_CAP       1024
+#define WRITE_ATTEMPTS 8
+
+/* ---- names ----------------------------------------------------------------- */
 
 int hv_is_sidecar_name(const char *name)
 {
-    if (name[0] != '.') return 0;
-    size_t len = strlen(name);
-    static const char suf[] = ".amimeta";
-    size_t slen = sizeof(suf) - 1;
-    if (len < slen + 1) return 0;
-    return memcmp(name + len - slen, suf, slen) == 0;
+    return strcmp(name, ".ameta") == 0 || strncmp(name, ".ameta.", 7) == 0;
 }
 
 int hv_meta_is_default(const HVMeta *m)
 {
-    /* A sidecar is needed only for what POSIX rwx + the host cannot hold: the
-     * AmigaOS-only protection bits and the comment. A plain rwx-only change
-     * (already in st_mode) must NOT spawn a sidecar. */
-    return (m->prot & HV_FIBF_AMIGA_ONLY) == 0 && m->comment[0] == '\0';
+    return (m->prot & ~(uint32_t)AMETA_RECORD_MASK) == 0 && m->comment[0] == '\0';
 }
 
-/* ---- comment value escaping (printable-ASCII transparent, reversible) ----- */
-
-static int is_transparent(unsigned char c)
+/* Split "dir/name" into the directory and the name. */
+static int split(const char *path, char *dir, size_t cap, const char **name)
 {
-    return c >= 0x20 && c <= 0x7E && c != '%';
+    const char *slash = strrchr(path, '/');
+    size_t len = slash ? (size_t)(slash - path) : 0;
+    if (!slash || len + 1 > cap)
+        return -1;
+    CopyMem((APTR)path, dir, len);
+    dir[len] = '\0';
+    *name = slash + 1;
+    return 0;
 }
 
-static size_t esc_comment(const char *in, char *out, size_t cap)
+static void join(char *dst, size_t cap, const char *dir, const char *tail, size_t taillen)
 {
-    static const char hexd[] = "0123456789ABCDEF";
-    size_t need = 0;
-    #define PUT(b) do { if (need + 1 < cap) out[need] = (b); need++; } while (0)
-    for (const unsigned char *p = (const unsigned char *)in; *p; p++) {
-        if (is_transparent(*p)) { PUT((char)*p); }
-        else { PUT('%'); PUT(hexd[*p >> 4]); PUT(hexd[*p & 0xF]); }
-    }
-    #undef PUT
-    if (cap > 0) out[(need < cap) ? need : cap - 1] = '\0';
-    return need;
+    size_t i = 0, j;
+    while (dir[i] && i + 1 < cap) { dst[i] = dir[i]; i++; }
+    for (j = 0; j < taillen && i + 1 < cap; j++) dst[i++] = tail[j];
+    dst[i] = '\0';
 }
 
-static int hexval(int c)
+/* ---- reading --------------------------------------------------------------- */
+
+struct loaded
 {
-    if (c >= '0' && c <= '9') return c - '0';
-    if (c >= 'A' && c <= 'F') return c - 'A' + 10;
-    if (c >= 'a' && c <= 'f') return c - 'a' + 10;
-    return -1;
-}
+    char *buf;
+    size_t len;
+    int exists;
+    struct stat id;
+    ameta_arena arena;
+    ameta_file file;
+    int usable;
+};
 
-static void unesc_comment(const char *in, char *out, size_t cap)
+static void report(void *ctx, unsigned line, const char *why)
 {
-    size_t o = 0;
-    for (const char *p = in; *p; p++) {
-        if (*p == '%' && hexval((unsigned char)p[1]) >= 0 &&
-                         hexval((unsigned char)p[2]) >= 0) {
-            int v = (hexval((unsigned char)p[1]) << 4) | hexval((unsigned char)p[2]);
-            if (o + 1 < cap) out[o] = (char)v;
-            o++; p += 2;
-        } else {
-            if (o + 1 < cap) out[o] = *p;
-            o++;
-        }
-    }
-    if (cap > 0) out[(o < cap) ? o : cap - 1] = '\0';
+    bug("[emul] %s line %u: %s\n", (const char *)ctx, line, why);
 }
 
-/* Parse an unsigned hex/decimal word ("0x1F" or "31"); no libc strtoul. */
-static uint32_t parse_u32(const char *s)
+static void unload(struct loaded *l)
 {
-    uint32_t v = 0;
-    if (s[0] == '0' && (s[1] == 'x' || s[1] == 'X')) {
-        s += 2;
-        int h;
-        while ((h = hexval((unsigned char)*s)) >= 0) { v = (v << 4) | (uint32_t)h; s++; }
-    } else {
-        while (*s >= '0' && *s <= '9') { v = v * 10 + (uint32_t)(*s - '0'); s++; }
-    }
-    return v;
+    if (l->buf) FreeVec(l->buf);
+    if (l->arena.base) FreeVec(l->arena.base);
+    memset(l, 0, sizeof *l);
 }
 
-static size_t append_str(char *buf, size_t off, size_t cap, const char *s)
-{
-    while (*s && off + 1 < cap) buf[off++] = *s++;
-    return off;
-}
-
-static size_t append_hex32(char *buf, size_t off, size_t cap, uint32_t v)
-{
-    static const char hexd[] = "0123456789ABCDEF";
-    off = append_str(buf, off, cap, "0x");
-    char d[8]; int n = 0;
-    if (v == 0) { if (off + 1 < cap) buf[off++] = '0'; return off; }
-    while (v) { d[n++] = hexd[v & 0xF]; v >>= 4; }
-    while (n-- > 0 && off + 1 < cap) buf[off++] = d[n];
-    return off;
-}
-
-/* ---- host I/O via the dlsym'd LibCInterface (HostLib-locked) -------------- *
- * Callers must NOT already hold HostLib_Lock(). */
-
-int MetaRead(struct emulbase *emulbase, const char *filepath, HVMeta *out)
+/* Read dir/.ameta. -1 when memory runs out; otherwise l->usable says whether
+ * the file may be rewritten (a file of another version never is). */
+static int load(struct emulbase *emulbase, const char *dir, struct loaded *l)
 {
     struct LibCInterface *iface = emulbase->pdata.SysIFace;
-    char path[1024], buf[1024];
-    int fd, rc = 0;
-    ssize_t total = 0, r = 0;
+    char path[PATH_CAP];
+    int fd;
 
-    out->prot = HV_PROT_DEFAULT;
-    out->comment[0] = '\0';
-
-    hv_sidecar_path(filepath, path, sizeof path);
+    memset(l, 0, sizeof *l);
+    join(path, sizeof path, dir, META_NAME, sizeof META_NAME - 1);
 
     HostLib_Lock();
     fd = iface->open(path, O_RDONLY, 0);
     AROS_HOST_BARRIER
-    if (fd < 0) { HostLib_Unlock(); return 0; }   /* absent -> defaults */
-
-    while ((r = iface->read(fd, buf + total, sizeof(buf) - 1 - (size_t)total)) > 0) {
+    if (fd >= 0) {
+        if (iface->fstat(fd, &l->id) == 0) {
+            AROS_HOST_BARRIER
+            size_t cap = (size_t)l->id.st_size + 1;
+            if (cap <= AMETA_MAX_FILE + 1)
+                l->buf = AllocVec(cap, MEMF_ANY);
+            l->exists = 1;
+            while (l->buf && l->len + 1 < cap) {
+                ssize_t r = iface->read(fd, l->buf + l->len, cap - 1 - l->len);
+                AROS_HOST_BARRIER
+                if (r <= 0)
+                    break;
+                l->len += (size_t)r;
+            }
+        }
         AROS_HOST_BARRIER
-        total += r;
-        if ((size_t)total >= sizeof(buf) - 1) break;
+        iface->close(fd);
+        AROS_HOST_BARRIER
     }
-    AROS_HOST_BARRIER
-    iface->close(fd);
-    AROS_HOST_BARRIER
     HostLib_Unlock();
 
-    if (r < 0) return -1;
-    buf[total] = '\0';
+    if (l->exists && !l->buf) {
+        /* Larger than the format allows: report it and leave it alone. */
+        report(path, 0, "file-too-large");
+        l->usable = 0;
+        return 0;
+    }
+    l->arena.cap = l->len * 4 + 65536;
+    l->arena.base = AllocVec(l->arena.cap, MEMF_ANY);
+    if (!l->arena.base)
+        return -1;
+    l->usable = ameta_parse(l->buf ? l->buf : "", l->len, &l->arena, &l->file, report, path)
+                == AMETA_OK;
+    return 0;
+}
 
-    int saw_header = 0;
-    char *line = buf, *nl;
-    do {
-        nl = strchr(line, '\n');
-        if (nl) *nl = '\0';
-        char *sp = strchr(line, ' ');
-        const char *key = line, *val = "";
-        if (sp) { *sp = '\0'; val = sp + 1; }
+int MetaRead(struct emulbase *emulbase, const char *filepath, HVMeta *out)
+{
+    char dir[PATH_CAP];
+    const char *name;
+    struct loaded l;
+    ameta_entry *e;
+    int found = 0;
 
-        if (strcmp(key, "amimeta") == 0)      saw_header = 1;
-        else if (strcmp(key, "prot") == 0)    out->prot = parse_u32(val);
-        else if (strcmp(key, "comment") == 0) {
-            char tmp[HV_COMMENT_MAX * 3 + 1];
-            unesc_comment(val, tmp, sizeof tmp);
-            strncpy(out->comment, tmp, HV_COMMENT_MAX);
-            out->comment[HV_COMMENT_MAX] = '\0';
+    out->prot = HV_PROT_DEFAULT;
+    out->comment[0] = '\0';
+    if (split(filepath, dir, sizeof dir, &name) != 0 || load(emulbase, dir, &l) != 0)
+        return -1;
+    e = l.usable ? ameta_find(&l.file, (const unsigned char *)name, strlen(name)) : NULL;
+    if (e) {
+        if (e->has_prot)
+            out->prot = (uint32_t)e->prot;
+        ameta_comment_to_latin1(e->comment, e->comment_len, out->comment, sizeof out->comment);
+        found = 1;
+    }
+    unload(&l);
+    return found;
+}
+
+/* ---- writing --------------------------------------------------------------- */
+
+struct directory
+{
+    struct emulbase *emulbase;
+    const char *dir;
+};
+
+static int present(void *ctx, const unsigned char *name, size_t len)
+{
+    struct directory *d = ctx;
+    struct emulbase *emulbase = d->emulbase;   /* HostLib_Lock() names it */
+    struct LibCInterface *iface = emulbase->pdata.SysIFace;
+    char path[PATH_CAP], tail[PATH_CAP];
+    struct stat st;
+    int rc;
+
+    if (len + 2 > sizeof tail)
+        return 1;
+    tail[0] = '/';
+    CopyMem((APTR)name, tail + 1, len);
+    join(path, sizeof path, d->dir, tail, len + 1);
+    HostLib_Lock();
+    rc = iface->lstat(path, &st);
+    AROS_HOST_BARRIER
+    HostLib_Unlock();
+    return rc == 0;
+}
+
+static int same_identity(struct emulbase *emulbase, const struct loaded *l, const char *path)
+{
+    struct LibCInterface *iface = emulbase->pdata.SysIFace;
+    struct stat now;
+    int rc;
+    HostLib_Lock();
+    rc = iface->stat((char *)path, &now);
+    AROS_HOST_BARRIER
+    HostLib_Unlock();
+    if (rc != 0)
+        return !l->exists;
+    return l->exists && now.st_dev == l->id.st_dev && now.st_ino == l->id.st_ino
+           && now.st_size == l->id.st_size && now.st_mtime == l->id.st_mtime;
+}
+
+/* Write body to a new ".ameta.t*" file beside path; its name goes to tmp. */
+static int write_temporary(struct emulbase *emulbase, const char *path, char *tmp,
+                           const char *body, size_t len)
+{
+    static ULONG serial;
+    struct LibCInterface *iface = emulbase->pdata.SysIFace;
+    static const char hex[] = "0123456789abcdef";
+    int attempt, fd = -1;
+
+    for (attempt = 0; attempt < 16 && fd < 0; attempt++) {
+        IPTR stamp = (IPTR)FindTask(NULL) ^ (IPTR)(++serial << 20);
+        char tail[24];
+        size_t t = 0;
+        int k;
+        tail[t++] = '.';
+        tail[t++] = 't';
+        for (k = (int)(2 * sizeof stamp) - 1; k >= 0; k--)
+            tail[t++] = hex[(stamp >> (4 * k)) & 0xF];
+        join(tmp, PATH_CAP, path, tail, t);
+        HostLib_Lock();
+        fd = iface->open(tmp, O_WRONLY | O_CREAT | O_EXCL, 0644);
+        AROS_HOST_BARRIER
+        HostLib_Unlock();
+    }
+    if (fd < 0)
+        return -1;
+
+    HostLib_Lock();
+    /* See emul_host.c: darwin/aarch64 hosted can lose the variadic open()
+     * mode across the host-libc function pointer boundary. */
+    iface->chmod(tmp, 0644);
+    AROS_HOST_BARRIER
+    {
+        size_t done = 0;
+        while (done < len) {
+            ssize_t n = iface->write(fd, body + done, len - done);
+            AROS_HOST_BARRIER
+            if (n <= 0)
+                break;
+            done += (size_t)n;
         }
-        line = nl ? nl + 1 : NULL;
-    } while (line && *line);
+        iface->fsync(fd);
+        AROS_HOST_BARRIER
+        iface->close(fd);
+        AROS_HOST_BARRIER
+        if (done != len) {
+            iface->unlink(tmp);
+            AROS_HOST_BARRIER
+            HostLib_Unlock();
+            return -1;
+        }
+    }
+    HostLib_Unlock();
+    return 0;
+}
 
-    (void)rc;
-    if (!saw_header) return -1;
-    return 1;
+typedef int (*change_fn)(ameta_file *f, ameta_arena *a, void *arg);
+
+static int rewrite_locked(struct emulbase *emulbase, const char *dir, change_fn change, void *arg)
+{
+    struct LibCInterface *iface = emulbase->pdata.SysIFace;
+    struct directory d = { emulbase, dir };
+    char path[PATH_CAP], tmp[PATH_CAP];
+    int attempt;
+
+    join(path, sizeof path, dir, META_NAME, sizeof META_NAME - 1);
+    for (attempt = 0; attempt < WRITE_ATTEMPTS; attempt++) {
+        struct loaded l;
+        size_t need;
+        char *body = NULL;
+        int ok;
+
+        if (load(emulbase, dir, &l) != 0)
+            return -1;
+        if (!l.usable) {
+            /* Never overwrite what could not be read: it may be a newer version. */
+            unload(&l);
+            return -1;
+        }
+        /* The change first: the host operation it follows (a rename, a
+         * delete) has already happened, so pruning first would take a
+         * renamed file's entry for a stale one. */
+        if (change(&l.file, &l.arena, arg) != 0) {
+            unload(&l);
+            return -1;
+        }
+        ameta_prune(&l.file, present, &d);
+        need = ameta_format(&l.file, NULL, 0);
+        if (need) {
+            body = AllocVec(need, MEMF_ANY);
+            if (!body) {
+                unload(&l);
+                return -1;
+            }
+            ameta_format(&l.file, body, need);
+            if (write_temporary(emulbase, path, tmp, body, need) != 0) {
+                FreeVec(body);
+                unload(&l);
+                return -1;
+            }
+        }
+        if (!same_identity(emulbase, &l, path)) {
+            if (need) {
+                HostLib_Lock();
+                iface->unlink(tmp);
+                AROS_HOST_BARRIER
+                HostLib_Unlock();
+                FreeVec(body);
+            }
+            unload(&l);
+            continue;
+        }
+        HostLib_Lock();
+        if (need) {
+            ok = iface->rename(tmp, path) == 0;
+            AROS_HOST_BARRIER
+            if (!ok) {
+                iface->unlink(tmp);
+                AROS_HOST_BARRIER
+            }
+        } else {
+            struct stat st;
+            ok = iface->unlink(path) == 0 || iface->lstat(path, &st) != 0;
+            AROS_HOST_BARRIER
+        }
+        HostLib_Unlock();
+        if (body)
+            FreeVec(body);
+        unload(&l);
+        return ok ? 0 : -1;
+    }
+    bug("[emul] %s kept changing; metadata not written\n", path);
+    return -1;
+}
+
+/* Writers of one directory's .ameta take turns on the directory itself; the
+ * identity check in rewrite_locked guards against a writer that cannot lock. */
+static int rewrite(struct emulbase *emulbase, const char *dir, change_fn change, void *arg)
+{
+    struct LibCInterface *iface = emulbase->pdata.SysIFace;
+    int lock, rc;
+
+    HostLib_Lock();
+    lock = iface->open((char *)dir, O_RDONLY, 0);
+    AROS_HOST_BARRIER
+    if (lock >= 0) {
+        iface->flock(lock, LOCK_EX);
+        AROS_HOST_BARRIER
+    }
+    HostLib_Unlock();
+
+    rc = rewrite_locked(emulbase, dir, change, arg);
+
+    if (lock >= 0) {
+        HostLib_Lock();
+        iface->flock(lock, LOCK_UN);
+        AROS_HOST_BARRIER
+        iface->close(lock);
+        AROS_HOST_BARRIER
+        HostLib_Unlock();
+    }
+    return rc;
+}
+
+struct set_args
+{
+    const char *name;
+    const HVMeta *meta;
+};
+
+static int set_entry(ameta_file *f, ameta_arena *a, void *arg)
+{
+    const struct set_args *s = arg;
+    size_t len = strlen(s->name);
+    ameta_entry *e = ameta_get(f, a, (const unsigned char *)s->name, len);
+    char utf8[HV_COMMENT_MAX * 6 + 1];
+    if (!e)
+        return -1;
+    /* Bits above 31 belong to the entry, not to this 32-bit word: keep them. */
+    e->prot = (e->has_prot ? e->prot & ~0xFFFFFFFFull : 0) | s->meta->prot;
+    e->has_prot = 1;
+    ameta_comment_to_utf8(s->meta->comment, utf8, sizeof utf8);
+    return ameta_set_comment(e, a, (const unsigned char *)utf8, strlen(utf8));
 }
 
 int MetaWrite(struct emulbase *emulbase, const char *filepath, const HVMeta *m)
 {
-    struct LibCInterface *iface = emulbase->pdata.SysIFace;
-    char path[1024], tmp[1024 + 24], body[HV_COMMENT_MAX * 3 + 256];
-    int fd, ret = 0;
-    size_t off = 0, wr = 0;
-
-    hv_sidecar_path(filepath, path, sizeof path);
-
-    /* Default metadata: remove any sidecar, keep the host dir clean. */
-    if (hv_meta_is_default(m)) {
-        HostLib_Lock();
-        iface->unlink(path);
-        AROS_HOST_BARRIER
-        HostLib_Unlock();
-        return 0;
-    }
-
-    off = append_str(body, off, sizeof body, "amimeta 1\nprot ");
-    off = append_hex32(body, off, sizeof body, m->prot);
-    off = append_str(body, off, sizeof body, "\n");
-    if (m->comment[0]) {
-        char esc[HV_COMMENT_MAX * 3 + 1];
-        esc_comment(m->comment, esc, sizeof esc);
-        off = append_str(body, off, sizeof body, "comment ");
-        off = append_str(body, off, sizeof body, esc);
-        off = append_str(body, off, sizeof body, "\n");
-    }
-
-    /* temp name = "<sidecar>.t<taskptr-hex>" in the SAME dir (atomic rename).
-     * The task pointer keeps it unique across volumes sharing a host dir. */
-    {
-        size_t pl = strlen(path);
-        APTR task = FindTask(NULL);
-        if (pl + 20 >= sizeof tmp) return -1;
-        CopyMem(path, tmp, pl);
-        size_t to = append_str(tmp, pl, sizeof tmp, ".t");
-        to = append_hex32(tmp, to, sizeof tmp, (uint32_t)(IPTR)task);
-        tmp[to] = '\0';
-    }
-
-    HostLib_Lock();
-    fd = iface->open(tmp, O_WRONLY | O_CREAT | O_TRUNC, 0644);
-    AROS_HOST_BARRIER
-    if (fd < 0) { HostLib_Unlock(); return -1; }
-    /* See emul_host.c: darwin/aarch64 hosted can lose the variadic open()
-     * mode across the host-libc function pointer boundary.
-     */
-    iface->chmod(tmp, 0644);
-    AROS_HOST_BARRIER
-
-    while (wr < off) {
-        ssize_t n = iface->write(fd, body + wr, off - wr);
-        AROS_HOST_BARRIER
-        if (n < 0) { iface->close(fd); AROS_HOST_BARRIER
-                     iface->unlink(tmp); AROS_HOST_BARRIER
-                     HostLib_Unlock(); return -1; }
-        wr += (size_t)n;
-    }
-    iface->close(fd);
-    AROS_HOST_BARRIER
-    if (iface->rename(tmp, path) != 0) {
-        AROS_HOST_BARRIER
-        iface->unlink(tmp);
-        AROS_HOST_BARRIER
-        ret = -1;
-    } else
-        AROS_HOST_BARRIER
-    HostLib_Unlock();
-
-    return ret;
+    char dir[PATH_CAP];
+    struct set_args s;
+    if (split(filepath, dir, sizeof dir, &s.name) != 0)
+        return -1;
+    s.meta = m;
+    return rewrite(emulbase, dir, set_entry, &s);
 }
 
-/* Rename the sidecar alongside a renamed data file (best-effort). */
+struct rename_args
+{
+    const char *from, *to;
+};
+
+static int rename_entry(ameta_file *f, ameta_arena *a, void *arg)
+{
+    const struct rename_args *r = arg;
+    return ameta_rename(f, a, (const unsigned char *)r->from, strlen(r->from),
+                        (const unsigned char *)r->to, strlen(r->to));
+}
+
+struct move_args
+{
+    const ameta_entry *entry;
+    const char *name;
+};
+
+static int put_entry(ameta_file *f, ameta_arena *a, void *arg)
+{
+    const struct move_args *m = arg;
+    return ameta_copy_entry(f, a, m->entry, (const unsigned char *)m->name, strlen(m->name))
+               ? 0 : -1;
+}
+
+struct delete_args
+{
+    const char *name;
+};
+
+static int delete_entry(ameta_file *f, ameta_arena *a, void *arg)
+{
+    const struct delete_args *d = arg;
+    (void)a;
+    ameta_remove(f, (const unsigned char *)d->name, strlen(d->name));
+    return 0;
+}
+
+/* Keep the metadata with a renamed or moved file; call after the host rename. */
 void MetaRename(struct emulbase *emulbase, const char *oldpath, const char *newpath)
 {
-    struct LibCInterface *iface = emulbase->pdata.SysIFace;
-    char os[1024], ns[1024];
-    hv_sidecar_path(oldpath, os, sizeof os);
-    hv_sidecar_path(newpath, ns, sizeof ns);
-    HostLib_Lock();
-    iface->rename(os, ns);          /* ENOENT if no sidecar — harmless */
-    AROS_HOST_BARRIER
-    HostLib_Unlock();
+    char olddir[PATH_CAP], newdir[PATH_CAP];
+    const char *oldname, *newname;
+
+    if (split(oldpath, olddir, sizeof olddir, &oldname) != 0
+        || split(newpath, newdir, sizeof newdir, &newname) != 0)
+        return;
+    if (strcmp(olddir, newdir) == 0) {
+        struct rename_args r = { oldname, newname };
+        rewrite(emulbase, olddir, rename_entry, &r);
+        return;
+    }
+    {
+        struct loaded l;
+        ameta_entry *e;
+        if (load(emulbase, olddir, &l) != 0)
+            return;
+        e = l.usable ? ameta_find(&l.file, (const unsigned char *)oldname, strlen(oldname)) : NULL;
+        if (e) {
+            struct move_args m = { e, newname };
+            struct delete_args d = { oldname };
+            if (rewrite(emulbase, newdir, put_entry, &m) == 0)
+                rewrite(emulbase, olddir, delete_entry, &d);
+        }
+        unload(&l);
+    }
 }
 
-/* Delete the sidecar alongside a deleted data file (best-effort). */
+/* Drop the metadata of a deleted file; call after the host delete. */
 void MetaDelete(struct emulbase *emulbase, const char *filepath)
 {
-    struct LibCInterface *iface = emulbase->pdata.SysIFace;
-    char s[1024];
-    hv_sidecar_path(filepath, s, sizeof s);
-    HostLib_Lock();
-    iface->unlink(s);               /* ENOENT if no sidecar — harmless */
-    AROS_HOST_BARRIER
-    HostLib_Unlock();
+    char dir[PATH_CAP];
+    struct delete_args d;
+    if (split(filepath, dir, sizeof dir, &d.name) != 0)
+        return;
+    rewrite(emulbase, dir, delete_entry, &d);
 }
 
-/* ACTION_SET_COMMENT: persist the AROS file comment to the sidecar, preserving
- * any existing protection bits. An empty comment with no extra prot bits
- * removes the sidecar (MetaWrite's omit-when-default). */
+/* ACTION_SET_COMMENT: record the comment, keeping the entry's protection. */
 LONG DoSetComment(struct emulbase *emulbase, char *fullname, const char *comment)
 {
     HVMeta m;
     ULONG i;
 
-    MetaRead(emulbase, fullname, &m);       /* keep existing prot bits */
+    MetaRead(emulbase, fullname, &m);
     for (i = 0; comment[i] && i < HV_COMMENT_MAX; i++)
         m.comment[i] = comment[i];
     m.comment[i] = 0;

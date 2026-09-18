@@ -61,13 +61,12 @@ size_t hv_latin1_to_utf8(const char *latin1, char *dst, size_t dstcap);
 size_t hv_utf8_to_latin1(const char *utf8, char *dst, size_t dstcap);
 
 /* ------------------------------------------------------------------ *
- *  R-SIDECAR — ".<name>.amimeta" per-file metadata sidecar
+ *  R-SIDECAR — ".ameta", one metadata file per host directory
  *
- *  AmigaOS fib_Protection layout (public AmigaOS ABI, restated [PUB]):
- *  low nibble is ACTIVE-LOW delete/execute/write/read; the upper bits are
- *  the AmigaOS-only Archive/Pure/Script/Hold that POSIX rwx cannot hold.
- *  We round-trip the FULL 32-bit word; the handler keeps rwx from st_mode
- *  and OR-s in the AmigaOS-only bits from the sidecar.
+ *  AmigaOS fib_Protection layout (public AmigaOS ABI, restated [PUB]): the
+ *  low nibble is ACTIVE-LOW delete/execute/write/read. The handler takes
+ *  owner, group and other rwx from st_mode and every other bit from .ameta,
+ *  the Delete bit included.
  * ------------------------------------------------------------------ */
 
 /* fib_Protection bits (AmigaOS public ABI). Active-low for DEWR. */
@@ -80,10 +79,8 @@ size_t hv_utf8_to_latin1(const char *utf8, char *dst, size_t dstcap);
 #define HV_FIBF_SCRIPT   (1u << 6)   /* AmigaOS-only */
 #define HV_FIBF_HOLD     (1u << 7)   /* AmigaOS-only */
 
-/* The mask of bits the sidecar exists to preserve (everything POSIX rwx
- * cannot represent: the AmigaOS-only upper bits). */
-#define HV_FIBF_AMIGA_ONLY \
-    (HV_FIBF_ARCHIVE | HV_FIBF_PURE | HV_FIBF_SCRIPT | HV_FIBF_HOLD)
+/* The bits st_mode holds (owner, group and other rwx); .ameta holds the rest. */
+#define HV_HOST_MASK 0xEE0Eu
 
 /* The default protection a fresh file carries (rwxd available => all four
  * active-low bits CLEAR). A file with this protection and an empty comment
@@ -97,32 +94,26 @@ typedef struct {
     char     comment[HV_COMMENT_MAX + 1]; /* NUL-terminated Latin-1 (AROS) */
 } HVMeta;
 
-/* Build the sidecar path ".<basename>.amimeta" for a data-file path.
- * Handles a trailing slash-free path; writes to dst (snprintf-style return).
- * e.g. "/a/b/foo.txt" -> "/a/b/.foo.txt.amimeta". */
-size_t hv_sidecar_path(const char *filepath, char *dst, size_t dstcap);
-
-/* True (1) if a name is itself a sidecar (matches ".*.amimeta") and so must
- * be skipped during enumeration (the spec's is_special_dir extension). */
+/* True (1) for .ameta and a writer's temporary ".ameta.*" file, which
+ * enumeration skips. */
 int hv_is_sidecar_name(const char *name);
 
-/* True (1) if this metadata is the default (no sidecar should exist). */
+/* True (1) if this metadata needs no entry in .ameta. */
 int hv_meta_is_default(const HVMeta *m);
 
-/* AROS overlay sidecar I/O (file access via the dlsym'd LibCInterface). */
+/* AROS overlay .ameta I/O (file access via the dlsym'd LibCInterface). */
 struct emulbase;
 
-/* Read the sidecar for filepath into *out. Returns 1 if a sidecar existed
- * and parsed (out filled), 0 if absent (out set to defaults), -1 on a hard
- * I/O/parse error. Caller must NOT hold HostLib_Lock(). */
+/* Read filepath's entry from its directory's .ameta. Returns 1 if there is
+ * one, 0 if not (out set to defaults), -1 when memory runs out. A malformed
+ * line is reported and skipped. Caller must NOT hold HostLib_Lock(). */
 int MetaRead(struct emulbase *emulbase, const char *filepath, HVMeta *out);
 
-/* Persist metadata for filepath: if *m is default, removes any existing
- * sidecar (keeps the host dir clean); otherwise writes it atomically
- * (temp file in the same dir + rename). Returns 0 on success, -1 on error. */
+/* Record filepath's metadata in its directory's .ameta, dropping the entry
+ * when it is default and the file when no entry is left. Returns 0 or -1. */
 int MetaWrite(struct emulbase *emulbase, const char *filepath, const HVMeta *m);
 
-/* Keep the sidecar paired with its data file across rename/delete. */
+/* Keep .ameta in step with a rename, a move or a delete, after the host did it. */
 void MetaRename(struct emulbase *emulbase, const char *oldpath, const char *newpath);
 void MetaDelete(struct emulbase *emulbase, const char *filepath);
 
